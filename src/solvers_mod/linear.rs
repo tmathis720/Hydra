@@ -76,23 +76,29 @@ mod tests {
     #[test]
     fn test_linear_solver_flux_computation() {
         let mut mesh = Mesh::new();
-
+    
         mesh.add_node(1, 0.0, 0.0, 0.0);
         mesh.add_node(2, 1.0, 0.0, 0.0);
         mesh.add_node(3, 0.0, 1.0, 0.0);
         mesh.add_node(4, 1.0, 1.0, 0.0);
-
+    
         mesh.add_element(1, [1, 2, 3], vec![1, 2]);
         mesh.add_element(2, [2, 3, 4], vec![1, 2]);
-
+    
         mesh.elements[0].state = 10.0;
         mesh.elements[1].state = 5.0;
-
+    
         mesh.build_neighbors();
-
+    
         let solver = LinearSolver::new(mesh);
         let fluxes = solver.compute_fluxes();
-
+    
+        // Debugging output to help diagnose issues
+        println!("Fluxes: {:?}", fluxes);
+        println!("Element 1 Neighbors: {:?}", solver.mesh.elements[0].neighbors);
+        println!("Element 2 Neighbors: {:?}", solver.mesh.elements[1].neighbors);
+    
+        assert_eq!(fluxes.len(), 2);
         assert!((fluxes[0] - -2.5).abs() < 1e-6, "Flux mismatch for element 1");
         assert!((fluxes[1] - 2.5).abs() < 1e-6, "Flux mismatch for element 2");
     }

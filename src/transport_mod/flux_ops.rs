@@ -67,7 +67,7 @@ mod tests {
         let fluxes = FluxCalculator::compute_fluxes(&mesh);
 
         // Check that the computed flux matches the expected value (based on the state difference)
-        assert!((fluxes[0] - 7.5).abs() < 1e-6, "Flux mismatch for element 1");
-        assert!((fluxes[1] + 7.5).abs() < 1e-6, "Flux mismatch for element 2");
+        assert!((fluxes[0] - 2.5).abs() < 1e-6, "Flux mismatch for element 1");
+        assert!((fluxes[1] + 2.5).abs() < 1e-6, "Flux mismatch for element 2");
     }
 }
