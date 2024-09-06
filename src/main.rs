@@ -13,11 +13,12 @@ fn main() {
     // Mesh loading and operations
     let mesh_file = "C:/rust_projects/HYDRA/inputs/test.msh2";
     let mut mesh = Mesh::load_from_gmsh(mesh_file).unwrap();
-    
+    let mut tol = 0.01;
+    let mut max_iter = 100;
     println!("Mesh loaded: {} nodes, {} elements", mesh.nodes.len(), mesh.elements.len());
 
     // Initialize the linear solver with the mesh
-    let mut solver = LinearSolver::new(mesh);
+    let mut solver = LinearSolver::new(mesh, tol, max_iter);
 
     // Create an Explicit Euler time stepper with a time step size of 0.01
     let mut time_stepper = ExplicitEuler::new(0.01);

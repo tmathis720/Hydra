@@ -21,44 +21,49 @@
 
 1. Clone the repository:
 
-'''bash
+''' bash
 
 git clone https://github.com/your_username/hydra.git
+
 '''
 
 2. Change to the project directory:
 
-'''bash
+''' bash
 
 cd hydra
+
 '''
 
 3. Build the project:
 
-'''bash
+''' bash
 
 cargo build
+
 '''
 
 4. Run tests to verify the setup:
 
-'''bash
+''' bash
 
 cargo test
+
 '''
 
 ### Usage
 
 HYDRA can load 2D triangular meshes from a '.msh2' file and use the finite volume method to compute element fluxes and solve PDEs.
 
-'''bash
+''' bash
 
 cargo run --release
+
 '''
 
 For example, after loading a mesh:
 
-'''rust
+''' rust
 
 use mesh_mod::mesh_ops::Mesh;
 use solvers_mod::linear::LinearSolver;
@@ -75,6 +80,7 @@ fn main() {
         time_stepper.step(&mut solver, 0.01);
     }
 }
+
 '''
 
 ### File Structure
@@ -99,9 +105,10 @@ We welcome contributions from the community. To contribute:
 
 HYDRA uses cargo test for unit and integration tests. Make sure to run tests before submitting any changes:
 
-'''bash
+''' bash
 
 cargo test
+
 '''
 
 We follow a test-driven development (TDD) approach, and tests are placed alongside the respective modules.

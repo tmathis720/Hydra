@@ -29,6 +29,8 @@ mod tests {
     fn test_explicit_euler_step() {
         // Setup a simple mesh
         let mut mesh = Mesh::new();
+        let mut tol = 0.01;
+        let mut max_iter = 100;
         mesh.add_node(1, 0.0, 0.0, 0.0);
         mesh.add_node(2, 1.0, 0.0, 0.0);
         mesh.add_node(3, 1.0, 1.0, 0.0);
@@ -36,7 +38,7 @@ mod tests {
         mesh.elements[0].state = 1.0;  // Initialize state
 
         // Create solver and time stepper
-        let mut solver = LinearSolver::new(mesh);
+        let mut solver = LinearSolver::new(mesh, tol, max_iter);
         let mut euler = ExplicitEuler::new(0.01);  // Initialize with a time step of 0.01
 
         // Step the solver forward in time
