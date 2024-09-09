@@ -29,7 +29,7 @@ impl Cell {
     pub fn update_momentum(&mut self, dt: f64) {
         let net_flux = self.flux_right - self.flux_left;
 
-        // Recalculate velocity based on current momentum and mass
+        // Calculate velocity before updating momentum to maintain consistency
         let velocity = if self.density > 0.0 {
             self.momentum_x / self.density
         } else {
@@ -60,6 +60,17 @@ pub fn enforce_mass_conservation(cells: &mut [Cell], expected_mass: f64) {
     // Apply a correction factor to each cell to ensure the total mass is correct
     for cell in cells.iter_mut() {
         cell.density *= correction_factor;
+    }
+}
+
+// Function to enforce exact momentum conservation
+pub fn enforce_momentum_conservation(cells: &mut [Cell], expected_momentum: f64) {
+    let current_total_momentum = Cell::total_momentum(cells);
+    let correction_factor = expected_momentum / current_total_momentum;
+
+    // Apply a correction factor to each cell's momentum to ensure total momentum is correct
+    for cell in cells.iter_mut() {
+        cell.momentum_x *= correction_factor;
     }
 }
 

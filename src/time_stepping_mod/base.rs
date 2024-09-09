@@ -26,6 +26,9 @@ pub fn time_loop(
         // Enforce exact mass conservation after updating
         cell_ops::enforce_mass_conservation(cells, initial_mass);
 
+        // Enforce exact momentum conservation after udpating
+        cell_ops::enforce_momentum_conservation(cells, initial_momentum + (step as f64 + 1.0) * initial_mass);
+
         // Optionally print the current mass for debugging
         let current_mass = Cell::total_mass(cells);
         let current_momentum = Cell::total_momentum(cells);
