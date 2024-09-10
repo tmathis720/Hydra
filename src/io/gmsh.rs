@@ -1,14 +1,6 @@
-/// Mesh parsing and neighbor relationships
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-use crate::mesh_mod::element_ops::Element;
-use crate::mesh_mod::neighbor_ops::build_neighbors;
-
-
-
-use crate::numerical_mod::geometry_ops::compute_triangle_area;
-// Define a struct to represent nodes
 pub struct Node {
     pub id: usize,
     pub x: f64,
@@ -16,21 +8,23 @@ pub struct Node {
     pub z: f64, // Although we use 2D, Gmsh includes z-coordinates.
 }
 
-
+// Define a struct to represent elements (triangles in this case)
+pub struct Element {
+    pub id: usize,
+    pub node_ids: [usize; 3],
+    pub tags: Vec<usize>,  // Store the physical and elementary tags
+}
 
 // Define a struct to represent the mesh
-pub struct Mesh {
+pub struct Gmsh {
     pub nodes: Vec<Node>,
     pub elements: Vec<Element>,
 }
 
-// Example: Create an Element Instance
-
-
-impl Mesh {
+impl Gmsh {
     // Initialize an empty mesh
     pub fn new() -> Self {
-        Mesh {
+        Gmsh {
             nodes: Vec::new(),
             elements: Vec::new(),
         }
@@ -43,30 +37,11 @@ impl Mesh {
 
     // Add element (triangle) to the mesh
     pub fn add_element(&mut self, id: usize, node_ids: [usize; 3], tags: Vec<usize>) {
-        let area = self.compute_element_area(&node_ids);
-        // initialize state to a default value for now
-        let mut state = 0.0;
-        let mut flux = 0.0;
-
         self.elements.push(Element { 
             id, 
             node_ids, 
             tags,
-            area,
-            neighbors: Vec::new(), 
-            state,
-            flux,
         });
-    }
-
-    // Compute area of a triangle element given its node ids
-    fn compute_element_area(&self, node_ids: &[usize; 3]) -> f64 {
-        let node1 = &self.nodes[node_ids[0] - 1];
-        let node2 = &self.nodes[node_ids[1] - 1];
-        let node3 = &self.nodes[node_ids[2] - 1];
-
-        // Calculate the area of the triangle using the determinant formula
-        compute_triangle_area(node1, node2, node3)
     }
 
     // Load mesh from a Gmsh ASCII v2 file
@@ -74,7 +49,7 @@ impl Mesh {
         let file = File::open(file_path).map_err(|_| "Failed to open file")?;
         let reader = BufReader::new(file);
         
-        let mut mesh = Mesh::new();
+        let mut mesh = Gmsh::new();
         let mut parsing_nodes = false;
         let mut parsing_elements = false;
         let mut node_count = 0;
@@ -159,53 +134,17 @@ impl Mesh {
 
         Ok(mesh)
     }
-
-    pub fn build_neighbors(&mut self) {
-        build_neighbors(self);
-    }
 }
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_mesh_node_creation() {
-        let mut mesh = Mesh::new();
-        mesh.add_node(1, 0.0, 0.0, 0.0);
-        assert_eq!(mesh.nodes.len(), 1);
-        assert_eq!(mesh.nodes[0].id, 1);
-    }
-
-    #[test]
-    fn test_mesh_element_creation() {
-        let mut mesh = Mesh::new();
-        mesh.add_node(1, 0.0, 0.0, 0.0);
-        mesh.add_node(2, 1.0, 0.0, 0.0);
-        mesh.add_node(3, 0.0, 1.0, 0.0);
-        mesh.add_element(1, [1, 2, 3], vec![99, 2]);
-        assert_eq!(mesh.elements.len(), 1);
-        assert_eq!(mesh.elements[0].node_ids, [1, 2, 3]);
-    }
-
-    #[test]
-    fn test_neighbor_computation() {
-        let mut mesh = Mesh::new();
-        mesh.add_node(1, 0.0, 0.0, 0.0);
-        mesh.add_node(2, 1.0, 0.0, 0.0);
-        mesh.add_node(3, 0.0, 1.0, 0.0);
-        mesh.add_node(4, 1.0, 1.0, 0.0);
-        mesh.add_element(1, [1, 2, 3], vec![99, 2]);
-        mesh.add_element(2, [2, 4, 3], vec![99, 2]);
-        mesh.build_neighbors();
-        assert_eq!(mesh.elements[0].neighbors, vec![2]);
-    }
-
     #[test]
 
     fn test_load_gmsh_mesh() {
         // Create a mock mesh with nodes and elements
-        let mut mesh = Mesh::new();
+        let mut mesh = Gmsh::new();
 
         // Add mock nodes
         mesh.add_node(1, 0.0, 0.0, 0.0);
@@ -234,30 +173,5 @@ mod tests {
         let element = &mesh.elements[0];
         assert_eq!(element.node_ids, [1, 2, 3]);
         assert_eq!(element.tags, vec![99, 2]);
-    }
-
-    #[test]
-
-    fn test_element_area_and_neighbors() {
-        let mut mesh = Mesh::new();
-
-        // Add nodes (a simple right triangle mesh)
-        mesh.add_node(1, 0.0, 0.0, 0.0);
-        mesh.add_node(2, 1.0, 0.0, 0.0);
-        mesh.add_node(3, 0.0, 1.0, 0.0);
-        mesh.add_node(4, 1.0, 1.0, 0.0);
-
-        // Add elements (two triangles forming a square)
-        mesh.add_element(1, [1, 2, 3], vec![99, 2]);
-        mesh.add_element(2, [2, 4, 3], vec![99, 2]);
-
-        // Compute element areas
-        assert!((mesh.elements[0].area - 0.5).abs() < 1e-6, "Area mismatch for element 1");
-        assert!((mesh.elements[1].area - 0.5).abs() < 1e-6, "Area mismatch for element 2");
-
-        // Build neighbor relationships
-        mesh.build_neighbors();
-        assert_eq!(mesh.elements[0].neighbors, vec![2], "Neighbors mismatch for element 1");
-        assert_eq!(mesh.elements[1].neighbors, vec![1], "Neighbors mismatch for element 2");
     }
 }

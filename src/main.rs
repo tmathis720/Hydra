@@ -1,39 +1,64 @@
-mod mesh_mod;
-mod solvers_mod;
-mod numerical_mod;
-mod time_stepping_mod;
-mod transport_mod;
+mod domain;
+mod numerical;
+mod solver;
+mod timestep;
+mod transport;
 
-use mesh_mod::mesh_ops::Mesh;
-use crate::solvers_mod::linear::LinearSolver;
-use crate::time_stepping_mod::explicit_euler::ExplicitEuler;
-use crate::time_stepping_mod::base::TimeStepper; // Import the TimeStepper trait
+use crate::domain::element::Element;
 
 fn main() {
-    // Mesh loading and operations
-    let mesh_file = "C:/rust_projects/HYDRA/inputs/test.msh2";
-    let mut mesh = Mesh::load_from_gmsh(mesh_file).unwrap();
-    let mut tol = 0.01;
-    let mut max_iter = 100;
-    println!("Mesh loaded: {} nodes, {} elements", mesh.nodes.len(), mesh.elements.len());
+    let num_cells = 10;
+    let length = 10.0;
+    let velocity = 1.0;  // Constant velocity for advection
+    let dt = 0.1;  // Time step
+    let total_time = 1.0;  // Total simulation time
 
-    // Initialize the linear solver with the mesh
-    let mut solver = LinearSolver::new(mesh, tol, max_iter);
+    // Initialize the domain
+    let mut cells = Element::initialize_domain(num_cells, length, velocity);
 
-    // Create an Explicit Euler time stepper with a time step size of 0.01
-    let mut time_stepper = ExplicitEuler::new(0.01);
+    // Compute the initial total mass
+    let initial_mass = Element::total_mass(&cells);
+    let initial_momentum = Element::total_momentum(&cells);
+    println!("Initial total mass: {}", initial_mass);
+    println!("Initial total momentum: {}", initial_momentum);
 
-    // Set the number of time steps (example: 10 steps)
-    let num_steps = 10;
+    // Expected outcomes
+    let expected_mass = 10.0; // Mass should remain constant
+    let expected_momentum = initial_momentum + expected_momentum_increase(num_cells, velocity, dt, total_time);
 
-    // Time-stepping loop
-    for step in 0..num_steps {
-        // Perform a single time step
-        time_stepper.step(&mut solver, 0.01);
+    // Run the time loop
+    timestep::euler::time_loop(&mut cells, velocity, dt, total_time, initial_mass, initial_momentum);
 
-        // Output the current state of the elements after each time step
-        for (i, element) in solver.mesh.elements.iter().enumerate() {
-            println!("Step {}: Element {} state: {}", step, i, element.state);
-        }
-    }
+    // Compute the final total mass
+    let final_mass = Element::total_mass(&cells);
+    let final_momentum = Element::total_momentum(&cells);
+    println!("Final total mass: {}", final_mass);
+    println!("Final total momentum: {}", final_momentum);
+
+    // Check if mass is conserved
+    assert!(
+        (expected_mass - final_mass).abs() < 1e-6,
+        "Mass is NOT conserved! Expected: {}, Got: {}",
+        expected_mass,
+        final_mass
+    );
+    println!("Mass is conserved!");
+
+    // Check if momentum matches the expected outcome
+    assert!(
+        (expected_momentum - final_momentum).abs() < 1e-6,
+        "Momentum is NOT correct! Expected: {}, Got: {}",
+        expected_momentum,
+        final_momentum
+    );
+    println!("Momentum is correct!");
+}
+
+// Function to calculate expected momentum increase
+fn expected_momentum_increase(num_cells: usize, velocity: f64, dt: f64, total_time: f64) -> f64 {
+    let mass_per_cell = 1.0;  // Each cell has a mass of 1.0 initially
+    let num_steps = (total_time / dt) as usize;
+
+    // Total momentum is mass * velocity * number of steps
+    num_steps as f64 * mass_per_cell * velocity * num_cells as f64
 }

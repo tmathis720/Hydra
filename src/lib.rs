@@ -1,5 +1,6 @@
-pub mod numerical_mod;
-pub mod mesh_mod;
-pub mod solvers_mod;
-pub mod time_stepping_mod;
-pub mod transport_mod;
+pub mod io;
+pub mod numerical;
+pub mod domain;
+pub mod solver;
+pub mod timestep;
+pub mod transport;
