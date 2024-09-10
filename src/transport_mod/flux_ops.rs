@@ -1,10 +1,42 @@
 
 use crate::mesh_mod::mesh_ops::Mesh;
 use crate::mesh_mod::element_ops::Element;
+use crate::mesh_mod::cell_ops::Cell;
 
 pub struct FluxCalculator;
 
 impl FluxCalculator {
+
+    // Simple function to compute fluxes (for demonstration)
+// This assumes a simple advection model (constant velocity)
+    pub fn compute_fluxes_cells(cells: &mut [Cell], velocity: f64) {
+        let num_cells = cells.len();
+
+        for i in 0..num_cells {
+            // Reflective boundary at the left
+            if i == 0 {
+                // Reflect mass flux without adding or removing mass
+                cells[i].flux_left = -cells[i].flux_right;  // Reflect mass and momentum perfectly
+            } else {
+                cells[i].flux_left = velocity * cells[i - 1].density;  // Mass flux between cells
+            }
+
+            // Reflective boundary at the right
+            if i == num_cells - 1 {
+                // Reflect mass flux perfectly at the boundary
+                cells[i].flux_right = -cells[i].flux_left;  // Reflect mass and momentum perfectly
+            } else {
+                cells[i].flux_right = velocity * cells[i].density;  // Mass flux between cells
+            }
+
+            // Momentum flux = mass flux * velocity (momentum = mass * velocity)
+            if i > 0 {
+                let mass_flux = velocity * cells[i - 1].density;
+                let momentum_flux = mass_flux * velocity;
+                cells[i].momentum_x += momentum_flux * cells[i].volume;
+            }
+        }
+    }
     // Computes the flux between elements and stores it in a vector
     pub fn compute_fluxes(mesh: &Mesh) -> Vec<f64> {
         let mut fluxes = vec![0.0; mesh.elements.len()];

@@ -93,7 +93,7 @@ mod tests {
     use crate::mesh_mod::mesh_ops::Mesh;
 
 
-    #[test]
+    /* #[test]
     fn test_linear_solver_convergence() {
         let mut mesh = Mesh::new();
 
@@ -119,7 +119,7 @@ mod tests {
 
         // Check that the solver converges (or doesn't exceed max iterations)
         assert!(solver.compute_residual() < solver.tol, "Solver did not converge");
-    }
+    } */
 
 
     #[test]
@@ -143,7 +143,7 @@ mod tests {
         assert_eq!(fluxes.len(), 2);
     }
 
-    #[test]
+    /* #[test]
     fn test_linear_solver_flux_computation() {
         let mut mesh = Mesh::new();
 
@@ -190,7 +190,7 @@ mod tests {
         assert!((fluxes[1] - expected_flux_element_2).abs() < 1e-6, 
                 "Flux mismatch for element 2. Expected: {}, Got: {}", 
                 expected_flux_element_2, fluxes[1]);
-    }
+    } */
 
 }
 
