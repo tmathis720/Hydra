@@ -1,6 +1,6 @@
-use crate::domain::face::Face;
-use crate::domain::element::Element;
-use crate::domain::node::Node;
+use crate::domain::Face;
+use crate::domain::Element;
+use crate::domain::Node;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::num::ParseIntError;

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::element::Element;
-    use crate::boundary::no_slip::NoSlipBoundary;
+    use crate::domain::Element;
+    use crate::boundary::NoSlipBoundary;
     use crate::solver::FluxSolver;
 
     #[test]

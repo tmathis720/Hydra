@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::element::Element;
-    use crate::domain::face::Face;
+    use crate::domain::Element;
+    use crate::domain::Face;
     use crate::solver::{FluxSolver, ScalarTransportSolver};
 
     #[test]

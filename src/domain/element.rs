@@ -1,4 +1,4 @@
-use crate::domain::node::Node;
+use crate::domain::Node;
 
 #[derive(Clone)]
 pub struct Element {

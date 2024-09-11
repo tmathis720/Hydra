@@ -3,8 +3,7 @@ mod tests {
     use rand::Rng; // Import random number generator
     use crate::input::gmsh::GmshParser;
     use crate::timestep::ExplicitEuler;
-    use crate::domain::face::Face;
-    use crate::domain::mesh::Mesh;
+    use crate::domain::{Face, Mesh};
     use crate::solver::FluxSolver;
     fn load_from_gmsh() -> Mesh {
         let (nodes, elements, faces) = 

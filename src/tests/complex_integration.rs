@@ -1,14 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::element::Element;
-    use crate::domain::face::Face;
-    use crate::domain::mesh::Mesh;
-    use crate::boundary::periodic::PeriodicBoundary;
-    use crate::solver::{CrankNicolsonSolver, TurbulenceSolver, FluxSolver};
+    use crate::domain::{Element, Face, Mesh};
+    use crate::boundary::PeriodicBoundary;
+    use crate::solver::{CrankNicolsonSolver, EddyViscositySolver, FluxSolver};
     use crate::timestep::{TimeStepper, ExplicitEuler};
 
     #[test]
-    fn test_complex_integration() {
+    fn test_complex_integration_with_horizontal_diffusion() {
         let dt = 0.01;
         let total_time = 10.0;
 
@@ -41,7 +39,7 @@ mod tests {
 
         // Instantiate the solvers
         let crank_nicolson_solver = CrankNicolsonSolver {};
-        let turbulence_solver = TurbulenceSolver { k: 1.0, epsilon: 0.5 };
+        let eddy_viscosity_solver = EddyViscositySolver { nu_t: 0.1 }; // Eddy viscosity coefficient
         let mut flux_solver = FluxSolver {};
 
         // Define a time stepper
@@ -66,7 +64,8 @@ mod tests {
                 right_element.momentum = crank_nicolson_solver.crank_nicolson_update(-flux, right_element.momentum, dt);
 
                 // Adjust pressures
-                let pressure_transfer = 0.02 * flux * dt;
+                let pressure_transfer = 0.01 * flux * dt;
+
                 left_element.pressure -= pressure_transfer;
                 right_element.pressure += pressure_transfer;
 
@@ -74,10 +73,13 @@ mod tests {
                 right_element.pressure = right_element.pressure.max(0.0);
             }
 
-            // Apply turbulence
-            for element in &mut mesh.elements {
-                turbulence_solver.apply_turbulence(element, dt);
-                element.pressure = element.pressure.max(0.0);
+            // Apply horizontal eddy viscosity
+            for i in 0..mesh.elements.len() - 1 {
+                let (left_element, right_element) = mesh.elements.split_at_mut(i + 1);
+                let left_element = &mut left_element[i];
+                let right_element = &mut right_element[0];
+
+                eddy_viscosity_solver.apply_diffusion(left_element, right_element, dt);
             }
 
             // Time stepping using the updated `mesh` and `flux_solver`

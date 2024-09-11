@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::element::Element;
-    use crate::domain::face::Face; // Ensure this import is used
-    use crate::boundary::flow::{Inflow, Outflow};
+    use crate::domain::{Element, Face};
+    use crate::boundary::{Inflow, Outflow};
     use crate::solver::{FluxSolver, SemiImplicitSolver};
 
     #[test]

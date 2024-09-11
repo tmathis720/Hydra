@@ -1,4 +1,4 @@
-use crate::domain::face::Face;
+use crate::domain::Face;
 
 pub struct FluxTransport;
 

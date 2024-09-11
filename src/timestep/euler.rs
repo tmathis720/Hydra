@@ -1,4 +1,4 @@
-use crate::domain::mesh::Mesh;
+use crate::domain::Mesh;
 use crate::solver::Solver;
 use crate::timestep::TimeStepper;
 

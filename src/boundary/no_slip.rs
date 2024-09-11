@@ -1,5 +1,5 @@
-use crate::domain::element::Element;
-use crate::domain::face::Face;
+use crate::domain::Element;
+use crate::domain::Face;
 
 pub struct NoSlipBoundary;
 

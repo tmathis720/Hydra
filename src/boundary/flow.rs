@@ -1,6 +1,6 @@
-use crate::domain::mesh::Mesh;
-use crate::domain::element::Element;
-use crate::domain::face::Face;
+use crate::domain::Mesh;
+use crate::domain::Element;
+use crate::domain::Face;
 
 pub struct FlowBoundary {
     pub inflow_velocity: f64, // The velocity at which fluid enters or leaves

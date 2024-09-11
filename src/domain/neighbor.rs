@@ -1,4 +1,4 @@
-use crate::domain::element::Element;
+use crate::domain::Element;
 
 pub struct Neighbor {
     pub element_id: usize,

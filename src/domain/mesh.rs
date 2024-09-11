@@ -1,8 +1,8 @@
-use crate::domain::element::Element;
-use crate::domain::face::Face;
-use crate::domain::node::Node;
+use crate::domain::Element;
+use crate::domain::Face;
+use crate::domain::Node;
 use crate::input::gmsh::GmshParser;
-use crate::domain::neighbor::Neighbor;
+use crate::domain::Neighbor;
 use std::io;
 
 #[derive(Default)]

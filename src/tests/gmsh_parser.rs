@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::mesh::Mesh;
+    use crate::domain::Mesh;
     use std::fs::File;
     use std::io::Write;
 

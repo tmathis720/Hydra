@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::element::Element;
-    use crate::boundary::free_surface::FreeSurfaceBoundary;
+    use crate::domain::Element;
+    use crate::boundary::FreeSurfaceBoundary;
     use crate::solver::{FluxSolver, SemiImplicitSolver};
 
     #[test]

@@ -1,10 +1,10 @@
 pub mod scalar;
 pub use scalar::ScalarTransportSolver;
 pub mod turbulence;
-pub use turbulence::TurbulenceSolver;
+pub use turbulence::EddyViscositySolver;
 
-use crate::domain::face::Face;
-use crate::domain::element::Element;
+use crate::domain::Face;
+use crate::domain::Element;
 
 pub trait Solver {
     fn compute_flux(&self, face: &Face, left_element: &Element, right_element: &Element) -> f64;

@@ -1,20 +1,16 @@
-use crate::domain::element::Element;
-pub struct TurbulenceSolver {
-    pub k: f64,  // Turbulent kinetic energy
-    pub epsilon: f64,  // Turbulent dissipation rate
+use crate::domain::Element;
+
+pub struct EddyViscositySolver {
+    pub nu_t: f64, // Eddy viscosity coefficient
 }
 
-impl TurbulenceSolver {
-    pub fn apply_turbulence(&self, element: &mut Element, dt: f64) {
-        // Update the element's momentum and pressure based on turbulent diffusion
-        let turbulent_diffusion = self.k / self.epsilon;
-        element.pressure -= turbulent_diffusion * dt;
-        element.momentum -= turbulent_diffusion * element.momentum * dt;
+impl EddyViscositySolver {
+    pub fn apply_diffusion(&self, element_left: &mut Element, element_right: &mut Element, dt: f64) {
+        let velocity_diff = element_right.momentum - element_left.momentum;
+        let flux = self.nu_t * velocity_diff;
 
-        // Prevent the pressure from going negative
-        element.pressure = element.pressure.max(0.0);
-
-        // Prevent the momentum from going negative
-        element.momentum = element.momentum.max(0.0);
+        // Apply the flux to both elements
+        element_left.momentum += flux * dt;
+        element_right.momentum -= flux * dt;
     }
 }
