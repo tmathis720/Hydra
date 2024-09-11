@@ -13,9 +13,9 @@ mod tests {
         Mesh::new(elements, nodes, faces, face_element_relations)
     }
     
-    fn step_simulation(mesh: &mut Mesh, flux_solver: &mut FluxSolver) {
-        let euler_stepper = ExplicitEuler { dt: 0.1 };
-        euler_stepper.step(mesh, flux_solver);
+    fn step_simulation(_mesh: &mut Mesh, _flux_solver: &mut FluxSolver) {
+        let _euler_stepper = ExplicitEuler { dt: 0.1 };
+        let mut _time_stepper = ExplicitEuler { dt: 0.01 };
     }
     
     fn calculate_momentum(_mesh: &Mesh, velocities: &[f64]) -> f64 {

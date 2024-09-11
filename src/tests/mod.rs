@@ -14,3 +14,7 @@ pub mod variable_initial_conditions;
 pub mod multi_element_grid;
 pub mod flow_boundary;
 pub mod free_surface_boundary;
+pub mod non_uniform_grid;
+pub mod crank_nicolson;
+pub mod turbulence_solver;
+pub mod complex_integration;

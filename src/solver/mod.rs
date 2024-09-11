@@ -1,8 +1,15 @@
-pub mod scalar_transport;
-pub use scalar_transport::ScalarTransportSolver;
+pub mod scalar;
+pub use scalar::ScalarTransportSolver;
+pub mod turbulence;
+pub use turbulence::TurbulenceSolver;
 
 use crate::domain::face::Face;
 use crate::domain::element::Element;
+
+pub trait Solver {
+    fn compute_flux(&self, face: &Face, left_element: &Element, right_element: &Element) -> f64;
+    fn apply_flux(&self, face: &mut Face, flux: f64, dt: f64);
+}
 
 pub struct FluxSolver;
 
@@ -49,6 +56,18 @@ impl FluxSolver {
 }
 
 
+impl Solver for FluxSolver {
+    fn compute_flux(&self, face: &Face, left_element: &Element, right_element: &Element) -> f64 {
+        // Call the existing `compute_flux` method
+        self.compute_flux(face, left_element, right_element)
+    }
+
+    fn apply_flux(&self, face: &mut Face, flux: f64, dt: f64) {
+        // Call the existing `apply_flux` method
+        self.apply_flux(face, flux, dt)
+    }
+}
+
 pub struct FluxLimiter;
 
 impl FluxLimiter {
@@ -90,3 +109,16 @@ impl SemiImplicitSolver {
     }
 }
 
+pub struct CrankNicolsonSolver;
+
+impl CrankNicolsonSolver {
+    pub fn crank_nicolson_update(&self, flux: f64, current_value: f64, dt: f64) -> f64 {
+        // Crank-Nicolson update: combines implicit and explicit terms
+        let explicit_term = 0.5 * flux * dt;
+        let implicit_term = current_value / (1.0 + 0.5 * dt);
+        let new_value = implicit_term + explicit_term;
+
+        // Prevent the new value from going below zero
+        new_value.max(0.0)
+    }
+}

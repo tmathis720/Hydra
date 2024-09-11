@@ -1,5 +1,6 @@
 use crate::domain::node::Node;
 
+#[derive(Clone)]
 pub struct Element {
     pub id: u32,
     pub nodes: Vec<usize>, // Update to use usize as index
