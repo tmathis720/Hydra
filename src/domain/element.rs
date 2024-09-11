@@ -1,96 +1,44 @@
-// mesh_mod.rs
-#[derive(Debug)]
+use crate::domain::node::Node;
+
 pub struct Element {
-    pub volume: f64,
-    pub density: f64,
-    pub momentum_x: f64,
-    pub flux_left: f64,
-    pub flux_right: f64,
+    pub id: u32,
+    pub nodes: Vec<usize>, // Update to use usize as index
+    pub faces: Vec<u32>,
+    pub pressure: f64,
+    pub neighbor_ref: usize,
+    pub mass: f64,
+    pub element_type: u32,
 }
 
 impl Element {
-    // Returns the mass in the element
-    pub fn mass(&self) -> f64 {
-        self.density * self.volume
+    pub fn has_node(&self, node_id: u32) -> bool {
+        self.faces.contains(&node_id) // Example check for whether element has a specific node
     }
-
-    // Returns the momentum in the element
-    pub fn momentum(&self) -> f64 {
-        self.momentum_x
-    }
-
-    // Update mass in the element using FVM principles
-    pub fn update_mass(&mut self, dt: f64) {
-        let net_flux = self.flux_right - self.flux_left;
-        self.density += net_flux * dt / self.volume;
-    }
-
-    // Update momentum in the element using FVM principles
-    pub fn update_momentum(&mut self, dt: f64) {
-        let net_flux = self.flux_right - self.flux_left;
-
-        // Calculate velocity before updating momentum to maintain consistency
-        let velocity = if self.density > 0.0 {
-            self.momentum_x / self.density
+    // Calculate the area based on the positions of nodes
+    pub fn area(&self, nodes: &[Node]) -> f64 {
+        // Assuming 2D triangular elements for now
+        let positions: Vec<(f64, f64, f64)> = self.nodes.iter().map(|&i| nodes[i].position).collect();
+        if positions.len() == 3 {
+            let (x1, y1, z1) = positions[0];
+            let (x2, y2, z2) = positions[1];
+            let (x3, y3, z3) = positions[2];
+            0.5 * ((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)).abs()
         } else {
-            0.0  // Prevent division by zero
-        };
-
-        // Update momentum based on mass flux and velocity
-        self.momentum_x += net_flux * velocity * dt / self.volume;
-    }
-
-    // Function to compute total mass in the domain
-    pub fn total_mass(elements: &[Element]) -> f64 {
-        elements.iter().map(|element| element.mass()).sum()
-    }
-
-    // Function to compute total momentum in the domain
-    pub fn total_momentum(elements: &[Element]) -> f64 {
-        elements.iter().map(|element| element.momentum()).sum()
-    }
-
-
-
-    // Function to enforce exact mass conservation
-    pub fn enforce_mass_conservation(elements: &mut [Element], expected_mass: f64) {
-        let current_total_mass = Element::total_mass(elements);
-        let correction_factor = expected_mass / current_total_mass;
-
-        // Apply a correction factor to each element to ensure the total mass is correct
-        for element in elements.iter_mut() {
-            element.density *= correction_factor;
+            0.0 // Handle other types of elements later
         }
     }
+}
 
-    // Function to enforce exact momentum conservation
-    pub fn enforce_momentum_conservation(elements: &mut [Element], expected_momentum: f64) {
-        let current_total_momentum = Element::total_momentum(elements);
-        let correction_factor = expected_momentum / current_total_momentum;
-
-        // Apply a correction factor to each element's momentum to ensure total momentum is correct
-        for element in elements.iter_mut() {
-            element.momentum_x *= correction_factor;
+impl Default for Element {
+    fn default() -> Self {
+        Element {
+            id: 0,
+            nodes: vec![],
+            faces: vec![],
+            pressure: 0.0,
+            neighbor_ref: 0,
+            mass: 0.0,
+            element_type: 0,
         }
-    }
-
-    // Function to initialize the domain with uniform elements
-    pub fn initialize_domain(num_elements: usize, length: f64, velocity: f64) -> Vec<Element> {
-        let element_size = length / num_elements as f64;
-        let mut elements = Vec::with_capacity(num_elements);
-        
-        for _ in 0..num_elements {
-            let density = 1.0;  // Initial density
-            let momentum_x = density * velocity;  // Momentum is mass * velocity
-            elements.push(Element {
-                volume: element_size,
-                density,
-                momentum_x,
-                flux_left: 0.0,
-                flux_right: 0.0,
-            });
-        }
-
-        elements
     }
 }

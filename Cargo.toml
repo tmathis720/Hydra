@@ -11,3 +11,4 @@ path = "src/lib.rs"
 
 [dev-dependencies]
 criterion = "0.4"
+rand = "0.8"

@@ -1,64 +1,144 @@
-mod domain;
-mod numerical;
-mod solver;
-mod timestep;
-mod transport;
-
-use crate::domain::element::Element;
+// Import the necessary modules and types
+use hydra::input::gmsh::GmshParser;
+use hydra::domain::mesh::{Mesh, FaceElementRelation};
+use hydra::domain::element::Element;
+use hydra::domain::face::Face;
 
 fn main() {
-    let num_cells = 10;
-    let length = 10.0;
-    let velocity = 1.0;  // Constant velocity for advection
-    let dt = 0.1;  // Time step
-    let total_time = 1.0;  // Total simulation time
+    // Load the mesh from a Gmsh file
+    let (nodes, elements, faces) = GmshParser::load_mesh("C:/rust_projects/HYDRA/inputs/test.msh2")
+        .expect("Failed to load mesh");
 
-    // Initialize the domain
-    let mut cells = Element::initialize_domain(num_cells, length, velocity);
+    // Define face-element relations (this may need to be loaded or computed)
+    let face_element_relations = vec![
+        FaceElementRelation {
+            face_id: 0,
+            left_element_id: 0,
+            right_element_id: 1,
+        },
+        FaceElementRelation {
+            face_id: 1,
+            left_element_id: 1,
+            right_element_id: 2,
+        },
+    ];
 
-    // Compute the initial total mass
-    let initial_mass = Element::total_mass(&cells);
-    let initial_momentum = Element::total_momentum(&cells);
-    println!("Initial total mass: {}", initial_mass);
-    println!("Initial total momentum: {}", initial_momentum);
+    // Create the mesh
+    let mut mesh = Mesh::new(elements, nodes, faces, face_element_relations);
 
-    // Expected outcomes
-    let expected_mass = 10.0; // Mass should remain constant
-    let expected_momentum = initial_momentum + expected_momentum_increase(num_cells, velocity, dt, total_time);
+    // Example of verbose output during simulation or processing
+    println!("Mesh successfully created with {} elements and {} faces.", mesh.elements.len(), mesh.faces.len());
 
-    // Run the time loop
-    timestep::euler::time_loop(&mut cells, velocity, dt, total_time, initial_mass, initial_momentum);
+    // Example: Iterate over the elements and faces to display their properties
+    for element in &mesh.elements {
+        println!(
+            "Element ID: {}, Pressure: {}, Number of Neighbors: {}",
+            element.id,
+            element.pressure,
+            element.neighbor_ref,
+        );
+    }
 
-    // Compute the final total mass
-    let final_mass = Element::total_mass(&cells);
-    let final_momentum = Element::total_momentum(&cells);
-    println!("Final total mass: {}", final_mass);
-    println!("Final total momentum: {}", final_momentum);
+    for face in &mesh.faces {
+        println!(
+            "Face ID: {}, Velocity: {:?}, Area: {}",
+            face.id,
+            face.velocity,
+            face.area
+        );
+    }
 
-    // Check if mass is conserved
-    assert!(
-        (expected_mass - final_mass).abs() < 1e-6,
-        "Mass is NOT conserved! Expected: {}, Got: {}",
-        expected_mass,
-        final_mass
-    );
-    println!("Mass is conserved!");
-
-    // Check if momentum matches the expected outcome
-    assert!(
-        (expected_momentum - final_momentum).abs() < 1e-6,
-        "Momentum is NOT correct! Expected: {}, Got: {}",
-        expected_momentum,
-        final_momentum
-    );
-    println!("Momentum is correct!");
+    // Further logic for the simulation goes here...
 }
 
-// Function to calculate expected momentum increase
-fn expected_momentum_increase(num_cells: usize, velocity: f64, dt: f64, total_time: f64) -> f64 {
-    let mass_per_cell = 1.0;  // Each cell has a mass of 1.0 initially
-    let num_steps = (total_time / dt) as usize;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_face_element_relation() {
+        let element_1 = Element {
+            id: 0,
+            pressure: 1.0,
+            ..Default::default()
+        };
 
-    // Total momentum is mass * velocity * number of steps
-    num_steps as f64 * mass_per_cell * velocity * num_cells as f64
+        let element_2 = Element {
+            id: 1,
+            pressure: 2.0,
+            ..Default::default()
+        };
+
+        let face = Face {
+            id: 0,
+            velocity: (0.0, 0.0),
+            ..Default::default()
+        };
+
+        let face_relation = FaceElementRelation {
+            face_id: face.id,
+            left_element_id: element_1.id,
+            right_element_id: element_2.id,
+        };
+
+        // Verbose test output
+        println!("Testing FaceElementRelation with Face ID: {}", face_relation.face_id);
+        println!(
+            "Linking Left Element ID: {} with Right Element ID: {}",
+            face_relation.left_element_id, face_relation.right_element_id
+        );
+
+        // Assert that the face relation correctly links the elements
+        assert_eq!(
+            face_relation.left_element_id, element_1.id,
+            "Left element ID does not match."
+        );
+        assert_eq!(
+            face_relation.right_element_id, element_2.id,
+            "Right element ID does not match."
+        );
+    }
+
+    #[test]
+    fn test_mesh_creation() {
+        // Create a dummy mesh with elements, nodes, and faces
+        let elements = vec![
+            Element {
+                id: 0,
+                pressure: 1.0,
+                ..Default::default()
+            },
+            Element {
+                id: 1,
+                pressure: 2.0,
+                ..Default::default()
+            },
+        ];
+
+        let nodes = vec![]; // Fill with dummy nodes
+        let faces = vec![
+            Face {
+                id: 0,
+                velocity: (0.0, 0.0),
+                ..Default::default()
+            },
+        ];
+
+        let face_element_relations = vec![
+            FaceElementRelation {
+                face_id: 0,
+                left_element_id: 0,
+                right_element_id: 1,
+            },
+        ];
+
+        let mesh = Mesh::new(elements, nodes, faces, face_element_relations);
+
+        // Verbose test output
+        println!("Testing Mesh creation:");
+        println!("Mesh has {} elements and {} faces.", mesh.elements.len(), mesh.faces.len());
+
+        assert_eq!(mesh.elements.len(), 2, "Mesh should have 2 elements.");
+        assert_eq!(mesh.faces.len(), 1, "Mesh should have 1 face.");
+    }
 }
