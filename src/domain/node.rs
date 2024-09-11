@@ -5,8 +5,8 @@ pub struct Node {
 
 impl Node {
     pub fn distance(&self, other: &Node) -> f64 {
-        let (x1, y1, z1) = self.position;
-        let (x2, y2, z2) = other.position;
+        let (x1, y1, _z1) = self.position;
+        let (x2, y2, _z2) = other.position;
         ((x2 - x1).powi(2) + (y2 - y1).powi(2)).sqrt()
     }
 

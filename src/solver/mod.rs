@@ -1,3 +1,6 @@
+pub mod scalar_transport;
+pub use scalar_transport::ScalarTransportSolver;
+
 use crate::domain::face::Face;
 use crate::domain::element::Element;
 
@@ -6,9 +9,22 @@ pub struct FluxSolver;
 impl FluxSolver {
     // Compute the flux for a face based on the left and right elements
     pub fn compute_flux(&self, face: &Face, left_element: &Element, right_element: &Element) -> f64 {
-        // Example logic: calculate the flux based on the pressure difference
+        // Compute the pressure difference
         let pressure_diff = left_element.pressure - right_element.pressure;
-        let flux = pressure_diff * face.area; // Simple example formula
+
+        // Determine the flux based on the pressure difference
+        let flux = pressure_diff * face.area;
+
+        // Debugging output for clarity
+        if flux > 0.0 {
+            println!("Flux is positive (flow from left to right): {}", flux);
+        } else if flux < 0.0 {
+            println!("Flux is negative (flow from right to left): {}", flux);
+        } else {
+            println!("No flux (equal pressures): {}", flux);
+        }
+
+        // Return the computed flux
         flux
     }
 

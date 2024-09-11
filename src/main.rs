@@ -1,8 +1,6 @@
 // Import the necessary modules and types
 use hydra::input::gmsh::GmshParser;
 use hydra::domain::mesh::{Mesh, FaceElementRelation};
-use hydra::domain::element::Element;
-use hydra::domain::face::Face;
 
 fn main() {
     // Load the mesh from a Gmsh file
@@ -24,7 +22,7 @@ fn main() {
     ];
 
     // Create the mesh
-    let mut mesh = Mesh::new(elements, nodes, faces, face_element_relations);
+    let mesh = Mesh::new(elements, nodes, faces, face_element_relations);
 
     // Example of verbose output during simulation or processing
     println!("Mesh successfully created with {} elements and {} faces.", mesh.elements.len(), mesh.faces.len());
@@ -54,7 +52,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+    use hydra::domain::element::Element;
+    use hydra::domain::face::Face;
     #[test]
     fn test_face_element_relation() {
         let element_1 = Element {

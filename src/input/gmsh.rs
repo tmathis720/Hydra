@@ -136,17 +136,7 @@ impl GmshParser {
             neighbor_ref: 0,
             mass: 0.0,
             element_type,
-              // This is now valid after adding element_type
+            momentum: 0.0,
         })
     }
 }
-
-/* ub struct Element {
-    pub id: u32,
-    pub nodes: Vec<usize>, // Update to use usize as index
-    pub faces: Vec<u32>,
-    pub pressure: f64,
-    pub neighbors: Vec<u32>,
-    pub mass: f64,
-    pub element_type: u32,
-} */
