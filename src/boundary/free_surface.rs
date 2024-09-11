@@ -1,27 +1,23 @@
-use crate::domain::mesh::Mesh;
-use crate::domain::face::Face;
+use crate::domain::element::Element;
 
-pub struct FreeSurfaceBoundary;
+
+pub struct FreeSurfaceBoundary {
+    pub pressure_at_surface: f64, // Pressure at the free surface (atmospheric pressure)
+}
 
 impl FreeSurfaceBoundary {
-    // Apply free surface boundary condition to nodes on the top boundary
-    pub fn apply(&self, mesh: &mut Mesh) {
-        // Collect indices of faces that satisfy the free surface condition
-        let free_surface_faces: Vec<usize> = mesh.faces.iter().enumerate()
-            .filter(|(_, face)| self.is_free_surface_face(face, mesh)) // Immutable borrow
-            .map(|(i, _)| i)
-            .collect();
+    /// Apply free surface boundary condition
+    /// Gradually adjust the pressure toward the surface pressure over time
+    pub fn apply_boundary(&self, element: &mut Element, dt: f64) {
+        // Instead of setting the pressure to the surface pressure directly,
+        // we apply a gradual adjustment toward the free surface pressure
+        let pressure_difference = element.pressure - self.pressure_at_surface;
 
-        // Apply the boundary condition to the collected faces
-        for &i in &free_surface_faces {
-            mesh.faces[i].velocity.1 = mesh.faces[i].velocity.1; // Apply free surface condition
-        }
-    }
+        // Adjust pressure gradually (use a simple relaxation factor)
+        let relaxation_factor = 0.1; // Adjust this as needed for smoother transitions
+        element.pressure -= relaxation_factor * pressure_difference * dt;
 
-    pub fn is_free_surface_face(&self, face: &Face, mesh: &Mesh) -> bool {
-        // Check if the face is part of the free surface
-        let node_1 = &mesh.nodes[face.nodes.0 as usize];
-        let node_2 = &mesh.nodes[face.nodes.1 as usize];
-        node_1.position.1 == 1.0 || node_2.position.1 == 1.0 // Example condition for free surface
+        // Ensure the element's pressure doesn't drop below the surface pressure
+        element.pressure = element.pressure.max(self.pressure_at_surface);
     }
 }

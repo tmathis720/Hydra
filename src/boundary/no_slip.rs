@@ -1,16 +1,12 @@
-use crate::domain::mesh::Mesh;
+use crate::domain::element::Element;
 use crate::domain::face::Face;
 
 pub struct NoSlipBoundary;
 
 impl NoSlipBoundary {
-    // Apply no-slip boundary condition on the given boundary nodes
-    pub fn apply(&self, mesh: &mut Mesh) {
-        for face in &mut mesh.faces {
-            if self.is_no_slip_face(face) {
-                face.velocity = (0.0, 0.0); // Set no-slip boundary condition on faces
-            }
-        }
+    /// Apply no-slip boundary condition (velocity should be zero)
+    pub fn apply_boundary(&self, element: &mut Element, _dt: f64) {
+        element.momentum = 0.0; // No-slip boundary means zero velocity
     }
 
     // Function to determine if a node is on a boundary (can be expanded)

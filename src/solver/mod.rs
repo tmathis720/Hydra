@@ -28,6 +28,18 @@ impl FluxSolver {
         flux
     }
 
+    /// Compute flux for no-slip boundary (should always be zero)
+    pub fn compute_flux_no_slip(&self, _element: &Element) -> f64 {
+        0.0 // No-slip boundary, no flux
+    }
+
+    /// Compute flux at the free surface boundary
+    pub fn compute_flux_free_surface(&self, element: &Element, surface_pressure: f64) -> f64 {
+        // Flux is driven by the pressure difference between the element and the free surface
+        let pressure_diff = element.pressure - surface_pressure;
+        pressure_diff * element.faces[0] as f64 // Multiply by face area (assuming the first face)
+    }
+
     // Apply the computed flux to update the face's state
     pub fn apply_flux(&self, face: &mut Face, flux: f64, dt: f64) {
         // Example logic: adjust the velocity of the face based on the flux and time step
@@ -35,3 +47,46 @@ impl FluxSolver {
         face.velocity.1 += flux * dt; // Update the y-component of velocity
     }
 }
+
+
+pub struct FluxLimiter;
+
+impl FluxLimiter {
+    /// Superbee flux limiter function to prevent unphysical oscillations
+    ///
+    /// This function limits the flux to ensure that no new extrema are introduced
+    /// into the system, preventing overshoots and undershoots.
+    pub fn superbee_limiter(r: f64) -> f64 {
+        r.max(0.0).min(2.0).max(r.min(1.0)) // Superbee limiter formula
+    }
+
+    /// Apply the flux limiter to the computed flux
+    ///
+    /// `flux`: The computed flux between elements
+    /// `left_flux`: The flux from the left element
+    /// `right_flux`: The flux from the right element
+    pub fn apply_limiter(&self, flux: f64, left_flux: f64, right_flux: f64) -> f64 {
+        let r = right_flux / left_flux;
+        let phi = FluxLimiter::superbee_limiter(r);
+        phi * flux
+    }
+}
+
+pub struct SemiImplicitSolver;
+
+impl SemiImplicitSolver {
+    /// Semi-implicit time integration for updating momentum
+    ///
+    /// `flux`: The computed flux between elements
+    /// `current_value`: The current momentum or other property being updated
+    /// `dt`: Time step size
+    ///
+    /// The implicit part ensures stability by including current_value in the denominator,
+    /// which damps rapid changes in the system and prevents overshoots.
+    pub fn semi_implicit_update(&self, flux: f64, current_value: f64, dt: f64) -> f64 {
+        let explicit_term = flux * dt;
+        let implicit_term = current_value / (1.0 + dt); // Implicit damping term
+        implicit_term + explicit_term
+    }
+}
+
