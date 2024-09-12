@@ -7,7 +7,7 @@ mod tests {
     use crate::solver::FluxSolver;
     fn load_from_gmsh() -> Mesh {
         let (nodes, elements, faces) = 
-        GmshParser::load_mesh("C:/rust_projects/HYDRA/inputs/test.msh2").expect("Failed to load test mesh");
+        GmshParser::load_mesh("inputs/test.msh2").expect("Failed to load test mesh");
         let face_element_relations = vec![];
         Mesh::new(elements, nodes, faces, face_element_relations)
     }

@@ -4,7 +4,7 @@ use hydra::domain::mesh::{Mesh, FaceElementRelation};
 
 fn main() {
     // Load the mesh from a Gmsh file
-    let (nodes, elements, faces) = GmshParser::load_mesh("C:/rust_projects/HYDRA/inputs/test.msh2")
+    let (nodes, elements, faces) = GmshParser::load_mesh("inputs/test.msh2")
         .expect("Failed to load mesh");
 
     // Define face-element relations (this may need to be loaded or computed)
