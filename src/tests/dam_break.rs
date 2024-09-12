@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::domain::{Mesh, Element, Face, Node};  // Assuming these exist in the domain module
+    use crate::domain::{ Element, Node};  // Assuming these exist in the domain module
     use crate::solver::FluxSolver;  // Assuming this exists for flux calculations
     use crate::timestep::{ExplicitEuler, TimeStepper};  // Time stepping method
     use crate::numerical::MeshGenerator;  // For generating rectangular meshes

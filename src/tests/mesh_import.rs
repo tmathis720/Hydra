@@ -1,20 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::input::gmsh::GmshParser;  // Ensure this path aligns with your code structure
-    use crate::domain::{Mesh, Node, Element};
-    use std::io::Error;
-
-    // Helper function to load and initialize a mesh
-    fn load_mesh_from_gmsh(file_path: &str) -> Mesh {
-        let (nodes, elements, faces) = GmshParser::load_mesh(file_path).expect("Failed to load mesh");
-        Mesh {
-            nodes,
-            elements,
-            faces,
-            neighbors: vec![],
-            face_element_relations: vec![],
-        }
-    }
+    
 
     #[test]
     fn test_circle_mesh_import() {
