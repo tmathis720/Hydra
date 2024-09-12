@@ -119,6 +119,12 @@ impl GmshParser {
 
         // Skip physical and geometrical tags (can be extended as needed)
         let _num_tags: u32 = split.next()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Missing num_tag data"))?
+            .parse()
+            .map_err(|err: ParseIntError| io::Error::new(io::ErrorKind::InvalidData, err))?;
+
+            // Skip physical and geometrical tags (can be extended as needed)
+        let _tags: u32 = split.next()
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Missing tag data"))?
             .parse()
             .map_err(|err: ParseIntError| io::Error::new(io::ErrorKind::InvalidData, err))?;
