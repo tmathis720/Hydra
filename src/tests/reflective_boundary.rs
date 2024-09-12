@@ -12,6 +12,9 @@ mod tests {
             nodes: vec![0, 1],
             faces: vec![0],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 10.0, // Pressure near the boundary
             momentum: 2.0,  // Initial momentum

@@ -14,7 +14,10 @@ mod tests {
             mass: 1.0, // Initial mass
             neighbor_ref: 0,
             pressure: 10.0, // Higher pressure on the left
+            height: 0.0,
+            area: 0.0,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         let mut right_element = Element {
@@ -25,7 +28,10 @@ mod tests {
             mass: 1.0, // Initial mass
             neighbor_ref: 0,
             pressure: 5.0, // Lower pressure on the right
+            height: 0.0,
+            area: 0.0,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Create the face between the two elements
@@ -62,7 +68,10 @@ mod tests {
             mass: 2.0, // More mass in the left element
             neighbor_ref: 0,
             pressure: 10.0, // Higher pressure on the left
+            height: 0.0,
+            area: 0.0,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Create the right element with an outflow
@@ -74,7 +83,10 @@ mod tests {
             mass: 1.0, // Less mass in the right element
             neighbor_ref: 0,
             pressure: 5.0, // Lower pressure on the right
+            height: 0.0,
+            area: 0.0,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Create the face between the two elements

@@ -6,10 +6,13 @@ pub struct Element {
     pub nodes: Vec<usize>, // Update to use usize as index
     pub faces: Vec<u32>,
     pub pressure: f64,
+    pub height: f64,
+    pub area: f64,
     pub neighbor_ref: usize,
     pub mass: f64,
     pub element_type: u32,
     pub momentum: f64,
+    pub velocity: (f64, f64, f64),
 }
 
 impl Element {
@@ -29,6 +32,16 @@ impl Element {
             0.0 // Handle other types of elements later
         }
     }
+
+    pub fn calculate_mass(&self) -> f64 {
+        // Mass calculation logic
+        self.mass
+    }
+
+    pub fn compute_density(&self) -> f64 {
+        let volume = self.area*self.height;
+        self.mass / volume
+    }
 }
 
 impl Default for Element {
@@ -38,10 +51,13 @@ impl Default for Element {
             nodes: vec![],
             faces: vec![],
             pressure: 0.0,
+            height: 0.0,
             neighbor_ref: 0,
             mass: 0.0,
+            area: 0.0,
             element_type: 0,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         }
     }
 }

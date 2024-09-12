@@ -10,10 +10,10 @@ mod tests {
 
         // Define a small grid of elements (e.g., 4 elements in a line)
         let mut elements: Vec<Element> = vec![
-            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 3.0 },
-            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 7.0, momentum: 2.0 },
-            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, momentum: 1.0 },
-            Element { id: 3, element_type: 2, nodes: vec![3, 4], faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 3.0, momentum: 1.0 },
+            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 3.0, height: 0.0, area: 0.0, velocity: (0.0,0.0,0.0) },
+            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 7.0, momentum: 2.0, height: 0.0, area: 0.0, velocity: (0.0,0.0,0.0) },
+            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, momentum: 1.0, height: 0.0, area: 0.0, velocity: (0.0,0.0,0.0) },
+            Element { id: 3, element_type: 2, nodes: vec![3, 4], faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 3.0, momentum: 1.0, height: 0.0, area: 0.0, velocity: (0.0,0.0,0.0) },
         ];
 
         // Define faces between elements

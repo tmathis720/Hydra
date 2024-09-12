@@ -81,6 +81,17 @@ impl Mesh {
         let face_node_2 = face.nodes.1;
         element.nodes.contains(&face_node_1) && element.nodes.contains(&face_node_2)
     }
+
+    pub fn domain_width(&self) -> f64 {
+        // Return the width of the domain, used in boundary checks
+        1.0  // Example value
+    }
+    
+    pub fn get_element_connected_to_node(&self, node_index: usize) -> Option<usize> {
+        // Find the first element that contains the node with the given index
+        self.elements.iter().position(|element| element.nodes.contains(&node_index))
+    }
+
 }
 
 

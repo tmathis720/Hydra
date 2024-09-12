@@ -1,9 +1,11 @@
 #[cfg(test)]
 mod tests {
     use crate::domain::{Element, Face, Mesh};
-    use crate::boundary::PeriodicBoundary;
+    use crate::boundary::{BoundaryElement, BoundaryType};
     use crate::solver::{CrankNicolsonSolver, EddyViscositySolver, FluxSolver};
     use crate::timestep::{TimeStepper, ExplicitEuler};
+    use std::rc::Rc;
+    use std::cell::RefCell;
 
     #[test]
     fn test_complex_integration_with_horizontal_diffusion() {
@@ -12,9 +14,9 @@ mod tests {
 
         // Define multiple elements in the domain
         let elements = vec![
-            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0 },
-            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 8.0, momentum: 1.5 },
-            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 6.0, momentum: 1.0 },
+            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, height: 0.0, area: 1.0, momentum: 2.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 8.0, height: 0.0, area: 1.0, momentum: 1.5, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 6.0, height: 0.0, area: 1.0, momentum: 1.0, velocity: (0.0, 0.0, 0.0) },
         ];
 
         // Define faces between elements
@@ -33,9 +35,12 @@ mod tests {
         };
 
         // Set up boundary conditions
-        let periodic_boundary = PeriodicBoundary {
-            elements: mesh.elements.clone(),
-        };
+        let boundary_element: Vec<BoundaryElement> = elements
+            .into_iter()
+            .map(|element| BoundaryElement {
+                element: Rc::new(RefCell::new(element)),
+                boundary_type: BoundaryType::Periodic,
+            }).collect();
 
         // Instantiate the solvers
         let crank_nicolson_solver = CrankNicolsonSolver {};
@@ -47,9 +52,10 @@ mod tests {
 
         // Run the simulation over time
         for _ in 0..(total_time / dt) as usize {
-            // Apply periodic boundary conditions
-            periodic_boundary.apply_boundary(&mut mesh.elements);
-
+            // Apply boundary conditions to the entire boundary
+            for boundary in &mut mesh.boundaries {
+                boundary.apply(&mut mesh, &mut flow_field, time_step);
+            }
             // Flux and pressure updates
             for i in 0..mesh.faces.len() {
                 let (left_element, right_element) = mesh.elements.split_at_mut(i + 1);
@@ -92,4 +98,5 @@ mod tests {
             assert!(element.pressure > 0.0, "Pressure should remain positive in all elements");
         }
     }
+
 }

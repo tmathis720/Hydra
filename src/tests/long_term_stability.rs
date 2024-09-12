@@ -17,7 +17,10 @@ mod tests {
             mass: 1.0,
             neighbor_ref: 0,
             pressure: 10.0,
+            height: 0.0,
+            area: 0.0,
             momentum: 2.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         let mut right_element = Element {
@@ -28,7 +31,10 @@ mod tests {
             mass: 1.0,
             neighbor_ref: 0,
             pressure: 5.0,
+            height: 0.0,
+            area: 0.0,
             momentum: 1.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Face between the two elements

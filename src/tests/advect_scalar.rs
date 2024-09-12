@@ -15,7 +15,10 @@ mod tests {
             mass: 1.0,
             neighbor_ref: 0,
             pressure: 10.0, // Higher pressure on the left
+            height: 0.0,
+            area: 0.0,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Create the right element with lower scalar concentration
@@ -27,7 +30,10 @@ mod tests {
             mass: 1.0,
             neighbor_ref: 0,
             pressure: 5.0, // Lower pressure on the right
+            height: 0.0,
+            area: 0.0,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Create the face between the two elements
@@ -67,7 +73,10 @@ mod tests {
             mass: 1.0,
             neighbor_ref: 0,
             pressure: 5.0, // Lower pressure on the left
+            height: 0.0,
+            area: 0.0,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Create the right element with higher scalar concentration
@@ -79,7 +88,10 @@ mod tests {
             mass: 1.0,
             neighbor_ref: 0,
             pressure: 10.0, // Higher pressure on the right
+            height: 0.0,
+            area: 0.0,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Create the face between the two elements

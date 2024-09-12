@@ -12,10 +12,10 @@ mod tests {
 
         // Define 4 elements in a periodic grid
         let mut elements: Vec<Element> = vec![
-            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0 },
-            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 8.0, momentum: 1.5 },
-            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, momentum: 1.0 },
-            Element { id: 3, element_type: 2, nodes: vec![3, 0], faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 7.0, momentum: 1.2 },
+            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 8.0, momentum: 1.5, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, momentum: 1.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 3, element_type: 2, nodes: vec![3, 0], faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 7.0, momentum: 1.2, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
         ];
 
         // Faces between the elements (including periodic connection)
@@ -67,10 +67,10 @@ mod tests {
 
         // Define a set of 4 elements in a loop (periodic boundary)
         let mut elements: Vec<Element> = vec![
-            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0 },
-            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 8.0, momentum: 1.5 },
-            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, momentum: 1.0 },
-            Element { id: 3, element_type: 2, nodes: vec![3, 0], faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 7.0, momentum: 1.2 },
+            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 8.0, momentum: 1.5, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, momentum: 1.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 3, element_type: 2, nodes: vec![3, 0], faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 7.0, momentum: 1.2, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
         ];
 
         // Faces between the elements (including a face between the last and the first element for periodicity)
@@ -126,6 +126,9 @@ mod tests {
             nodes: vec![0, 1],
             faces: vec![0],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 10.0, // Initial pressure (will oscillate)
             momentum: 0.0,
@@ -137,6 +140,9 @@ mod tests {
             nodes: vec![1, 2],
             faces: vec![1],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 5.0, // Constant pressure on the right
             momentum: 0.0,

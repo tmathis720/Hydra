@@ -22,6 +22,9 @@ mod tests {
             nodes: vec![0, 1, 0],
             faces: vec![0, 1],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 2.0, // Higher pressure in the left element
             momentum: 0.0,
@@ -34,6 +37,9 @@ mod tests {
             nodes: vec![1, 2, 0],
             faces: vec![1, 2],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 1.0, // Lower pressure in the right element
             momentum: 0.0,
@@ -56,6 +62,9 @@ mod tests {
             nodes: vec![0, 1, 0],
             faces: vec![0, 1],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 1.0, // Lower pressure in the left element
             momentum: 0.0,
@@ -68,6 +77,9 @@ mod tests {
             nodes: vec![1, 2, 0],
             faces: vec![1, 2],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 3.0, // Higher pressure in the right element
             momentum: 0.0,
@@ -90,6 +102,9 @@ mod tests {
             nodes: vec![0, 1, 0],
             faces: vec![0, 1],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 2.0, // Same pressure in the left element
             momentum: 0.0,
@@ -102,6 +117,9 @@ mod tests {
             nodes: vec![1, 2, 0],
             faces: vec![1, 2],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 2.0, // Same pressure in the right element
             momentum: 0.0,

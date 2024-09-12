@@ -14,10 +14,15 @@ mod tests {
             nodes: vec![0, 1],
             faces: vec![0],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
             neighbor_ref: 0,
             pressure: 10.0, // Higher pressure on the left
+            velocity: (0.0, 0.0, 0.0),
             momentum: 2.0,  // Initial momentum (mass * velocity)
         };
+
+        
 
         let mut right_element = Element {
             id: 1,
@@ -25,6 +30,9 @@ mod tests {
             nodes: vec![1, 2],
             faces: vec![1],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 5.0, // Lower pressure on the right
             momentum: 1.0,  // Initial momentum (mass * velocity)
@@ -63,6 +71,9 @@ mod tests {
             nodes: vec![0, 1],
             faces: vec![0],
             mass: 2.0, // More mass in the left element
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 10.0, // Higher pressure on the left
             momentum: 4.0,  // Higher momentum
@@ -75,6 +86,9 @@ mod tests {
             nodes: vec![1, 2],
             faces: vec![1],
             mass: 1.0,
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 5.0, // Lower pressure on the right
             momentum: 1.0,  // Lower momentum

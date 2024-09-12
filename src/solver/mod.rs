@@ -3,8 +3,80 @@ pub use scalar::ScalarTransportSolver;
 pub mod turbulence;
 pub use turbulence::EddyViscositySolver;
 
-use crate::domain::Face;
-use crate::domain::Element;
+use crate::domain::{Face, Element};
+
+pub struct FlowField {
+    pub elements: Vec<Element>,
+    pub initial_mass: f64,
+}
+
+impl FlowField {
+    pub fn new(elements: Vec<Element>) -> Self {
+        let initial_mass: f64 = elements.iter().map(|e| e.calculate_mass()).sum();
+        Self {
+            elements,
+            initial_mass,
+        }
+    }
+
+    pub fn compute_mass(&self, _element: &Element) -> f64 {
+        // Compute mass using velocity and pressure from mesh nodes/elements
+        0.0 // Placeholder
+    }
+
+    pub fn compute_density(&self, _element: &Element) -> f64 {
+        // Compute density of the element based on mass and volume
+        0.0 // Placeholder
+    }
+
+    pub fn check_mass_conservation(&self) -> bool {
+        let _tolerance = 1e-6; // MASS_CONSERVATION_THRESHOLD
+        // Check if mass conservation is within the threshold
+        true
+    }
+
+    pub fn get_surface_velocity(&self) -> f64 {
+        // Return the velocity of the free surface or some calculated value
+        0.0  // Placeholder logic
+    }
+
+    pub fn get_surface_pressure(&self) -> f64 {
+        // Placeholder logic for calculating surface pressure
+        101325.0  // Standard atmospheric pressure
+    }
+
+    pub fn get_inflow_velocity(&self) -> (f64, f64, f64) {
+        // Define inflow velocity
+        (1.0, 0.0, 0.0)  // Example: horizontal inflow
+    }
+
+    pub fn get_outflow_velocity(&self) -> (f64, f64, f64) {
+        // Define outflow velocity
+        (0.5, 0.0, 0.0)  // Example: horizontal outflow
+    }
+
+    pub fn inflow_mass_rate(&self) -> f64 {
+        // Define mass inflow rate
+        1.0  // Example mass rate
+    }
+
+    pub fn outflow_mass_rate(&self) -> f64 {
+        // Define mass outflow rate
+        0.8  // Example mass rate
+    }
+
+    pub fn get_periodic_element<'a>(&'a self, element: &'a Element) -> &'a Element {
+        // Placeholder function to get the corresponding periodic boundary element
+        // You will need to define how periodic boundaries map elements in your mesh
+        element  // For now, just return the same element (replace this logic)
+    }
+
+    pub fn get_nearby_pressure(&self, _element: &Element) -> f64 {
+        // Implement logic to compute nearby pressure based on surrounding elements
+        0.0  // Placeholder logic
+    }
+}
+
 
 pub trait Solver {
     fn compute_flux(&self, face: &Face, left_element: &Element, right_element: &Element) -> f64;

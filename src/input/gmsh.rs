@@ -139,10 +139,13 @@ impl GmshParser {
             nodes: node_ids,
             faces: vec![],
             pressure: 0.0,
+            height: 0.0,
+            area: 0.0,
             neighbor_ref: 0,
             mass: 0.0,
             element_type,
             momentum: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         })
     }
 }

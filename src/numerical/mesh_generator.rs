@@ -40,10 +40,13 @@ impl MeshGenerator {
                     nodes: vec![n1, n2, n3, n4],
                     faces: vec![], // Initialized but left empty
                     pressure: 0.0,
+                    height: 0.0,
+                    area: 0.0,
                     neighbor_ref: 0,
                     mass: 1.0,
                     momentum: 0.0,
                     element_type: 3, // 4-node quadrangle
+                    velocity: (0.0, 0.0, 0.0),
                 });
                 element_id += 1;
             }
@@ -132,10 +135,13 @@ impl MeshGenerator {
                 nodes: vec![0, i + 1, next + 1],
                 faces: vec![],
                 pressure: 0.0,
+                height: 0.0,
+                area: 0.0,
                 neighbor_ref: 0,
                 mass: 1.0,
                 momentum: 0.0,
                 element_type: 2, // 3-node triangle
+                velocity: (0.0, 0.0, 0.0),
             });
             element_id += 1;
         }
@@ -196,10 +202,13 @@ impl MeshGenerator {
                 nodes: vec![0, i + 1, next + 1],
                 faces: vec![],
                 pressure: 0.0,
+                height: 0.0,
+                area: 0.0,
                 neighbor_ref: 0,
                 mass: 1.0,
                 momentum: 0.0,
                 element_type: 2, // 3-node triangle
+                velocity: (0.0, 0.0, 0.0),
             });
             element_id += 1;
         }
@@ -258,10 +267,13 @@ impl MeshGenerator {
             nodes: vec![0, 1, 2, 3, 4, 5, 6, 7],
             faces: vec![],
             pressure: 0.0,
+            height: 0.0,
+            area: 0.0,
             neighbor_ref: 0,
             mass: 1.0,
             momentum: 0.0,
             element_type: 5, // 8-node hexahedron
+            velocity: (0.0, 0.0, 0.0),
         });
 
         // (Optional) Generate faces for the cube

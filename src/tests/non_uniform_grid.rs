@@ -10,9 +10,9 @@ mod tests {
 
         // Create a set of elements with non-uniform sizes (varying mass)
         let mut elements: Vec<Element> = vec![
-            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 2.0, neighbor_ref: 0, pressure: 15.0, momentum: 3.0 },
-            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.5, neighbor_ref: 0, pressure: 12.0, momentum: 2.5 },
-            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0 },
+            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 2.0, neighbor_ref: 0, pressure: 15.0, momentum: 3.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.5, neighbor_ref: 0, pressure: 12.0, momentum: 2.5, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
         ];
 
         // Define faces between elements (different areas for non-uniform grid)

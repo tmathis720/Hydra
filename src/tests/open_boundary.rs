@@ -15,6 +15,9 @@ mod tests {
             neighbor_ref: 0,
             pressure: 10.0, // Higher pressure for inflow
             momentum: 3.0,  // Higher momentum for inflow
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Create the right element (with outflow)
@@ -27,6 +30,9 @@ mod tests {
             neighbor_ref: 0,
             pressure: 5.0, // Lower pressure for outflow
             momentum: 1.0,  // Lower momentum for outflow
+            height: 0.0,
+            area: 0.0,
+            velocity: (0.0, 0.0, 0.0),
         };
 
         // Open boundary face (inflow/outflow boundary)
