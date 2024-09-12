@@ -18,4 +18,4 @@ pub mod non_uniform_grid;
 pub mod crank_nicolson;
 pub mod complex_integration;
 pub mod mesh_import;
-pub mod dam_break;
+//pub mod dam_break;
