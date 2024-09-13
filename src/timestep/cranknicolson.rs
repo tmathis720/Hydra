@@ -2,14 +2,13 @@
 
 use crate::domain::Mesh;
 use crate::solver::flux_solver::FluxSolver;
-use crate::timestep::TimeStepper;
 
 /// Crank-Nicolson time-stepping method.
 pub struct CrankNicolson {
     pub solver: FluxSolver,  // Holds the specific solver for flux computations
 }
 
-impl TimeStepper for CrankNicolson {
+impl CrankNicolson {
     fn step(&self, mesh: &mut Mesh, dt: f64) {
         for face in &mut mesh.faces {
             // Get mutable references to the connected elements

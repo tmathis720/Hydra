@@ -3,12 +3,12 @@ mod tests {
     use crate::domain::{Element, Face};
     use crate::boundary::{Inflow, Outflow, FreeSurfaceBoundary, NoSlipBoundary};
     use crate::solver::{FluxSolver, SemiImplicitSolver};
-    use crate::timestep::TimeStepper;
+    use crate::timestep::ExplicitEuler;
     use nalgebra::Vector3;
 
     #[test]
     fn test_inflow_outflow_boundary_conditions() {
-        let mut time_stepper = TimeStepper::new(0.01, 1.0);  // Initialize TimeStepper
+        let mut time_stepper = ExplicitEuler { solver: FluxSolver };  // Initialize TimeStepper
 
         let mut left_element = Element {
             id: 0,
@@ -27,7 +27,7 @@ mod tests {
             ..Default::default()
         };
 
-        let mut face = Face::new(0, vec![0, 1], Vector3::new(0.0, 0.0, 0.0), 1.0);
+        let mut face = Face::new(0, vec![0, 1], Vector3::new(0.0, 0.0, 0.0), 1.0, ..Face::default());
 
         let inflow = Inflow { rate: 0.1 };
         let outflow = Outflow { rate: 0.1 };
@@ -35,8 +35,9 @@ mod tests {
         let flux_solver = FluxSolver {};
         let semi_implicit_solver = SemiImplicitSolver {};
 
-        while time_stepper.has_next() {
-            let dt = time_stepper.next_step();
+        let total_time = 10.0;
+        let dt = 0.01;
+        for _ in 0..((total_time / dt) as usize) {
 
             inflow.apply_boundary(&mut left_element, dt);
             outflow.apply_boundary(&mut right_element, dt);
@@ -66,7 +67,7 @@ mod tests {
 
     #[test]
     fn test_free_surface_boundary_conditions() {
-        let mut time_stepper = TimeStepper::new(0.01, 1.0);
+        let mut time_stepper = ExplicitEuler { solver: FluxSolver };
 
         let mut element = Element {
             id: 0,
@@ -81,13 +82,14 @@ mod tests {
         let flux_solver = FluxSolver {};
         let semi_implicit_solver = SemiImplicitSolver {};
 
-        while time_stepper.has_next() {
-            let dt = time_stepper.next_step();
+        let total_time = 10.0;
+        let dt = 0.01;
+        for _ in 0..((total_time / dt) as usize) {
 
-            free_surface.apply_boundary(&mut element, dt);
+            free_surface.apply(&mut mesh);
 
             // Compute flux relative to the free surface
-            let flux_3d = flux_solver.compute_flux_3d_free_surface(&element, free_surface.pressure_at_surface);
+            let flux_3d = flux_solver.compute_flux_3d(&element, free_surface.pressure_at_surface);
 
             // Update the momentum based on the flux
             element.momentum = semi_implicit_solver.semi_implicit_update(
@@ -103,8 +105,8 @@ mod tests {
 
     #[test]
     fn test_no_slip_boundary_conditions() {
-        let mut time_stepper = TimeStepper::new(0.01, 1.0);
-
+        let mut time_stepper = ExplicitEuler{ solver: FluxSolver };
+        let mut dt: f64 = 0.01;
         let mut element = Element {
             id: 0,
             velocity: Vector3::new(2.0, 0.0, 0.0),  // Initial velocity
@@ -115,13 +117,14 @@ mod tests {
         let no_slip_boundary = NoSlipBoundary {};
         let flux_solver = FluxSolver {};
 
-        while time_stepper.has_next() {
-            let dt = time_stepper.next_step();
+        let total_time = 10.0;
+        let dt = 0.01;
+        for _ in 0..((total_time / dt) as usize) {
 
             no_slip_boundary.apply_boundary(&mut element, dt);
 
             // No flux should be applied at no-slip boundaries
-            let flux_3d = flux_solver.compute_flux_3d_no_slip(&element);
+            let flux_3d = flux_solver.compute_flux_3d(&element);
 
             // Apply no-slip conditions (should result in zero flux)
             assert_eq!(flux_3d, Vector3::new(0.0, 0.0, 0.0), "Flux should be zero at no-slip boundary");
@@ -131,8 +134,8 @@ mod tests {
 
     #[test]
     fn test_open_boundary_conditions() {
-        let mut time_stepper = TimeStepper::new(0.01, 1.0);
-
+        let mut time_stepper = ExplicitEuler{ solver: FluxSolver };
+        let dt = 0.01;
         let mut inflow_element = Element {
             id: 0,
             mass: 2.0,
@@ -151,12 +154,21 @@ mod tests {
             ..Default::default()
         };
 
-        let face = Face::new(0, vec![0, 1], Vector3::new(0.0, 0.0, 0.0), 1.0);
+        let face = Face {
+            id: 0,
+            nodes: vec![0, 1],  // Nodes shared between left and right elements
+            velocity: Vector3::new(1.0, 0.0, 0.0),  // Initial velocity is zero
+            area: 1.0,  // Simple unit area for the face
+            ..Face::default()
+        };
         let flux_solver = FluxSolver {};
         let semi_implicit_solver = SemiImplicitSolver {};
+        let dt = 0.01;
 
-        while time_stepper.has_next() {
-            let dt = time_stepper.next_step();
+        let total_time = 10.0;
+        let dt = 0.01;
+        for _ in 0..((total_time / dt) as usize) {
+            
 
             // Compute 3D flux between inflow and outflow elements
             let flux_3d = flux_solver.compute_flux_3d(&face, &inflow_element, &outflow_element);
@@ -173,18 +185,26 @@ mod tests {
 
     #[test]
     fn test_periodic_boundary_conditions() {
-        let mut time_stepper = TimeStepper::new(0.01, 1.0);
+        let mut time_stepper = ExplicitEuler { solver: FluxSolver };
 
         let mut elements = vec![
             Element { id: 0, pressure: 10.0, velocity: Vector3::new(2.0, 0.0, 0.0), ..Default::default() },
             Element { id: 1, pressure: 5.0, velocity: Vector3::new(-2.0, 0.0, 0.0), ..Default::default() }
         ];
 
-        let face = Face::new(0, vec![0, 1], Vector3::new(0.0, 0.0, 0.0), 1.0);
+        let face = Face {
+            id: 0,
+            nodes: vec![0, 1],  // Nodes shared between left and right elements
+            velocity: Vector3::new(0.0, 0.0, 0.0),  // Initial velocity is zero
+            area: 1.0,  // Simple unit area for the face
+            ..Face::default()
+        };
         let flux_solver = FluxSolver {};
+        let dt = 0.01;
 
-        while time_stepper.has_next() {
-            let dt = time_stepper.next_step();
+        let total_time = 10.0;
+        let dt = 0.01;
+        for _ in 0..((total_time / dt) as usize) {
 
             // Compute 3D flux for periodic boundary conditions
             let flux_3d = flux_solver.compute_flux_3d(&face, &elements[0], &elements[1]);

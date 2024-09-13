@@ -9,4 +9,6 @@ pub mod semi_implicit_solver;
 pub use flux_solver::FluxSolver;
 pub use scalar_transport::ScalarTransportSolver;
 pub use eddy_viscosity_solver::EddyViscositySolver;
-
+pub use crank_nicolson_solver::CrankNicolsonSolver;
+pub use flux_limiter::FluxLimiter;
+pub use semi_implicit_solver::SemiImplicitSolver;

@@ -2,6 +2,7 @@
 mod tests {
     use crate::domain::{Element, Face};
     use crate::solver::{FluxSolver, SemiImplicitSolver};
+    use nalgebra::Vector3;
 
     #[test]
     fn test_non_uniform_grid() {
@@ -10,15 +11,23 @@ mod tests {
 
         // Create a set of elements with non-uniform sizes (varying mass)
         let mut elements: Vec<Element> = vec![
-            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 2.0, neighbor_ref: 0, pressure: 15.0, momentum: 3.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
-            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.5, neighbor_ref: 0, pressure: 12.0, momentum: 2.5, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
-            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], 
+                mass: 2.0, neighbor_ref: 0, pressure: 15.0, 
+                momentum: Vector3::new(3.0, 0.0, 0.0), ..Element::default() },
+            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], 
+                mass: 1.5, neighbor_ref: 0, pressure: 12.0, 
+                momentum: Vector3::new(2.5, 0.0, 0.0), ..Element::default() },
+            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], 
+                mass: 1.0, neighbor_ref: 0, pressure: 10.0, 
+                momentum: Vector3::new(2.0, 0.0, 0.0), ..Element::default() },
         ];
 
         // Define faces between elements (different areas for non-uniform grid)
         let faces = vec![
-            Face { id: 0, nodes: vec![1, 2], velocity: (0.0, 0.0, 0.0), area: 1.0 },
-            Face { id: 1, nodes: vec![2, 3], velocity: (0.0, 0.0, 0.0), area: 0.8 },
+            Face { id: 0, nodes: vec![1, 2], velocity: Vector3::new(0.0, 0.0, 0.0), 
+                area: 1.0, ..Face::default() },
+            Face { id: 1, nodes: vec![2, 3], velocity: Vector3::new(0.0, 0.0, 0.0), 
+                area: 0.8, ..Face::default() },
         ];
 
         // Instantiate solvers
@@ -28,7 +37,7 @@ mod tests {
         // Run the simulation over time
         for _ in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
             for i in 0..faces.len() {
-                let flux = flux_solver.compute_flux(&faces[i], &elements[i], &elements[i + 1]);
+                let flux = flux_solver.compute_flux_3d(&faces[i], &elements[i], &elements[i + 1]);
 
                 // Update momentum using semi-implicit solver
                 elements[i].momentum = semi_implicit_solver.semi_implicit_update(
@@ -43,8 +52,8 @@ mod tests {
                 );
 
                 // Ensure momentum and mass are conserved
-                assert!(elements[i].momentum > 0.0, "Momentum should remain positive in element {}", i);
-                assert!(elements[i + 1].momentum > 0.0, "Momentum should remain positive in element {}", i + 1);
+                assert!(elements[i].momentum > Vector3::new(0.0, 0.0, 0.0), "Momentum should remain positive in element {}", i);
+                assert!(elements[i + 1].momentum > Vector3::new(0.0, 0.0, 0.0), "Momentum should remain positive in element {}", i + 1);
             }
         }
     }
@@ -55,8 +64,7 @@ mod tests {
         Face {
             id: 0,
             nodes: vec![1, 2], // Nodes shared between left and right elements
-            velocity: (0.0, 0.0, 0.0), // Initial velocity is zero
-            area: 1.0, // Example face area
+            ..Face::default()
         }
     }
 
@@ -69,12 +77,8 @@ mod tests {
             nodes: vec![0, 1, 0],
             faces: vec![0, 1],
             mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
             pressure: 2.0, // Higher pressure in the left element
-            momentum: 0.0,
+            ..Element::default()
         };
 
         // Create the right element (lower pressure)
@@ -84,20 +88,16 @@ mod tests {
             nodes: vec![1, 2, 0],
             faces: vec![1, 2],
             mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
             pressure: 1.0, // Lower pressure in the right element
-            momentum: 0.0,
+            ..Element::default()
         };
 
         let face = create_face();
         let flux_solver = FluxSolver {};
 
         // Compute flux and expect positive flux (flow from left to right)
-        let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
-        assert!(flux > 0.0, "Flux should be positive since left element has higher pressure");
+        let flux = flux_solver.compute_flux_3d(&face, &left_element, &right_element);
+        assert!(flux > Vector3::new(0.0, 0.0, 0.0), "Flux should be positive since left element has higher pressure");
     }
 
     #[test]
@@ -109,12 +109,9 @@ mod tests {
             nodes: vec![0, 1, 0],
             faces: vec![0, 1],
             mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             pressure: 1.0, // Lower pressure in the left element
-            momentum: 0.0,
+            ..Element::default()
         };
 
         // Create the right element (higher pressure)
@@ -124,20 +121,17 @@ mod tests {
             nodes: vec![1, 2, 0],
             faces: vec![1, 2],
             mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             pressure: 3.0, // Higher pressure in the right element
-            momentum: 0.0,
+            ..Element::default()
         };
 
         let face = create_face();
         let flux_solver = FluxSolver {};
 
         // Compute flux and expect negative flux (flow from right to left)
-        let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
-        assert!(flux < 0.0, "Flux should be negative since right element has higher pressure");
+        let flux = flux_solver.compute_flux_3d(&face, &left_element, &right_element);
+        assert!(flux < Vector3::new(0.0, 0.0, 0.0), "Flux should be negative since right element has higher pressure");
     }
 
     #[test]
@@ -149,12 +143,9 @@ mod tests {
             nodes: vec![0, 1, 0],
             faces: vec![0, 1],
             mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             pressure: 2.0, // Same pressure in the left element
-            momentum: 0.0,
+            ..Element::default()
         };
 
         // Create the right element (equal pressure)
@@ -164,20 +155,17 @@ mod tests {
             nodes: vec![1, 2, 0],
             faces: vec![1, 2],
             mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             pressure: 2.0, // Same pressure in the right element
-            momentum: 0.0,
+            ..Element::default()
         };
 
         let face = create_face();
         let flux_solver = FluxSolver {};
 
         // Compute flux and expect zero flux (no flow)
-        let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
-        assert_eq!(flux, 0.0, "Flux should be zero when both elements have equal pressure");
+        let flux = flux_solver.compute_flux_3d(&face, &left_element, &right_element);
+        assert_eq!(flux, Vector3::new(0.0, 0.0, 0.0), "Flux should be zero when both elements have equal pressure");
     }
 
     #[test]
@@ -187,17 +175,25 @@ mod tests {
 
         // Define a small grid of elements (e.g., 4 elements in a line)
         let mut elements: Vec<Element> = vec![
-            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 3.0, height: 0.0, area: 0.0, velocity: (0.0,0.0,0.0) },
-            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 7.0, momentum: 2.0, height: 0.0, area: 0.0, velocity: (0.0,0.0,0.0) },
-            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, momentum: 1.0, height: 0.0, area: 0.0, velocity: (0.0,0.0,0.0) },
-            Element { id: 3, element_type: 2, nodes: vec![3, 4], faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 3.0, momentum: 1.0, height: 0.0, area: 0.0, velocity: (0.0,0.0,0.0) },
+            Element { id: 0, element_type: 2, nodes: vec![0, 1], 
+                faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, 
+                momentum: Vector3::new(3.0, 0.0, 0.0), ..Element::default() },
+            Element { id: 1, element_type: 2, nodes: vec![1, 2], 
+                faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 7.0, 
+                momentum: Vector3::new(2.0, 0.0, 0.0), ..Element::default() },
+            Element { id: 2, element_type: 2, nodes: vec![2, 3], 
+                faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, 
+                momentum: Vector3::new(1.0, 0.0, 0.0), ..Element::default() },
+            Element { id: 3, element_type: 2, nodes: vec![3, 4], 
+                faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 3.0, 
+                momentum: Vector3::new(1.0, 0.0, 0.0), ..Element::default() },
         ];
 
         // Define faces between elements
         let faces = vec![
-            Face { id: 0, nodes: vec![1, 2], velocity: (0.0, 0.0, 0.0), area: 1.0 },
-            Face { id: 1, nodes: vec![2, 3], velocity: (0.0, 0.0, 0.0), area: 1.0 },
-            Face { id: 2, nodes: vec![3, 4], velocity: (0.0, 0.0, 0.0), area: 1.0 },
+            Face { id: 0, nodes: vec![1, 2], area: 1.0, ..Face::default() },
+            Face { id: 1, nodes: vec![2, 3], area: 1.0, ..Face::default() },
+            Face { id: 2, nodes: vec![3, 4], area: 1.0, ..Face::default() },
         ];
 
         // Instantiate solvers
@@ -207,7 +203,7 @@ mod tests {
         // Run simulation over time
         for _ in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
             for i in 0..faces.len() {
-                let flux = flux_solver.compute_flux(&faces[i], &elements[i], &elements[i + 1]);
+                let flux = flux_solver.compute_flux_3d(&faces[i], &elements[i], &elements[i + 1]);
 
                 // Update momentum with semi-implicit solver
                 elements[i].momentum = semi_implicit_solver.semi_implicit_update(
@@ -222,8 +218,8 @@ mod tests {
                 );
 
                 // Assert positive momentum
-                assert!(elements[i].momentum > 0.0, "Momentum should remain positive in element {}", i);
-                assert!(elements[i + 1].momentum > 0.0, "Momentum should remain positive in element {}", i + 1);
+                assert!(elements[i].momentum > Vector3::new(0.0, 0.0, 0.0), "Momentum should remain positive in element {}", i);
+                assert!(elements[i + 1].momentum > Vector3::new(0.0, 0.0, 0.0), "Momentum should remain positive in element {}", i + 1);
             }
         }
     }

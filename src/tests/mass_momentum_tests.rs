@@ -4,6 +4,7 @@ mod tests {
     use crate::timestep::ExplicitEuler;
     use crate::domain::{Face, Mesh};
     use crate::solver::FluxSolver;
+    use nalgebra::Vector3;
     fn load_from_gmsh() -> Mesh {
         let (nodes, elements, faces) = 
         GmshParser::load_mesh("inputs/test.msh2").expect("Failed to load test mesh");
@@ -12,8 +13,8 @@ mod tests {
     }
     
     fn step_simulation(_mesh: &mut Mesh, _flux_solver: &mut FluxSolver) {
-        let _euler_stepper = ExplicitEuler { dt: 0.1 };
-        let mut _time_stepper = ExplicitEuler { dt: 0.01 };
+        let _euler_stepper = ExplicitEuler { solver: FluxSolver };
+        let mut _time_stepper = ExplicitEuler { solver: FluxSolver };
     }
     
     fn calculate_momentum(_mesh: &Mesh, velocities: &[f64]) -> f64 {
@@ -89,7 +90,7 @@ mod tests {
     fn apply_inflow_boundary(mesh: &mut Mesh, inflow_velocity: f64) {
         for face in &mut mesh.faces {
             if is_inflow_face(face) {
-                face.velocity.0 = inflow_velocity; // Apply inflow velocity
+                face.velocity[1] = inflow_velocity; // Apply inflow velocity
             }
         }
     }
@@ -133,7 +134,7 @@ mod tests {
     fn apply_reflective_boundaries(mesh: &mut Mesh) {
         for face in &mut mesh.faces {
             if is_reflective_face(face) {
-                face.velocity = (-face.velocity.0, -face.velocity.1, -face.velocity.2); // Reflect the velocity
+                face.velocity = Vector3::new(-face.velocity[0], -face.velocity[1], -face.velocity[2]); // Reflect the velocity
             }
         }
     }
@@ -180,8 +181,9 @@ mod tests {
             pressure: 10.0, // Higher pressure on the left
             height: 0.0,
             area: 0.0,
-            momentum: 0.0,
-            velocity: (0.0, 0.0, 0.0),
+            momentum: Vector3::new(0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
+            ..Element::default()
         };
 
         let mut right_element = Element {
@@ -194,27 +196,29 @@ mod tests {
             pressure: 5.0, // Lower pressure on the right
             height: 0.0,
             area: 0.0,
-            momentum: 0.0,
-            velocity: (0.0, 0.0, 0.0),
+            momentum: Vector3::new(0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
+            ..Element::default()
         };
 
         // Create the face between the two elements
         let face = Face {
             id: 0,
             nodes: vec![1, 2],
-            velocity: (0.0, 0.0, 0.0),  // Initial velocity is zero
+            velocity: Vector3::new(0.0, 0.0, 0.0),  // Initial velocity is zero
             area: 1.0,  // Simple unit area for the face
+            ..Face::default()
         };
 
         // Instantiate the flux solver
         let flux_solver = FluxSolver {};
 
         // Compute flux and simulate mass transfer over time
-        let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
+        let flux = flux_solver.compute_flux_3d(&face, &left_element, &right_element);
 
         // Transfer mass based on flux direction (flux moves from left to right)
-        left_element.mass -= flux.abs();
-        right_element.mass += flux.abs();
+        left_element.mass -= flux.sum();
+        right_element.mass += flux.sum();
 
         // Assert that total mass is conserved
         let total_mass = left_element.mass + right_element.mass;
@@ -234,8 +238,9 @@ mod tests {
             pressure: 10.0, // Higher pressure on the left
             height: 0.0,
             area: 0.0,
-            momentum: 0.0,
-            velocity: (0.0, 0.0, 0.0),
+            momentum: Vector3::new(0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
+            ..Element::default()
         };
 
         // Create the right element with an outflow
@@ -249,30 +254,32 @@ mod tests {
             pressure: 5.0, // Lower pressure on the right
             height: 0.0,
             area: 0.0,
-            momentum: 0.0,
-            velocity: (0.0, 0.0, 0.0),
+            momentum: Vector3::new(0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
+            ..Element::default()
         };
 
         // Create the face between the two elements
         let face = Face {
             id: 0,
             nodes: vec![1, 2],
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             area: 1.0, // Simple unit area for the face
+            ..Face::default()
         };
 
         // Instantiate the flux solver
         let flux_solver = FluxSolver {};
 
         // Compute the flux
-        let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
+        let flux = flux_solver.compute_flux_3d(&face, &left_element, &right_element);
 
         // Simulate inflow: Add mass to the left element (inflow boundary)
         left_element.mass += 0.1; // Simulate some inflow
 
         // Simulate mass transfer based on flux
-        left_element.mass -= flux.abs();
-        right_element.mass += flux.abs();
+        left_element.mass -= flux.sum();
+        right_element.mass += flux.sum();
 
         // Assert total mass has increased by the inflow amount
         let total_mass = left_element.mass + right_element.mass;
@@ -297,8 +304,9 @@ mod tests {
             pressure: 10.0,
             height: 0.0,
             area: 0.0,
-            momentum: 2.0,
-            velocity: (0.0, 0.0, 0.0),
+            momentum: Vector3::new(2.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
+            ..Element::default()
         };
 
         let mut right_element = Element {
@@ -311,16 +319,18 @@ mod tests {
             pressure: 5.0,
             height: 0.0,
             area: 0.0,
-            momentum: 1.0,
-            velocity: (0.0, 0.0, 0.0),
+            momentum: Vector3::new(1.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
+            ..Element::default()
         };
 
         // Face between the two elements
         let face = Face {
             id: 0,
             nodes: vec![1, 2],
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             area: 1.0,
+            ..Face::default()
         };
 
         // Instantiate the flux solver and semi-implicit solver
@@ -330,7 +340,7 @@ mod tests {
         // Run the simulation over time
         for _time in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
             // Compute the flux at each time step
-            let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
+            let flux = flux_solver.compute_flux_3d(&face, &left_element, &right_element);
 
             // Use the semi-implicit solver to update the momentum
             left_element.momentum = semi_implicit_solver.semi_implicit_update(
@@ -345,12 +355,12 @@ mod tests {
             );
 
             // Apply clamping to ensure momentum does not go negative
-            left_element.momentum = left_element.momentum.max(0.0);
+            left_element.momentum = left_element.update_momentum(delta_momentum);
             right_element.momentum = right_element.momentum.max(0.0);
 
             // Ensure no spurious numerical oscillations occur
-            assert!(left_element.momentum > 0.0, "Momentum should remain positive in the long term");
-            assert!(right_element.momentum > 0.0, "Momentum should remain positive in the long term");
+            assert!(left_element.momentum > Vector3::new(0.0, 0.0, 0.0), "Momentum should remain positive in the long term");
+            assert!(right_element.momentum > Vector3::new(0.0, 0.0, 0.0), "Momentum should remain positive in the long term");
         }
     }
 
@@ -369,10 +379,11 @@ mod tests {
             mass: 1.0,
             height: 0.0,
             area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 15.0,  // High pressure
-            momentum: 3.0,   // High momentum
+            momentum: Vector3::new(3.0, 0.0, 0.0),   // High momentum
+            ..Element::default()
         };
 
         let mut middle_element = Element {
@@ -383,10 +394,11 @@ mod tests {
             mass: 1.0,
             height: 0.0,
             area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 10.0,  // Moderate pressure
-            momentum: 2.0,   // Moderate momentum
+            momentum: Vector3::new(2.0, 0.0, 0.0),   // Moderate momentum
+            ..Element::default()
         };
 
         let mut right_element = Element {
@@ -397,24 +409,27 @@ mod tests {
             mass: 1.0,
             height: 0.0,
             area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             neighbor_ref: 0,
             pressure: 5.0,  // Low pressure
-            momentum: 1.0,  // Low momentum
+            momentum: Vector3::new(1.0, 0.0, 0.0),  // Low momentum
+            ..Element::default()
         };
 
         // Faces between the elements
         let left_face = Face {
             id: 0,
             nodes: vec![1, 2],
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             area: 1.0,
+            ..Face::default()
         };
         let right_face = Face {
             id: 1,
             nodes: vec![2, 3],
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             area: 1.0,
+            ..Face::default()
         };
 
         // Instantiate solvers
@@ -424,8 +439,8 @@ mod tests {
         // Run the simulation over time
         for _time in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
             // Compute fluxes between elements
-            let flux_left = flux_solver.compute_flux(&left_face, &left_element, &middle_element);
-            let flux_right = flux_solver.compute_flux(&right_face, &middle_element, &right_element);
+            let flux_left = flux_solver.compute_flux_3d(&left_face, &left_element, &middle_element);
+            let flux_right = flux_solver.compute_flux_3d(&right_face, &middle_element, &right_element);
 
             // Update momenta using semi-implicit solver
             left_element.momentum = semi_implicit_solver.semi_implicit_update(
@@ -450,9 +465,9 @@ mod tests {
             );
 
             // Ensure momentum remains positive
-            assert!(left_element.momentum > 0.0, "Momentum should remain positive in the left element");
-            assert!(middle_element.momentum > 0.0, "Momentum should remain positive in the middle element");
-            assert!(right_element.momentum > 0.0, "Momentum should remain positive in the right element");
+            assert!(left_element.momentum > Vector3::new(0.0, 0.0, 0.0), "Momentum should remain positive in the left element");
+            assert!(middle_element.momentum > Vector3::new(0.0, 0.0, 0.0), "Momentum should remain positive in the middle element");
+            assert!(right_element.momentum > Vector3::new(0.0, 0.0, 0.0), "Momentum should remain positive in the right element");
         }
     }
 }
