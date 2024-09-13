@@ -19,61 +19,83 @@ impl FlowField {
         }
     }
 
-    pub fn compute_mass(&self, _element: &Element) -> f64 {
-        // Compute mass using velocity and pressure from mesh nodes/elements
-        0.0 // Placeholder
+    // Computes the mass for a specific element
+    pub fn compute_mass(&self, element: &Element) -> f64 {
+        // You can calculate the mass using the velocity, pressure, and other physical properties
+        element.mass // For now, returning the mass of the element
     }
 
-    pub fn compute_density(&self, _element: &Element) -> f64 {
-        // Compute density of the element based on mass and volume
-        0.0 // Placeholder
+    // Compute density based on element's mass and area (or volume)
+    pub fn compute_density(&self, element: &Element) -> f64 {
+        if element.area > 0.0 {
+            element.mass / element.area
+        } else {
+            0.0 // Avoid division by zero
+        }
     }
 
+    // Check mass conservation by summing up the mass and comparing to initial mass
     pub fn check_mass_conservation(&self) -> bool {
-        let _tolerance = 1e-6; // MASS_CONSERVATION_THRESHOLD
-        // Check if mass conservation is within the threshold
-        true
+        let current_mass: f64 = self.elements.iter().map(|e| e.mass).sum();
+        let tolerance = 1e-6; // Define a mass conservation tolerance
+        (current_mass - self.initial_mass).abs() < tolerance
     }
 
+    // Placeholder for computing surface velocity, could depend on a free surface element
     pub fn get_surface_velocity(&self) -> f64 {
-        // Return the velocity of the free surface or some calculated value
-        0.0  // Placeholder logic
+        0.0  // Add logic to calculate based on a free surface element
     }
 
+    // Returns surface pressure, could depend on atmospheric or fluid surface
     pub fn get_surface_pressure(&self) -> f64 {
-        // Placeholder logic for calculating surface pressure
-        101325.0  // Standard atmospheric pressure
+        101325.0  // Example: Standard atmospheric pressure (in Pascals)
     }
 
+    // Get inflow velocity for the boundary condition (can be refined further)
     pub fn get_inflow_velocity(&self) -> (f64, f64, f64) {
-        // Define inflow velocity
-        (1.0, 0.0, 0.0)  // Example: horizontal inflow
+        (1.0, 0.0, 0.0)  // Example: horizontal inflow velocity
     }
 
+    // Get outflow velocity for the boundary condition
     pub fn get_outflow_velocity(&self) -> (f64, f64, f64) {
-        // Define outflow velocity
-        (0.5, 0.0, 0.0)  // Example: horizontal outflow
+        (0.5, 0.0, 0.0)  // Example: horizontal outflow velocity
     }
 
+    // Define inflow mass rate, dependent on the physical properties of the system
     pub fn inflow_mass_rate(&self) -> f64 {
-        // Define mass inflow rate
-        1.0  // Example mass rate
+        1.0  // Example: inflow mass rate (this can vary)
     }
 
+    // Define outflow mass rate, this can vary depending on boundary conditions
     pub fn outflow_mass_rate(&self) -> f64 {
-        // Define mass outflow rate
-        0.8  // Example mass rate
+        0.8  // Example: outflow mass rate
     }
 
+    // Retrieve a corresponding periodic boundary element (for Periodic boundary condition)
     pub fn get_periodic_element<'a>(&'a self, element: &'a Element) -> &'a Element {
-        // Placeholder function to get the corresponding periodic boundary element
-        // You will need to define how periodic boundaries map elements in your mesh
-        element  // For now, just return the same element (replace this logic)
+        // Logic to find the periodic counterpart of the current element
+        // Currently returns the same element as a placeholder
+        element
     }
 
-    pub fn get_nearby_pressure(&self, _element: &Element) -> f64 {
-        // Implement logic to compute nearby pressure based on surrounding elements
-        0.0  // Placeholder logic
+    // Logic to compute nearby pressure, assuming you're computing pressure using neighbors
+    pub fn get_nearby_pressure(&self, element: &Element) -> f64 {
+        // Implement logic to compute the pressure of neighboring elements
+        let mut total_pressure = 0.0;
+        let mut count = 0;
+
+        for neighbor in &self.elements {
+            if neighbor.id != element.id {
+                total_pressure += neighbor.pressure;
+                count += 1;
+            }
+        }
+
+        if count > 0 {
+            total_pressure / count as f64
+        } else {
+            0.0 // Return zero if there are no neighbors (edge case)
+        }
     }
 }
 

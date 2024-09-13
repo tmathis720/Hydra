@@ -15,6 +15,7 @@ use crate::solver::FlowField;
 use crate::domain::{Mesh, Element};
 
 #[derive(PartialEq)] 
+#[derive(Clone)]
 pub enum BoundaryType {
     Inflow,
     Outflow,
@@ -108,7 +109,7 @@ impl Boundary {
     }
 }
 
-
+#[derive(Clone)]
 pub struct BoundaryElement {
     pub element: Rc<RefCell<Element>>,   // Reference to the element in the mesh
     pub boundary_type: BoundaryType,     // Type of boundary condition applied
