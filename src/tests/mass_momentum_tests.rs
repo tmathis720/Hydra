@@ -133,7 +133,7 @@ mod tests {
     fn apply_reflective_boundaries(mesh: &mut Mesh) {
         for face in &mut mesh.faces {
             if is_reflective_face(face) {
-                face.velocity = (-face.velocity.0, -face.velocity.1); // Reflect the velocity
+                face.velocity = (-face.velocity.0, -face.velocity.1, -face.velocity.2); // Reflect the velocity
             }
         }
     }
@@ -201,8 +201,8 @@ mod tests {
         // Create the face between the two elements
         let face = Face {
             id: 0,
-            nodes: (1, 2),
-            velocity: (0.0, 0.0),  // Initial velocity is zero
+            nodes: vec![1, 2],
+            velocity: (0.0, 0.0, 0.0),  // Initial velocity is zero
             area: 1.0,  // Simple unit area for the face
         };
 
@@ -256,8 +256,8 @@ mod tests {
         // Create the face between the two elements
         let face = Face {
             id: 0,
-            nodes: (1, 2),
-            velocity: (0.0, 0.0),
+            nodes: vec![1, 2],
+            velocity: (0.0, 0.0, 0.0),
             area: 1.0, // Simple unit area for the face
         };
 
@@ -318,8 +318,8 @@ mod tests {
         // Face between the two elements
         let face = Face {
             id: 0,
-            nodes: (1, 2),
-            velocity: (0.0, 0.0),
+            nodes: vec![1, 2],
+            velocity: (0.0, 0.0, 0.0),
             area: 1.0,
         };
 
@@ -406,14 +406,14 @@ mod tests {
         // Faces between the elements
         let left_face = Face {
             id: 0,
-            nodes: (1, 2),
-            velocity: (0.0, 0.0),
+            nodes: vec![1, 2],
+            velocity: (0.0, 0.0, 0.0),
             area: 1.0,
         };
         let right_face = Face {
             id: 1,
-            nodes: (2, 3),
-            velocity: (0.0, 0.0),
+            nodes: vec![2, 3],
+            velocity: (0.0, 0.0, 0.0),
             area: 1.0,
         };
 

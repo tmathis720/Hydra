@@ -1,24 +1,36 @@
+// src/timestep/euler.rs
+
 use crate::domain::Mesh;
-use crate::solver::Solver;
+use crate::solver::flux_solver::FluxSolver;
 use crate::timestep::TimeStepper;
 
+/// Explicit Euler time-stepping method.
 pub struct ExplicitEuler {
-    pub dt: f64,  // Time step size
+    pub solver: FluxSolver,  // Holds the specific solver for flux computations
 }
 
 impl TimeStepper for ExplicitEuler {
-    fn step(&self, mesh: &mut Mesh, solver: &mut dyn Solver) {
-        // Step 1: Collect all face-element references from the relationship table
-        for relation in &mesh.face_element_relations {
-            let left_element = &mesh.elements[relation.left_element_id as usize];
-            let right_element = &mesh.elements[relation.right_element_id as usize];
+    fn step(&self, mesh: &mut Mesh, dt: f64) {
+        for face in &mut mesh.faces {
+            // Get mutable references to the connected elements
+            let (left_element, right_element) = mesh.get_connected_elements(face);
 
-            // Step 2: Borrow the face mutably
-            let face = &mut mesh.faces[relation.face_id as usize];
+            if let (Some(left), Some(right)) = (left_element, right_element) {
+                // Use the specific solver to compute fluxes
+                let flux_3d = self.solver.compute_flux_3d(face, left, right);
 
-            // Step 3: Compute and apply flux
-            let flux = solver.compute_flux(face, left_element, right_element);
-            solver.apply_flux(face, flux, self.dt);
+                // Apply the flux to update the face velocity
+                self.solver.apply_flux_3d(face, flux_3d, dt);
+
+                // Update momentum of the elements explicitly
+                left.update_momentum(flux_3d * dt);
+                right.update_momentum(-flux_3d * dt);  // Opposite direction
+            }
+        }
+
+        // Update velocities of all elements based on the new momentum
+        for element in &mut mesh.elements {
+            element.update_velocity_from_momentum();
         }
     }
 }

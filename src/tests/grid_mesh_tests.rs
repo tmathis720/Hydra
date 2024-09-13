@@ -17,8 +17,8 @@ mod tests {
 
         // Define faces between elements (different areas for non-uniform grid)
         let faces = vec![
-            Face { id: 0, nodes: (1, 2), velocity: (0.0, 0.0), area: 1.0 },
-            Face { id: 1, nodes: (2, 3), velocity: (0.0, 0.0), area: 0.8 },
+            Face { id: 0, nodes: vec![1, 2], velocity: (0.0, 0.0, 0.0), area: 1.0 },
+            Face { id: 1, nodes: vec![2, 3], velocity: (0.0, 0.0, 0.0), area: 0.8 },
         ];
 
         // Instantiate solvers
@@ -54,8 +54,8 @@ mod tests {
     fn create_face() -> Face {
         Face {
             id: 0,
-            nodes: (1, 2), // Nodes shared between left and right elements
-            velocity: (0.0, 0.0), // Initial velocity is zero
+            nodes: vec![1, 2], // Nodes shared between left and right elements
+            velocity: (0.0, 0.0, 0.0), // Initial velocity is zero
             area: 1.0, // Example face area
         }
     }
@@ -195,9 +195,9 @@ mod tests {
 
         // Define faces between elements
         let faces = vec![
-            Face { id: 0, nodes: (1, 2), velocity: (0.0, 0.0), area: 1.0 },
-            Face { id: 1, nodes: (2, 3), velocity: (0.0, 0.0), area: 1.0 },
-            Face { id: 2, nodes: (3, 4), velocity: (0.0, 0.0), area: 1.0 },
+            Face { id: 0, nodes: vec![1, 2], velocity: (0.0, 0.0, 0.0), area: 1.0 },
+            Face { id: 1, nodes: vec![2, 3], velocity: (0.0, 0.0, 0.0), area: 1.0 },
+            Face { id: 2, nodes: vec![3, 4], velocity: (0.0, 0.0, 0.0), area: 1.0 },
         ];
 
         // Instantiate solvers

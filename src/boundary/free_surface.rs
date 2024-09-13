@@ -1,55 +1,136 @@
-use crate::domain::Element;
-use crate::boundary::BoundaryElement;
-use crate::solver::FlowField;
+use crate::domain::{Mesh, Element, Face};
+use crate::domain::FlowField;  // Correct module import for FlowField
+use crate::boundary::BoundaryType;
+use nalgebra::Vector3;
 
+const MASS_CONSERVATION_THRESHOLD: f64 = 1e-6;  // Threshold for mass conservation check
+
+/// FreeSurfaceBoundary structure applies flow conditions like free surface elevations and velocities
 pub struct FreeSurfaceBoundary {
-    pub pressure_at_surface: f64, // Pressure at the free surface (typically atmospheric pressure)
+    pub inflow_velocity: Vector3<f64>,  // 3D inflow velocity
+    pub outflow_velocity: Vector3<f64>, // 3D outflow velocity (if required)
+    pub surface_elevation: f64,         // Free surface elevation at boundary
 }
 
 impl FreeSurfaceBoundary {
-    /// Apply the free surface boundary condition
-    /// This method adjusts the pressure of the element toward the surface pressure over time.
+    /// Apply free surface boundary conditions to inflow and outflow boundary faces
+    pub fn apply(&self, mesh: &mut Mesh) {
+        let inflow_faces = self.get_boundary_faces(mesh, BoundaryType::Inflow);
+        let outflow_faces = self.get_boundary_faces(mesh, BoundaryType::Outflow);
+
+        // Apply inflow conditions
+        for face_index in inflow_faces {
+            let face = &mut mesh.faces[face_index];
+            face.velocity = self.inflow_velocity;  // Apply 3D inflow velocity
+            self.apply_inflow_to_elements(face.id, mesh);
+        }
+
+        // Apply outflow conditions
+        for face_index in outflow_faces {
+            let face = &mut mesh.faces[face_index];
+            face.velocity = self.outflow_velocity;  // Apply 3D outflow velocity
+            self.apply_outflow_to_elements(face.id, mesh);
+        }
+    }
+
+    /// Apply inflow condition to elements connected to a face
+    fn apply_inflow_to_elements(&self, face_id: u32, mesh: &mut Mesh) {
+        for relation in &mesh.face_element_relations {
+            if relation.face_id == face_id {
+                if let Some(left_element) = mesh.elements.iter_mut().find(|e| e.id == relation.left_element_id) {
+                    left_element.velocity = self.inflow_velocity;
+                    left_element.momentum += self.inflow_velocity * left_element.mass;
+                    left_element.height = self.surface_elevation;  // Update free surface elevation
+                }
+                if let Some(right_element) = mesh.elements.iter_mut().find(|e| e.id == relation.right_element_id) {
+                    right_element.velocity = self.inflow_velocity;
+                    right_element.momentum += self.inflow_velocity * right_element.mass;
+                    right_element.height = self.surface_elevation;  // Update free surface elevation
+                }
+                break;
+            }
+        }
+    }
+
+    /// Apply outflow condition to elements connected to a face
+    fn apply_outflow_to_elements(&self, face_id: u32, mesh: &mut Mesh) {
+        for relation in &mesh.face_element_relations {
+            if relation.face_id == face_id {
+                if let Some(left_element) = mesh.elements.iter_mut().find(|e| e.id == relation.left_element_id) {
+                    left_element.velocity = self.outflow_velocity;
+                    left_element.momentum -= self.outflow_velocity * left_element.mass;
+                    left_element.height = self.surface_elevation;  // Maintain free surface elevation at outflow
+                }
+                if let Some(right_element) = mesh.elements.iter_mut().find(|e| e.id == relation.right_element_id) {
+                    right_element.velocity = self.outflow_velocity;
+                    right_element.momentum -= self.outflow_velocity * right_element.mass;
+                    right_element.height = self.surface_elevation;  // Maintain free surface elevation at outflow
+                }
+                break;
+            }
+        }
+    }
+
+    /// Helper function to retrieve inflow or outflow boundary faces
+    fn get_boundary_faces(&self, mesh: &Mesh, boundary_type: BoundaryType) -> Vec<usize> {
+        mesh.faces.iter().enumerate()
+            .filter_map(|(i, face)| {
+                if (boundary_type == BoundaryType::Inflow && self.is_inflow_boundary_face(face, mesh)) ||
+                   (boundary_type == BoundaryType::Outflow && self.is_outflow_boundary_face(face, mesh)) {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Check if the face is at the inflow boundary
+    fn is_inflow_boundary_face(&self, face: &Face, mesh: &Mesh) -> bool {
+        let node_1 = &mesh.nodes[face.nodes[0]];
+        let node_2 = &mesh.nodes[face.nodes[1]];
+        node_1.position.x == 0.0 || node_2.position.x == 0.0  // Check inflow at x = 0
+    }
+
+    /// Check if the face is at the outflow boundary
+    fn is_outflow_boundary_face(&self, face: &Face, mesh: &Mesh) -> bool {
+        let node_1 = &mesh.nodes[face.nodes[0]];
+        let node_2 = &mesh.nodes[face.nodes[1]];
+        node_1.position.x == mesh.domain_width() || node_2.position.x == mesh.domain_width()  // Check outflow at domain's right edge
+    }
+
+    /// Check for mass conservation by comparing the initial and current total mass
+    pub fn check_mass_conservation(&self, flow_field: &FlowField) -> bool {
+        let total_mass: f64 = flow_field.elements.iter().map(|e| e.mass).sum();
+        let mass_difference = total_mass - flow_field.initial_mass;
+        mass_difference.abs() < MASS_CONSERVATION_THRESHOLD
+    }
+}
+
+/// Struct to represent free surface inflow boundary conditions
+pub struct FreeSurfaceInflow {
+    pub rate: f64,  // Rate of mass/momentum added to the system
+}
+
+impl FreeSurfaceInflow {
+    /// Apply free surface inflow by adding mass and momentum to the element
     pub fn apply_boundary(&self, element: &mut Element, dt: f64) {
-        // Calculate the pressure difference between the element and surface
-        let pressure_difference = element.pressure - self.pressure_at_surface;
-
-        // Gradually adjust the pressure toward the free surface pressure using a relaxation factor
-        let relaxation_factor = 0.1;  // This can be adjusted to control the speed of transition
-        element.pressure -= relaxation_factor * pressure_difference * dt;
-
-        // Ensure that the pressure doesn't drop below the free surface pressure (e.g., atmospheric)
-        element.pressure = element.pressure.max(self.pressure_at_surface);
+        element.mass += self.rate * dt;  // Add mass
+        element.momentum += Vector3::new(self.rate * element.pressure * dt, 0.0, 0.0);  // Add momentum (assumed in x-direction)
+        // Optionally, modify surface elevation if necessary for free surface
     }
+}
 
-    /// Update the dynamic fluxes at the free surface
-    /// This function calculates and updates the velocity and height of the free surface element
-    /// based on surface fluxes and time step.
-    pub fn update_dynamic_fluxes(&self, boundary: &mut BoundaryElement, flow_field: &FlowField, time_step: f64) {
-        let mut element_ref = boundary.element.borrow_mut();
+/// Struct to represent free surface outflow boundary conditions
+pub struct FreeSurfaceOutflow {
+    pub rate: f64,  // Rate of mass/momentum removed from the system
+}
 
-        // Calculate the surface flux based on physical properties
-        let surface_flux = self.compute_surface_flux(&element_ref, flow_field);
-
-        // Update the velocity based on the surface flux (mass conservation)
-        // Assume surface_flux is in units of volume or mass per unit time
-        element_ref.velocity.2 += surface_flux / element_ref.area;  // Adjust only vertical velocity
-
-        // Update the height of the water surface based on the velocity and the time step
-        element_ref.height += element_ref.velocity.2 * time_step;
-    }
-
-    /// Compute the surface flux at the free surface boundary
-    /// This function uses Bernoulli's equation and other principles to compute the flux across the boundary.
-    fn compute_surface_flux(&self, element: &Element, flow_field: &FlowField) -> f64 {
-        // Calculate pressure difference between the current element and nearby elements
-        let pressure_diff = element.pressure - flow_field.get_nearby_pressure(element);
-        let density = element.compute_density();
-        // Compute the flux based on Bernoulli's principle
-        // flux = sqrt(2 * pressure_diff / density)
-        // Ensure density is available in the element, otherwise you need to provide it
-        let flux = (2.0 * pressure_diff / density).sqrt();
-
-        // Return the flux, adjusted by physical factors (e.g., geometry of the surface)
-        flux
+impl FreeSurfaceOutflow {
+    /// Apply free surface outflow by removing mass and momentum from the element
+    pub fn apply_boundary(&self, element: &mut Element, dt: f64) {
+        element.mass = (element.mass - self.rate * dt).max(0.0);  // Ensure mass does not go negative
+        element.momentum.x = (element.momentum.x - self.rate * element.pressure * dt).max(0.0);  // Prevent negative momentum
+        // Optionally, adjust surface elevation at the outflow boundary
     }
 }

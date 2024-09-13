@@ -39,8 +39,8 @@ mod tests {
         // Create the face between the two elements
         let face = Face {
             id: 0,
-            nodes: (1, 2),  // Nodes shared between left and right elements
-            velocity: (0.0, 0.0),  // Initial velocity is zero
+            nodes: vec![1, 2],  // Nodes shared between left and right elements
+            velocity: (0.0, 0.0, 0.0),  // Initial velocity is zero
             area: 1.0,  // Simple unit area for the face
         };
 
@@ -97,8 +97,8 @@ mod tests {
         // Create the face between the two elements
         let face = Face {
             id: 0,
-            nodes: (1, 2),  // Nodes shared between left and right elements
-            velocity: (0.0, 0.0),  // Initial velocity is zero
+            nodes: vec![1, 2],  // Nodes shared between left and right elements
+            velocity: (0.0, 0.0, 0.0),  // Initial velocity is zero
             area: 1.0,  // Simple unit area for the face
         };
 
@@ -159,8 +159,8 @@ mod tests {
         // Define face between the elements
         let face = Face {
             id: 0,
-            nodes: (1, 2),
-            velocity: (0.0, 0.0),
+            nodes: vec![1, 2],
+            velocity: (0.0, 0.0, 0.0),
             area: 1.0,
         };
 
@@ -221,8 +221,8 @@ mod tests {
         // Define the face between the two elements
         let face = Face {
             id: 0,
-            nodes: (1, 2),  // Shared between the two elements
-            velocity: (0.0, 0.0),  // Initial velocity is zero
+            nodes: vec![1, 2],  // Shared between the two elements
+            velocity: (0.0, 0.0, 0.0),  // Initial velocity is zero
             area: 1.0,  // Simple unit area for the face
         };
 

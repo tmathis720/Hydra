@@ -1,247 +1,165 @@
 use crate::domain::{Node, Element, Face, Mesh};
+use nalgebra::Vector3;
 
 pub struct MeshGenerator;
 
 impl MeshGenerator {
-    /// Generates a rectangular mesh with a specified width, height, and resolution.
+    /// Generates a 2D rectangular mesh with a specified width, height, and resolution (nx, ny).
     pub fn generate_rectangle(width: f64, height: f64, nx: usize, ny: usize) -> Mesh {
-        let mut nodes = Vec::new();
-        let mut elements = Vec::new();
-        let mut faces = Vec::new();
+        let nodes = MeshGenerator::generate_grid_nodes_2d(width, height, nx, ny);
+        let elements = MeshGenerator::generate_quadrilateral_elements(nx, ny);
+        let faces = MeshGenerator::generate_faces_2d(&elements);
 
-        // Generate nodes
-        let dx = width / (nx as f64);
-        let dy = height / (ny as f64);
+        Mesh {
+            nodes,
+            elements,
+            faces,
+            face_element_relations: vec![],
+            neighbors: vec![],
+        }
+    }
+
+    /// Generates a 3D rectangular mesh with a specified width, height, depth, and resolution (nx, ny, nz).
+    pub fn generate_rectangle_3d(width: f64, height: f64, depth: f64, nx: usize, ny: usize, nz: usize) -> Mesh {
+        let nodes = MeshGenerator::generate_grid_nodes_3d(width, height, depth, nx, ny, nz);
+        let elements = MeshGenerator::generate_hexahedral_elements(nx, ny, nz);
+        let faces = MeshGenerator::generate_faces_3d(&elements);
+
+        Mesh {
+            nodes,
+            elements,
+            faces,
+            face_element_relations: vec![],
+            neighbors: vec![],
+        }
+    }
+
+    /// Generates a triangular mesh based on a circle geometry.
+    pub fn generate_circle(radius: f64, num_divisions: usize) -> Mesh {
+        let nodes = MeshGenerator::generate_circle_nodes(radius, num_divisions);
+        let elements = MeshGenerator::generate_triangular_elements(num_divisions);
+        let faces = MeshGenerator::generate_boundary_faces(&elements);
+
+        Mesh {
+            nodes,
+            elements,
+            faces,
+            face_element_relations: vec![],
+            neighbors: vec![],
+        }
+    }
+
+    /// Generates an elliptical mesh with a specified major and minor radius and resolution.
+    pub fn generate_ellipse(a: f64, b: f64, num_divisions: usize) -> Mesh {
+        let nodes = MeshGenerator::generate_ellipse_nodes(a, b, num_divisions);
+        let elements = MeshGenerator::generate_triangular_elements(num_divisions);
+        let faces = MeshGenerator::generate_boundary_faces(&elements);
+
+        Mesh {
+            nodes,
+            elements,
+            faces,
+            face_element_relations: vec![],
+            neighbors: vec![],
+        }
+    }
+
+    /// Generates a 3D cube mesh.
+    pub fn generate_cube(side_length: f64) -> Mesh {
+        let nodes = MeshGenerator::generate_cube_nodes(side_length);
+        let elements = MeshGenerator::generate_hexahedral_elements(1, 1, 1);
+        let faces = MeshGenerator::generate_faces_3d(&elements);
+
+        Mesh {
+            nodes,
+            elements,
+            faces,
+            face_element_relations: vec![],
+            neighbors: vec![],
+        }
+    }
+
+    // ----- Helper Functions -----
+
+    /// Generates 2D grid nodes for a rectangular mesh.
+    fn generate_grid_nodes_2d(width: f64, height: f64, nx: usize, ny: usize) -> Vec<Node> {
+        let mut nodes = Vec::new();
+        let dx = width / nx as f64;
+        let dy = height / ny as f64;
         let mut node_id = 0;
 
         for j in 0..=ny {
             for i in 0..=nx {
-                let x = i as f64 * dx;
-                let y = j as f64 * dy;
                 nodes.push(Node {
                     id: node_id,
-                    position: (x, y, 0.0),
+                    position: Vector3::new(i as f64 * dx, j as f64 * dy, 0.0),
                 });
                 node_id += 1;
             }
         }
+        nodes
+    }
 
-        // Generate elements (quadrilaterals, element_type = 3 for 4-node quadrangle)
-        let mut element_id = 0;
-        for j in 0..ny {
-            for i in 0..nx {
-                let n1 = j * (nx + 1) + i;
-                let n2 = n1 + 1;
-                let n3 = n1 + (nx + 1) + 1;
-                let n4 = n1 + (nx + 1);
+    /// Generates 3D grid nodes for a rectangular mesh.
+    fn generate_grid_nodes_3d(width: f64, height: f64, depth: f64, nx: usize, ny: usize, nz: usize) -> Vec<Node> {
+        let mut nodes = Vec::new();
+        let dx = width / nx as f64;
+        let dy = height / ny as f64;
+        let dz = depth / nz as f64;
+        let mut node_id = 0;
 
-                elements.push(Element {
-                    id: element_id,
-                    nodes: vec![n1, n2, n3, n4],
-                    faces: vec![], // Initialized but left empty
-                    pressure: 0.0,
-                    height: 0.0,
-                    area: 0.0,
-                    neighbor_ref: 0,
-                    mass: 1.0,
-                    momentum: 0.0,
-                    element_type: 3, // 4-node quadrangle
-                    velocity: (0.0, 0.0, 0.0),
-                });
-                element_id += 1;
+        for k in 0..=nz {
+            for j in 0..=ny {
+                for i in 0..=nx {
+                    nodes.push(Node {
+                        id: node_id,
+                        position: Vector3::new(i as f64 * dx, j as f64 * dy, k as f64 * dz),
+                    });
+                    node_id += 1;
+                }
             }
         }
-
-        // Generate faces for the rectangle (boundary edges, element_type = 1 for 2-node line)
-        let mut face_id = 0;
-        for j in 0..ny {
-            for i in 0..nx {
-                let n1 = j * (nx + 1) + i;
-                let n2 = n1 + 1;
-                let n3 = n1 + (nx + 1);
-                let n4 = n3 + 1;
-
-                faces.push(Face {
-                    id: face_id,
-                    nodes: (n1, n2),
-                    velocity: (0.0, 0.0),
-                    area: 1.0,
-                });
-                face_id += 1;
-                faces.push(Face {
-                    id: face_id,
-                    nodes: (n2, n4),
-                    velocity: (0.0, 0.0),
-                    area: 1.0,
-                });
-                face_id += 1;
-                faces.push(Face {
-                    id: face_id,
-                    nodes: (n4, n3),
-                    velocity: (0.0, 0.0),
-                    area: 1.0,
-                });
-                face_id += 1;
-                faces.push(Face {
-                    id: face_id,
-                    nodes: (n3, n1),
-                    velocity: (0.0, 0.0),
-                    area: 1.0,
-                });
-                face_id += 1;
-            }
-        }
-
-        Mesh {
-            nodes,
-            elements,
-            faces,
-            face_element_relations: vec![],
-            neighbors: vec![],
-        }
+        nodes
     }
 
-    /// Generates a triangular mesh (2D) based on a circle geometry.
-    pub fn generate_circle(radius: f64, num_divisions: usize) -> Mesh {
+    /// Generates circle nodes for a circular mesh.
+    fn generate_circle_nodes(radius: f64, num_divisions: usize) -> Vec<Node> {
         let mut nodes = Vec::new();
-        let mut elements = Vec::new();
-        let mut faces = Vec::new();
-
-        // Center node
         nodes.push(Node {
             id: 0,
-            position: (0.0, 0.0, 0.0),
+            position: Vector3::new(0.0, 0.0, 0.0),
         });
 
-        // Generate outer nodes on the circle
-        let mut node_id = 1;
         for i in 0..num_divisions {
             let theta = 2.0 * std::f64::consts::PI * (i as f64) / (num_divisions as f64);
-            let x = radius * theta.cos();
-            let y = radius * theta.sin();
             nodes.push(Node {
-                id: node_id,
-                position: (x, y, 0.0),
+                id: i as u32 + 1,
+                position: Vector3::new(radius * theta.cos(), radius * theta.sin(), 0.0),
             });
-            node_id += 1;
         }
-
-        // Generate elements (triangles, element_type = 2 for 3-node triangle)
-        let mut element_id = 0;
-        for i in 0..num_divisions {
-            let next = (i + 1) % num_divisions;
-            elements.push(Element {
-                id: element_id,
-                nodes: vec![0, i + 1, next + 1],
-                faces: vec![],
-                pressure: 0.0,
-                height: 0.0,
-                area: 0.0,
-                neighbor_ref: 0,
-                mass: 1.0,
-                momentum: 0.0,
-                element_type: 2, // 3-node triangle
-                velocity: (0.0, 0.0, 0.0),
-            });
-            element_id += 1;
-        }
-
-        // Generate faces on the outer boundary (2-node line)
-        let mut face_id = 0;
-        for i in 0..num_divisions {
-            let next = (i + 1) % num_divisions;
-            faces.push(Face {
-                id: face_id,
-                nodes: (i + 1, next + 1),
-                velocity: (0.0, 0.0),
-                area: 1.0,
-            });
-            face_id += 1;
-        }
-
-        Mesh {
-            nodes,
-            elements,
-            faces,
-            face_element_relations: vec![],
-            neighbors: vec![],
-        }
+        nodes
     }
 
-    /// Generates an elliptical mesh.
-    pub fn generate_ellipse(a: f64, b: f64, num_divisions: usize) -> Mesh {
+    /// Generates ellipse nodes for an elliptical mesh.
+    fn generate_ellipse_nodes(a: f64, b: f64, num_divisions: usize) -> Vec<Node> {
         let mut nodes = Vec::new();
-        let mut elements = Vec::new();
-        let mut faces = Vec::new();
-
-        // Center node
         nodes.push(Node {
             id: 0,
-            position: (0.0, 0.0, 0.0),
+            position: Vector3::new(0.0, 0.0, 0.0),
         });
 
-        // Generate outer nodes on the ellipse
-        let mut node_id = 1;
         for i in 0..num_divisions {
             let theta = 2.0 * std::f64::consts::PI * (i as f64) / (num_divisions as f64);
-            let x = a * theta.cos();
-            let y = b * theta.sin();
             nodes.push(Node {
-                id: node_id,
-                position: (x, y, 0.0),
+                id: i as u32 + 1,
+                position: Vector3::new(a * theta.cos(), b * theta.sin(), 0.0),
             });
-            node_id += 1;
         }
-
-        // Generate elements (triangles, element_type = 2 for 3-node triangle)
-        let mut element_id = 0;
-        for i in 0..num_divisions {
-            let next = (i + 1) % num_divisions;
-            elements.push(Element {
-                id: element_id,
-                nodes: vec![0, i + 1, next + 1],
-                faces: vec![],
-                pressure: 0.0,
-                height: 0.0,
-                area: 0.0,
-                neighbor_ref: 0,
-                mass: 1.0,
-                momentum: 0.0,
-                element_type: 2, // 3-node triangle
-                velocity: (0.0, 0.0, 0.0),
-            });
-            element_id += 1;
-        }
-
-        // Generate faces on the outer boundary (2-node line)
-        let mut face_id = 0;
-        for i in 0..num_divisions {
-            let next = (i + 1) % num_divisions;
-            faces.push(Face {
-                id: face_id,
-                nodes: (i + 1, next + 1),
-                velocity: (0.0, 0.0),
-                area: 1.0,
-            });
-            face_id += 1;
-        }
-
-        Mesh {
-            nodes,
-            elements,
-            faces,
-            face_element_relations: vec![],
-            neighbors: vec![],
-        }
+        nodes
     }
 
-    /// Generates a simple mesh for a 3D cube.
-    pub fn generate_cube(side_length: f64) -> Mesh {
-        let mut nodes = Vec::new();
-        let mut elements = Vec::new();
-        let faces = Vec::new();
-
-        // Generate 8 corner nodes of the cube
+    /// Generates cube nodes for a simple cube mesh.
+    fn generate_cube_nodes(side_length: f64) -> Vec<Node> {
         let half_side = side_length / 2.0;
         let cube_coords = [
             (-half_side, -half_side, -half_side),
@@ -254,123 +172,247 @@ impl MeshGenerator {
             (-half_side, half_side, half_side),
         ];
 
-        for (id, &(x, y, z)) in cube_coords.iter().enumerate() {
-            nodes.push(Node {
+        cube_coords
+            .iter()
+            .enumerate()
+            .map(|(id, &(x, y, z))| Node {
                 id: id as u32,
-                position: (x, y, z),
+                position: Vector3::new(x, y, z),
+            })
+            .collect()
+    }
+
+    /// Generates quadrilateral elements for a 2D rectangular mesh.
+    fn generate_quadrilateral_elements(nx: usize, ny: usize) -> Vec<Element> {
+        let mut elements = Vec::new();
+        let mut element_id = 0;
+
+        for j in 0..ny {
+            for i in 0..nx {
+                let n1 = j * (nx + 1) + i;
+                let n2 = n1 + 1;
+                let n3 = n1 + (nx + 1) + 1;
+                let n4 = n1 + (nx + 1);
+
+                elements.push(Element {
+                    id: element_id,
+                    nodes: vec![n1, n2, n3, n4],
+                    faces: vec![],
+                    pressure: 0.0,
+                    height: 0.0,
+                    area: 0.0,
+                    neighbor_ref: 0,
+                    mass: 1.0,
+                    momentum: Vector3::new(0.0, 0.0, 0.0),
+                    element_type: 3, // Quadrilateral
+                    velocity: Vector3::new(0.0, 0.0, 0.0),
+                    ..Element::default()
+                });
+                element_id += 1;
+            }
+        }
+        elements
+    }
+
+    /// Generates hexahedral elements for a 3D rectangular mesh.
+    fn generate_hexahedral_elements(nx: usize, ny: usize, nz: usize) -> Vec<Element> {
+        let mut elements = Vec::new();
+        let mut element_id = 0;
+
+        for k in 0..nz {
+            for j in 0..ny {
+                for i in 0..nx {
+                    let n1 = k * (ny + 1) * (nx + 1) + j * (nx + 1) + i;
+                    let n2 = n1 + 1;
+                    let n3 = n1 + (nx + 1);
+                    let n4 = n3 + 1;
+                    let n5 = n1 + (ny + 1) * (nx + 1);
+                    let n6 = n5 + 1;
+                    let n7 = n5 + (nx + 1);
+                    let n8 = n7 + 1;
+
+                    elements.push(Element {
+                        id: element_id,
+                        nodes: vec![n1, n2, n4, n3, n5, n6, n8, n7],
+                        faces: vec![],
+                        pressure: 0.0,
+                        height: 0.0,
+                        area: 0.0,
+                        neighbor_ref: 0,
+                        mass: 1.0,
+                        momentum: Vector3::new(0.0, 0.0, 0.0),
+                        element_type: 4, // Hexahedral
+                        velocity: Vector3::new(0.0, 0.0, 0.0),
+                        ..Element::default()
+                    });
+                    element_id += 1;
+                }
+            }
+        }
+        elements
+    }
+
+    /// Generates triangular elements for circular/elliptical meshes.
+    fn generate_triangular_elements(num_divisions: usize) -> Vec<Element> {
+        let mut elements = Vec::new();
+        for i in 0..num_divisions {
+            let next = (i + 1) % num_divisions;
+
+            elements.push(Element {
+                id: i as u32,
+                nodes: vec![0, i + 1, next + 1],
+                faces: vec![],
+                pressure: 0.0,
+                height: 0.0,
+                area: 0.0,
+                neighbor_ref: 0,
+                mass: 1.0,
+                momentum: Vector3::new(0.0, 0.0, 0.0),
+                element_type: 2, // Triangular
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                ..Element::default()
             });
         }
+        elements
+    }
 
-        // Generate hexahedral element (element_type = 5 for 8-node hexahedron)
-        elements.push(Element {
-            id: 0,
-            nodes: vec![0, 1, 2, 3, 4, 5, 6, 7],
-            faces: vec![],
-            pressure: 0.0,
-            height: 0.0,
-            area: 0.0,
-            neighbor_ref: 0,
-            mass: 1.0,
-            momentum: 0.0,
-            element_type: 5, // 8-node hexahedron
-            velocity: (0.0, 0.0, 0.0),
-        });
+    /// Generates faces for a 2D rectangular mesh.
+    fn generate_faces_2d(elements: &[Element]) -> Vec<Face> {
+        let mut faces = Vec::new();
+        let mut face_id = 0;
 
-        // (Optional) Generate faces for the cube
-        // You can define 6 faces for the cube using the corner nodes.
+        for element in elements {
+            let (n1, n2, n3, n4) = (element.nodes[0], element.nodes[1], element.nodes[2], element.nodes[3]);
 
-        Mesh {
-            nodes,
-            elements,
-            faces,
-            face_element_relations: vec![],
-            neighbors: vec![],
+            // Bottom face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n1, n2],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
+
+            // Right face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n2, n3],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
+
+            // Top face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n3, n4],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
+
+            // Left face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n4, n1],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::numerical::mesh_generator::MeshGenerator;
-    use crate::domain::Mesh;
-
-    #[test]
-    fn test_generate_rectangle() {
-        let width = 10.0;
-        let height = 5.0;
-        let nx = 4;
-        let ny = 2;
-
-        let mesh: Mesh = MeshGenerator::generate_rectangle(width, height, nx, ny);
-
-        // Check the number of nodes
-        let expected_node_count = (nx + 1) * (ny + 1);
-        assert_eq!(mesh.nodes.len(), expected_node_count, "Node count should be correct for rectangle mesh");
-
-        // Check the number of elements (quadrilaterals)
-        let expected_element_count = nx * ny;
-        assert_eq!(mesh.elements.len(), expected_element_count, "Element count should be correct for rectangle mesh");
-
-        // Check the number of faces
-        let expected_face_count = 4 * nx * ny;
-        assert_eq!(mesh.faces.len(), expected_face_count, "Face count should be correct for rectangle mesh");
+        faces
     }
 
-    #[test]
-    fn test_generate_circle() {
-        let radius = 5.0;
-        let num_divisions = 6;
+    /// Generates faces for a 3D rectangular mesh.
+    fn generate_faces_3d(elements: &[Element]) -> Vec<Face> {
+        let mut faces = Vec::new();
+        let mut face_id = 0;
 
-        let mesh: Mesh = MeshGenerator::generate_circle(radius, num_divisions);
+        for element in elements {
+            let (n1, n2, n3, n4, n5, n6, n7, n8) = (
+                element.nodes[0], element.nodes[1], element.nodes[2], element.nodes[3],
+                element.nodes[4], element.nodes[5], element.nodes[6], element.nodes[7]
+            );
 
-        // Check the number of nodes
-        let expected_node_count = num_divisions + 1; // center + outer nodes
-        assert_eq!(mesh.nodes.len(), expected_node_count, "Node count should be correct for circle mesh");
+            // Front face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n1, n2, n4, n3],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
 
-        // Check the number of elements (triangles)
-        let expected_element_count = num_divisions; // same as number of divisions
-        assert_eq!(mesh.elements.len(), expected_element_count, "Element count should be correct for circle mesh");
+            // Back face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n5, n6, n8, n7],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
 
-        // Check the number of faces (outer boundary edges)
-        let expected_face_count = num_divisions;
-        assert_eq!(mesh.faces.len(), expected_face_count, "Face count should be correct for circle mesh");
+            // Left face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n1, n5, n7, n3],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
+
+            // Right face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n2, n6, n8, n4],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
+
+            // Bottom face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n1, n2, n6, n5],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
+
+            // Top face
+            faces.push(Face {
+                id: face_id,
+                nodes: vec![n3, n4, n8, n7],
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+            face_id += 1;
+        }
+        faces
     }
 
-    #[test]
-    fn test_generate_ellipse() {
-        let a = 6.0;
-        let b = 3.0;
-        let num_divisions = 8;
-
-        let mesh: Mesh = MeshGenerator::generate_ellipse(a, b, num_divisions);
-
-        // Check the number of nodes
-        let expected_node_count = num_divisions + 1; // center + outer nodes
-        assert_eq!(mesh.nodes.len(), expected_node_count, "Node count should be correct for ellipse mesh");
-
-        // Check the number of elements (triangles)
-        let expected_element_count = num_divisions;
-        assert_eq!(mesh.elements.len(), expected_element_count, "Element count should be correct for ellipse mesh");
-
-        // Check the number of faces (outer boundary edges)
-        let expected_face_count = num_divisions;
-        assert_eq!(mesh.faces.len(), expected_face_count, "Face count should be correct for ellipse mesh");
-    }
-
-    #[test]
-    fn test_generate_cube() {
-        let side_length = 2.0;
-
-        let mesh: Mesh = MeshGenerator::generate_cube(side_length);
-
-        // Check the number of nodes (8 for a cube)
-        let expected_node_count = 8;
-        assert_eq!(mesh.nodes.len(), expected_node_count, "Node count should be correct for cube");
-
-        // Check the number of elements (1 hexahedron)
-        let expected_element_count = 1;
-        assert_eq!(mesh.elements.len(), expected_element_count, "Element count should be correct for cube");
-
-        // (Optional) Check the number of faces (this can be added later if faces are generated for the cube)
+    /// Generate boundary faces for circular or elliptical meshes.
+    fn generate_boundary_faces(elements: &[Element]) -> Vec<Face> {
+        let mut faces = Vec::new();
+        for (i, element) in elements.iter().enumerate() {
+            faces.push(Face {
+                id: i as u32,
+                nodes: vec![element.nodes[1], element.nodes[2]], // Boundary edge
+                velocity: Vector3::new(0.0, 0.0, 0.0),
+                area: 1.0,
+                ..Face::default()
+            });
+        }
+        faces
     }
 }

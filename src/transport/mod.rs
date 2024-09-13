@@ -1,3 +1,3 @@
-pub mod flux;
+pub mod flux_transport;
 
-pub use self::flux::FluxTransport;
+pub use flux_transport::FluxTransport;

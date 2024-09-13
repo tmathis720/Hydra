@@ -8,6 +8,52 @@ mod tests {
     use std::rc::Rc;
     use std::cell::RefCell;
 
+
+    #[test]
+    fn test_3d_flux_solver() {
+        let mut face = Face {
+            id: 0,
+            nodes: vec![0, 1, 2, 3],
+            velocity: (1.0, 1.0, 0.0),  // Simple 2D flow in x and y
+            area: 2.0,
+        };
+
+        let mut left_element = Element {
+            id: 0,
+            pressure: 10.0,
+            mass: 1.0,
+            momentum: 1.0,
+            velocity: (1.0, 1.0, 0.0),
+            ..Default::default()
+        };
+
+        let mut right_element = Element {
+            id: 1,
+            pressure: 5.0,
+            mass: 1.0,
+            momentum: 0.5,
+            velocity: (0.0, 0.0, 0.0),
+            ..Default::default()
+        };
+
+        let flux_solver = FluxSolver {};
+
+        // Compute 3D flux
+        let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
+        assert!(flux > 0.0);
+
+        // Apply the flux to update the face
+        flux_solver.apply_flux(&mut face, flux, 0.01);
+
+        // Update the element properties based on the flux
+        flux_solver.update_elements(&mut left_element, &mut right_element, (flux, flux, 0.0), 0.01);
+
+        // Assert mass and momentum updates
+        assert!(left_element.mass < 1.0);
+        assert!(right_element.mass > 1.0);
+    }
+
+
     #[test]
     fn test_complex_integration_with_horizontal_diffusion() {
         let dt = 0.01;
@@ -22,8 +68,8 @@ mod tests {
     
         // Define faces between elements
         let faces = vec![
-            Face { id: 0, nodes: (1, 2), velocity: (0.0, 0.0), area: 1.0 },
-            Face { id: 1, nodes: (2, 3), velocity: (0.0, 0.0), area: 1.0 },
+            Face { id: 0, nodes: vec![1, 2], velocity: (0.0, 0.0, 0.0), area: 1.0 },
+            Face { id: 1, nodes: vec![2, 3], velocity: (0.0, 0.0, 0.0), area: 1.0 },
         ];
     
         // Create the mesh
@@ -102,6 +148,115 @@ mod tests {
             assert!(element.pressure > 0.0, "Pressure should remain positive in all elements");
         }
     }
+
+    use crate::domain::Node;
+
+    // Helper function to calculate the center position of a 3D element
+    fn calculate_center_position(element: &Element, nodes: &Vec<Node>) -> (f64, f64, f64) {
+        let mut x_sum = 0.0;
+        let mut y_sum = 0.0;
+        let mut z_sum = 0.0;
+        for &node_id in &element.nodes {
+            let node = &nodes[node_id];
+            x_sum += node.position.0;
+            y_sum += node.position.1;
+            z_sum += node.position.2;
+        }
+        (
+            x_sum / element.nodes.len() as f64,
+            y_sum / element.nodes.len() as f64,
+            z_sum / element.nodes.len() as f64,
+        )
+    }
+
+    use crate::numerical::MeshGenerator;
+
+    // Test Case: 3D Wave Propagation
+    #[test]
+    fn test_3d_wave_propagation() {
+        let domain_size_x = 100.0;  // Length of the domain (x-direction)
+        let domain_size_y = 50.0;   // Width of the domain (y-direction)
+        let domain_size_z = 30.0;   // Height of the domain (z-direction)
+        let n_elements_x = 20;      // Number of elements in the x-direction
+        let n_elements_y = 10;      // Number of elements in the y-direction
+        let n_elements_z = 6;       // Number of elements in the z-direction
+
+        // Step 1: Generate a 3D mesh for the rectangular domain
+        let mut mesh = MeshGenerator::generate_rectangle_3d(
+            domain_size_x, 
+            domain_size_y, 
+            domain_size_z, 
+            n_elements_x, 
+            n_elements_y, 
+            n_elements_z
+        );
+
+        // Step 2: Define initial conditions for the 3D wave propagation
+        let initial_pressure = 1.0;  // Initial pressure at the wave center
+        let initial_velocity = (0.0, 0.0, 0.0); // Initial velocity (at rest)
+        
+        // Set initial pressure and velocity in the mesh elements
+        for element in &mut mesh.elements {
+            let (center_x, center_y, center_z) = calculate_center_position(&element, &mesh.nodes);
+
+            // Set the pressure in the center of the domain (as a wave pulse)
+            if (center_x - domain_size_x / 2.0).abs() < 10.0 && 
+            (center_y - domain_size_y / 2.0).abs() < 10.0 && 
+            (center_z - domain_size_z / 2.0).abs() < 10.0 {
+                element.pressure = initial_pressure;
+            } else {
+                element.pressure = 0.0;  // Elsewhere, the domain is at rest (zero pressure)
+            }
+
+            element.velocity = initial_velocity;  // Initial velocity is zero everywhere
+        }
+
+        // Step 3: Set up solvers and time stepping
+        let dt = 0.01;  // Time step size
+        let total_time = 5.0;  // Simulate for 5 seconds
+        let time_stepper = ExplicitEuler { dt };
+        let mut flux_solver = FluxSolver {};  // 3D flux solver
+
+        // Track the maximum pressure in the domain for verification
+        let mut max_pressure: f64 = 0.0;
+
+        // Step 4: Run the simulation over time
+        for _ in 0..((total_time / dt) as usize) {
+            // Step forward in time
+            time_stepper.step(&mut mesh, &mut flux_solver);
+
+            // Check the maximum pressure in the domain
+            for element in &mesh.elements {
+                max_pressure = max_pressure.max(element.pressure);
+            }
+
+            // Output simulation progress for debugging
+            if max_pressure > 0.0 {
+                println!("Time: {}, Max pressure: {}", total_time, max_pressure);
+            }
+        }
+
+        // Step 5: Validate the results
+        // The test should check that the wave has propagated from the center outward.
+        let mut wave_propagated = false;
+
+        for element in &mesh.elements {
+            let (center_x, center_y, center_z) = calculate_center_position(&element, &mesh.nodes);
+
+            // Check if the wave has propagated to the outer regions of the domain
+            if (center_x - domain_size_x / 2.0).abs() > 20.0 || 
+            (center_y - domain_size_y / 2.0).abs() > 20.0 || 
+            (center_z - domain_size_z / 2.0).abs() > 20.0 {
+                if element.pressure > 0.0 {
+                    wave_propagated = true;
+                    break;
+                }
+            }
+        }
+
+        assert!(wave_propagated, "Wave should propagate to the edges of the domain.");
+    }
+
 
     //use crate::domain::Node;  // Assuming these exist in the domain module
     //use crate::numerical::MeshGenerator;  // For generating rectangular meshes

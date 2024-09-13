@@ -54,6 +54,8 @@ mod tests {
     use super::*;
     use hydra::domain::element::Element;
     use hydra::domain::face::Face;
+    
+    use nalgebra::Vector3;
     #[test]
     fn test_face_element_relation() {
         let element_1 = Element {
@@ -70,7 +72,7 @@ mod tests {
 
         let face = Face {
             id: 0,
-            velocity: (0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 0.0),
             ..Default::default()
         };
 
@@ -118,7 +120,7 @@ mod tests {
         let faces = vec![
             Face {
                 id: 0,
-                velocity: (0.0, 0.0),
+                velocity: Vector3::new(0.0, 0.0, 0.0),
                 ..Default::default()
             },
         ];

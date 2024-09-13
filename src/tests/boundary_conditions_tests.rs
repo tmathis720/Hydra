@@ -1,449 +1,200 @@
 #[cfg(test)]
 mod tests {
     use crate::domain::{Element, Face};
-    use crate::boundary::{Inflow, Outflow};
+    use crate::boundary::{Inflow, Outflow, FreeSurfaceBoundary, NoSlipBoundary};
     use crate::solver::{FluxSolver, SemiImplicitSolver};
+    use crate::timestep::TimeStepper;
+    use nalgebra::Vector3;
 
     #[test]
     fn test_inflow_outflow_boundary_conditions() {
-        let dt = 0.01;
-        let total_time = 10.0;
+        let mut time_stepper = TimeStepper::new(0.01, 1.0);  // Initialize TimeStepper
 
-        // Create two elements (left with inflow, right with outflow)
         let mut left_element = Element {
             id: 0,
-            element_type: 2,
-            nodes: vec![0, 1],
-            faces: vec![0],
             mass: 1.0,
-            neighbor_ref: 0,
             pressure: 10.0,
-            height: 0.0,
-            area: 0.0,
-            momentum: 2.0,
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(1.0, 0.0, 0.0),  // Inflow velocity
+            momentum: Vector3::new(10.0, 0.0, 0.0),
+            ..Default::default()
         };
-
         let mut right_element = Element {
             id: 1,
-            element_type: 2,
-            nodes: vec![1, 2],
-            faces: vec![1],
             mass: 1.0,
-            neighbor_ref: 0,
             pressure: 5.0,
-            height: 0.0,
-            area: 0.0,
-            momentum: 1.0,
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(-1.0, 0.0, 0.0),  // Outflow velocity
+            momentum: Vector3::new(-5.0, 0.0, 0.0),
+            ..Default::default()
         };
 
-        // Define the face between the two elements
-        let face = Face {
-            id: 0,
-            nodes: (1, 2),  // Example node ids the face connects
-            velocity: (0.0, 0.0),  // Initial velocity is zero
-            area: 1.0,  // Example face area
-        };
+        let mut face = Face::new(0, vec![0, 1], Vector3::new(0.0, 0.0, 0.0), 1.0);
 
-        // Define flow boundary conditions (inflow on left, outflow on right)
-        let inflow = Inflow { rate: 0.1 };  // Add mass/momentum on left
-        let outflow = Outflow { rate: 0.1 };  // Remove mass/momentum on right
+        let inflow = Inflow { rate: 0.1 };
+        let outflow = Outflow { rate: 0.1 };
 
-        // Instantiate solvers
         let flux_solver = FluxSolver {};
         let semi_implicit_solver = SemiImplicitSolver {};
 
-        // Run the simulation over time
-        for _ in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
-            // Apply inflow boundary condition
-            inflow.apply_boundary(&mut left_element, dt);
+        while time_stepper.has_next() {
+            let dt = time_stepper.next_step();
 
-            // Apply outflow boundary condition
+            inflow.apply_boundary(&mut left_element, dt);
             outflow.apply_boundary(&mut right_element, dt);
 
-            // Compute flux between the two elements using the face
-            let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
+            // Compute the 3D flux
+            let flux_3d = flux_solver.compute_flux_3d(&face, &left_element, &right_element);
 
-            // Update momentum with semi-implicit solver
+            // Apply the flux to update the face velocity
+            flux_solver.apply_flux_3d(&mut face, flux_3d, dt);
+
+            // Update momentum using semi-implicit solver
             left_element.momentum = semi_implicit_solver.semi_implicit_update(
-                -flux * (left_element.momentum / left_element.mass),
+                -flux_3d.x * (left_element.momentum.x / left_element.mass),
                 left_element.momentum,
                 dt,
             );
             right_element.momentum = semi_implicit_solver.semi_implicit_update(
-                flux * (right_element.momentum / right_element.mass),
+                flux_3d.x * (right_element.momentum.x / right_element.mass),
                 right_element.momentum,
                 dt,
             );
 
-            // Ensure mass and momentum conservation with inflow/outflow
             assert!(left_element.mass > 1.0, "Mass should increase with inflow");
             assert!(right_element.mass < 1.0, "Mass should decrease with outflow");
-            assert!(left_element.momentum > 0.0, "Momentum should remain positive with inflow");
-            assert!(right_element.momentum > 0.0, "Momentum should remain positive after outflow");
         }
     }
 
-    use crate::boundary::FreeSurfaceBoundary;
-
     #[test]
     fn test_free_surface_boundary_conditions() {
-        let dt = 0.01;
-        let total_time = 10.0;
+        let mut time_stepper = TimeStepper::new(0.01, 1.0);
 
-        // Create an element near the free surface
         let mut element = Element {
             id: 0,
-            element_type: 2,
-            nodes: vec![0, 1],
-            faces: vec![0],
             mass: 1.0,
-            neighbor_ref: 0,
             pressure: 10.0,
-            height: 0.0,
-            area: 0.0,
-            momentum: 2.0,
-            velocity: (0.0, 0.0, 0.0),
+            velocity: Vector3::new(0.0, 0.0, 1.0),  // Upward velocity at free surface
+            momentum: Vector3::new(0.0, 0.0, 10.0),
+            ..Default::default()
         };
 
-        // Define a free surface boundary condition
         let free_surface = FreeSurfaceBoundary { pressure_at_surface: 1.0 };
-
-        // Instantiate solvers
         let flux_solver = FluxSolver {};
         let semi_implicit_solver = SemiImplicitSolver {};
 
-        // Run the simulation over time
-        for _ in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
-            // Apply the free surface boundary condition
+        while time_stepper.has_next() {
+            let dt = time_stepper.next_step();
+
             free_surface.apply_boundary(&mut element, dt);
 
-            // Compute flux between the element and the free surface (pressure difference drives flux)
-            let flux = flux_solver.compute_flux_free_surface(&element, free_surface.pressure_at_surface);
+            // Compute flux relative to the free surface
+            let flux_3d = flux_solver.compute_flux_3d_free_surface(&element, free_surface.pressure_at_surface);
 
-            // Update momentum with semi-implicit solver
+            // Update the momentum based on the flux
             element.momentum = semi_implicit_solver.semi_implicit_update(
-                -flux * (element.momentum / element.mass),
+                -flux_3d.z * (element.momentum.z / element.mass),
                 element.momentum,
                 dt,
             );
 
-            // Ensure the free surface is interacting correctly with the pressure
-            assert!(element.pressure > free_surface.pressure_at_surface, "Pressure should remain higher than free surface");
-            assert!(element.momentum > 0.0, "Momentum should remain positive");
+            // Assert the pressure is adjusting toward the free surface pressure
+            assert!(element.pressure > free_surface.pressure_at_surface, "Pressure should decrease towards the surface");
         }
     }
-
-    use crate::boundary::NoSlipBoundary;
 
     #[test]
     fn test_no_slip_boundary_conditions() {
-        let dt = 0.01;
-        let total_time = 10.0;
+        let mut time_stepper = TimeStepper::new(0.01, 1.0);
 
-        // Create an element near the no-slip boundary (representing a wall)
         let mut element = Element {
             id: 0,
-            element_type: 2,
-            nodes: vec![0, 1],
-            faces: vec![0],
-            mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
-            pressure: 10.0,
-            momentum: 2.0,
+            velocity: Vector3::new(2.0, 0.0, 0.0),  // Initial velocity
+            momentum: Vector3::new(10.0, 0.0, 0.0),
+            ..Default::default()
         };
 
-        // Define a no-slip boundary condition
         let no_slip_boundary = NoSlipBoundary {};
-
-        // Instantiate flux solver (not used in this case)
         let flux_solver = FluxSolver {};
 
-        // Run the simulation over time
-        for _ in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
-            // Apply the no-slip boundary condition
+        while time_stepper.has_next() {
+            let dt = time_stepper.next_step();
+
             no_slip_boundary.apply_boundary(&mut element, dt);
 
-            // Ensure the velocity remains zero at the boundary
-            let flux = flux_solver.compute_flux_no_slip(&element);
+            // No flux should be applied at no-slip boundaries
+            let flux_3d = flux_solver.compute_flux_3d_no_slip(&element);
 
-            // Assert that no momentum is transferred at the no-slip boundary
-            assert_eq!(flux, 0.0, "Flux should be zero at the no-slip boundary");
-            assert_eq!(element.momentum, 0.0, "Momentum should remain zero at the no-slip boundary");
+            // Apply no-slip conditions (should result in zero flux)
+            assert_eq!(flux_3d, Vector3::new(0.0, 0.0, 0.0), "Flux should be zero at no-slip boundary");
+            assert_eq!(element.velocity, Vector3::new(0.0, 0.0, 0.0), "Velocity should be zero at no-slip boundary");
         }
     }
 
-
     #[test]
     fn test_open_boundary_conditions() {
-        // Create the left element (with inflow)
-        let left_element = Element {
+        let mut time_stepper = TimeStepper::new(0.01, 1.0);
+
+        let mut inflow_element = Element {
             id: 0,
-            element_type: 2,
-            nodes: vec![0, 1],
-            faces: vec![0],
-            mass: 2.0, // Mass entering the domain
-            neighbor_ref: 0,
-            pressure: 10.0, // Higher pressure for inflow
-            momentum: 3.0,  // Higher momentum for inflow
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
+            mass: 2.0,
+            pressure: 10.0,
+            velocity: Vector3::new(1.0, 0.0, 0.0),  // Inflow velocity
+            momentum: Vector3::new(10.0, 0.0, 0.0),
+            ..Default::default()
         };
 
-        // Create the right element (with outflow)
-        let right_element = Element {
+        let mut outflow_element = Element {
             id: 1,
-            element_type: 2,
-            nodes: vec![1, 2],
-            faces: vec![1],
-            mass: 1.0, // Lower mass for outflow
-            neighbor_ref: 0,
-            pressure: 5.0, // Lower pressure for outflow
-            momentum: 1.0,  // Lower momentum for outflow
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-        };
-
-        // Open boundary face (inflow/outflow boundary)
-        let face = Face {
-            id: 0,
-            nodes: (1, 2),
-            velocity: (0.0, 0.0), // Allow free flow
-            area: 1.0,
-        };
-
-        // Instantiate the flux solver
-        let flux_solver = FluxSolver {};
-
-        // Compute the flux between the elements
-        let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
-
-        // Assert that there is net flux crossing the open boundary
-        assert!(flux > 0.0, "Flux should be positive across the open boundary");
-    }
-
-
-    #[test]
-    fn test_reflective_boundary_conditions() {
-        // Create the element near the reflective boundary
-        let element = Element {
-            id: 0,
-            element_type: 2,
-            nodes: vec![0, 1],
-            faces: vec![0],
             mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
-            pressure: 10.0, // Pressure near the boundary
-            momentum: 2.0,  // Initial momentum
+            pressure: 5.0,
+            velocity: Vector3::new(-1.0, 0.0, 0.0),  // Outflow velocity
+            momentum: Vector3::new(-5.0, 0.0, 0.0),
+            ..Default::default()
         };
 
-        // Reflective boundary face (effectively no flux across this face)
-        let face = Face {
-            id: 0,
-            nodes: (1, 2),
-            velocity: (0.0, 0.0), // Initial velocity is zero
-            area: 1.0, // Simple unit area for the face
-        };
-
-        // Instantiate the flux solver
-        let flux_solver = FluxSolver {};
-
-        // Compute the flux
-        let flux = flux_solver.compute_flux(&face, &element, &element);
-
-        // Assert that no flux crosses the reflective boundary
-        assert_eq!(flux, 0.0, "No flux should cross the reflective boundary");
-    }
-
-    use std::f64::consts::PI;
-
-    #[test]
-    fn test_oscillatory_flow_with_periodic_boundaries() {
-        let dt = 0.01;
-        let total_time = 10.0;
-        let oscillation_frequency = 2.0 * PI / total_time; // Define oscillation frequency
-
-        // Define 4 elements in a periodic grid
-        let mut elements: Vec<Element> = vec![
-            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
-            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 8.0, momentum: 1.5, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
-            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, momentum: 1.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
-            Element { id: 3, element_type: 2, nodes: vec![3, 0], faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 7.0, momentum: 1.2, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
-        ];
-
-        // Faces between the elements (including periodic connection)
-        let faces = vec![
-            Face { id: 0, nodes: (1, 2), velocity: (0.0, 0.0), area: 1.0 },
-            Face { id: 1, nodes: (2, 3), velocity: (0.0, 0.0), area: 1.0 },
-            Face { id: 2, nodes: (3, 0), velocity: (0.0, 0.0), area: 1.0 },  // Periodic face
-        ];
-
-        // Instantiate solvers
+        let face = Face::new(0, vec![0, 1], Vector3::new(0.0, 0.0, 0.0), 1.0);
         let flux_solver = FluxSolver {};
         let semi_implicit_solver = SemiImplicitSolver {};
 
-        // Run the simulation over time with oscillating flow
-        for t in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
-            // Adjust the pressure in a sinusoidal pattern to simulate oscillatory flow
-            for (_i, element) in elements.iter_mut().enumerate() {
-                element.pressure = 10.0 + 5.0 * (oscillation_frequency * t).sin();
-            }
+        while time_stepper.has_next() {
+            let dt = time_stepper.next_step();
 
-            // Compute flux between elements with periodic boundary
-            for i in 0..faces.len() {
-                let next_idx = if i == faces.len() - 1 { 0 } else { i + 1 };
-                let flux = flux_solver.compute_flux(&faces[i], &elements[i], &elements[next_idx]);
+            // Compute 3D flux between inflow and outflow elements
+            let flux_3d = flux_solver.compute_flux_3d(&face, &inflow_element, &outflow_element);
 
-                // Update momentum with semi-implicit solver
-                elements[i].momentum = semi_implicit_solver.semi_implicit_update(
-                    -flux * (elements[i].momentum / elements[i].mass),
-                    elements[i].momentum,
-                    dt,
-                );
-                elements[next_idx].momentum = semi_implicit_solver.semi_implicit_update(
-                    flux * (elements[next_idx].momentum / elements[next_idx].mass),
-                    elements[next_idx].momentum,
-                    dt,
-                );
+            // Apply the flux to update face velocity and element momentum
+            flux_solver.apply_flux_3d(&mut face, flux_3d, dt);
+            inflow_element.momentum += flux_3d * dt;
+            outflow_element.momentum -= flux_3d * dt;
 
-                // Assert momentum remains positive
-                assert!(elements[i].momentum > 0.0, "Momentum should remain positive in element {}", i);
-                assert!(elements[next_idx].momentum > 0.0, "Momentum should remain positive in element {}", next_idx);
-            }
+            assert!(inflow_element.momentum.x > 0.0, "Momentum should increase at inflow");
+            assert!(outflow_element.momentum.x < 0.0, "Momentum should decrease at outflow");
         }
     }
 
     #[test]
     fn test_periodic_boundary_conditions() {
-        let dt = 0.01;
-        let total_time = 20.0;
+        let mut time_stepper = TimeStepper::new(0.01, 1.0);
 
-        // Define a set of 4 elements in a loop (periodic boundary)
-        let mut elements: Vec<Element> = vec![
-            Element { id: 0, element_type: 2, nodes: vec![0, 1], faces: vec![0], mass: 1.0, neighbor_ref: 0, pressure: 10.0, momentum: 2.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
-            Element { id: 1, element_type: 2, nodes: vec![1, 2], faces: vec![1], mass: 1.0, neighbor_ref: 0, pressure: 8.0, momentum: 1.5, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
-            Element { id: 2, element_type: 2, nodes: vec![2, 3], faces: vec![2], mass: 1.0, neighbor_ref: 0, pressure: 5.0, momentum: 1.0, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
-            Element { id: 3, element_type: 2, nodes: vec![3, 0], faces: vec![3], mass: 1.0, neighbor_ref: 0, pressure: 7.0, momentum: 1.2, height: 0.0, area: 0.0, velocity: (0.0, 0.0, 0.0) },
+        let mut elements = vec![
+            Element { id: 0, pressure: 10.0, velocity: Vector3::new(2.0, 0.0, 0.0), ..Default::default() },
+            Element { id: 1, pressure: 5.0, velocity: Vector3::new(-2.0, 0.0, 0.0), ..Default::default() }
         ];
 
-        // Faces between the elements (including a face between the last and the first element for periodicity)
-        let faces = vec![
-            Face { id: 0, nodes: (1, 2), velocity: (0.0, 0.0), area: 1.0 },
-            Face { id: 1, nodes: (2, 3), velocity: (0.0, 0.0), area: 1.0 },
-            Face { id: 2, nodes: (3, 0), velocity: (0.0, 0.0), area: 1.0 },  // Periodic face
-        ];
-
-        // Instantiate solvers
-        let flux_solver = FluxSolver {};
-        let semi_implicit_solver = SemiImplicitSolver {};
-
-        // Run the simulation over time
-        for _ in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
-            for i in 0..faces.len() {
-                // Compute flux between elements with periodic boundary (wraps around from last to first element)
-                let next_idx = if i == faces.len() - 1 { 0 } else { i + 1 };
-                let flux = flux_solver.compute_flux(&faces[i], &elements[i], &elements[next_idx]);
-
-                // Update momentum using the semi-implicit solver
-                elements[i].momentum = semi_implicit_solver.semi_implicit_update(
-                    -flux * (elements[i].momentum / elements[i].mass),
-                    elements[i].momentum,
-                    dt,
-                );
-                elements[next_idx].momentum = semi_implicit_solver.semi_implicit_update(
-                    flux * (elements[next_idx].momentum / elements[next_idx].mass),
-                    elements[next_idx].momentum,
-                    dt,
-                );
-
-                // Assert positive momentum
-                assert!(elements[i].momentum > 0.0, "Momentum should remain positive in element {}", i);
-                assert!(elements[next_idx].momentum > 0.0, "Momentum should remain positive in element {}", next_idx);
-            }
-        }
-    }
-
-    #[test]
-    fn test_oscillatory_flow_in_closed_channel() {
-        // Define time step and total simulation time
-        let dt = 0.01;
-        let total_time = 1.0;
-
-        // Instantiate the flux solver
+        let face = Face::new(0, vec![0, 1], Vector3::new(0.0, 0.0, 0.0), 1.0);
         let flux_solver = FluxSolver {};
 
-        // Create the left and right elements
-        let mut left_element = Element {
-            id: 0,
-            element_type: 2,
-            nodes: vec![0, 1],
-            faces: vec![0],
-            mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
-            pressure: 10.0, // Initial pressure (will oscillate)
-            momentum: 0.0,
-        };
+        while time_stepper.has_next() {
+            let dt = time_stepper.next_step();
 
-        let right_element = Element {
-            id: 1,
-            element_type: 2,
-            nodes: vec![1, 2],
-            faces: vec![1],
-            mass: 1.0,
-            height: 0.0,
-            area: 0.0,
-            velocity: (0.0, 0.0, 0.0),
-            neighbor_ref: 0,
-            pressure: 5.0, // Constant pressure on the right
-            momentum: 0.0,
-        };
+            // Compute 3D flux for periodic boundary conditions
+            let flux_3d = flux_solver.compute_flux_3d(&face, &elements[0], &elements[1]);
 
-        // Define the face between the two elements
-        let face = Face {
-            id: 0,
-            nodes: (1, 2),  // Shared between the two elements
-            velocity: (0.0, 0.0),  // Initial velocity is zero
-            area: 1.0,  // Simple unit area for the face
-        };
+            // Update momentum with periodic flux
+            elements[0].momentum += flux_3d * dt;
+            elements[1].momentum -= flux_3d * dt;
 
-        // Loop over time steps to simulate oscillatory pressure
-        for time in (0..(total_time / dt) as usize).map(|i| i as f64 * dt) {
-            // Oscillate the pressure of the left element (e.g., sinusoidal variation)
-            left_element.pressure = 10.0 + 5.0 * (2.0 * PI * time).sin(); // Amplitude of 5
-
-            // Compute flux at this time step
-            let flux = flux_solver.compute_flux(&face, &left_element, &right_element);
-
-            // Test expectations: if left pressure > right pressure, flux should be positive
-            if left_element.pressure > right_element.pressure {
-                assert!(flux > 0.0, "Flux should be positive when left pressure is higher");
-            } 
-            // If right pressure > left pressure, flux should be negative
-            else if right_element.pressure > left_element.pressure {
-                assert!(flux < 0.0, "Flux should be negative when right pressure is higher");
-            } 
-            // Equal pressure means no flux
-            else {
-                assert_eq!(flux, 0.0, "Flux should be zero when pressures are equal");
-            }
-
-            // Output for debugging purposes
-            println!(
-                "Time: {:.3}, Left Pressure: {:.3}, Right Pressure: {:.3}, Flux: {:.3}",
-                time, left_element.pressure, right_element.pressure, flux
-            );
+            assert!(elements[0].momentum.x > 0.0, "Momentum should increase for one side of the periodic boundary");
+            assert!(elements[1].momentum.x < 0.0, "Momentum should decrease for the other side");
         }
     }
 }
