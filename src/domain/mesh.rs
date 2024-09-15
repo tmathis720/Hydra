@@ -35,13 +35,14 @@ impl From<io::Error> for MeshError {
     }
 }
 
+#[derive(Clone)] 
 /// Represents the relationship between a face and the elements that share it.
 pub struct FaceElementRelation {
     pub face_id: u32,               // ID of the face
     pub connected_elements: Vec<u32>, // IDs of elements sharing the face
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Mesh {
     pub elements: Vec<Element>,         // List of all elements in the mesh
     pub nodes: Vec<Node>,               // List of all nodes in the mesh
@@ -168,6 +169,11 @@ impl Mesh {
     /// Get a mutable reference to an element by its ID.
     pub fn get_element_by_id_mut(&mut self, id: u32) -> Option<&mut Element> {
         self.elements.iter_mut().find(|e| e.id == id)
+    }
+
+    /// Get an immutable reference to a face by its ID.
+    pub fn get_face_by_id(&self, id: u32) -> Option<&Face> {
+        self.faces.iter().find(|f| f.id == id)
     }
 
     /// Get a mutable reference to a face by its ID.

@@ -3,7 +3,7 @@
 use nalgebra::Vector3;
 use crate::boundary::BoundaryType;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Face {
     pub id: u32,                   // Unique identifier for the face
     pub nodes: Vec<usize>,         // Indices of nodes that define the face

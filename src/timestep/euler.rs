@@ -1,5 +1,3 @@
-// src/timestep/euler.rs
-
 use crate::domain::Mesh;
 use crate::solver::flux_solver::FluxSolver;
 
@@ -10,19 +8,30 @@ pub struct ExplicitEuler {
 
 impl ExplicitEuler {
     fn step(&self, mesh: &mut Mesh, dt: f64) {
-        for face in &mut mesh.faces {
-            // Get mutable references to the connected elements
-            let (left_element, right_element) = mesh.get_connected_elements(face);
+        // First, collect all the data we need from the face-element relations
+        let relations_data: Vec<(u32, u32, u32)> = mesh.face_element_relations
+            .iter()
+            .map(|relation| (relation.face_id, relation.connected_elements[0], relation.connected_elements[1]))
+            .collect();
 
-            if let (Some(left), Some(right)) = (left_element, right_element) {
-                // Use the specific solver to compute fluxes
-                let flux_3d = self.solver.compute_flux_3d(face, left, right);
+        // Now, iterate over the collected data and apply the necessary changes
+        for (face_id, left_id, right_id) in relations_data {
+            // First, borrow elements and faces immutably to compute the flux
+            let flux_3d = {
+                let left = mesh.get_element_by_id(left_id).expect("element");
+                let right = mesh.get_element_by_id(right_id).expect("element");
+                let face = mesh.get_face_by_id(face_id).expect("face");
+                self.solver.compute_flux_3d(face, left, right)
+            };
 
-                // Apply the flux to update the face velocity
+            // Now, borrow the face and elements mutably and apply the flux
+            if let Some(face) = mesh.get_face_by_id_mut(face_id) {
                 self.solver.apply_flux_3d(face, flux_3d, dt);
-
-                // Update momentum of the elements explicitly
+            }
+            if let Some(left) = mesh.get_element_by_id_mut(left_id) {
                 left.update_momentum(flux_3d * dt);
+            }
+            if let Some(right) = mesh.get_element_by_id_mut(right_id) {
                 right.update_momentum(-flux_3d * dt);  // Opposite direction
             }
         }

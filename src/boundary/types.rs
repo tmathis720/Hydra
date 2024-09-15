@@ -27,4 +27,7 @@ pub trait BoundaryCondition {
 
     /// Retrieves the mass rate associated with the boundary condition (if applicable).
     fn mass_rate(&self) -> Option<f64>;
+
+    /// Retrieves the element IDs associated with this boundary condition.
+    fn get_boundary_elements(&self, mesh: &Mesh) -> Vec<u32>;
 }

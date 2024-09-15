@@ -49,6 +49,11 @@ impl BoundaryCondition for NoSlipBoundaryCondition {
     fn mass_rate(&self) -> Option<f64> {
         None  // No-slip condition does not affect mass rate
     }
+
+    fn get_boundary_elements(&self, _mesh: &Mesh) -> Vec<u32> {
+        // Return the boundary elements for this inflow condition
+        self.boundary_elements.clone()
+    }
 }
 
 #[cfg(test)]

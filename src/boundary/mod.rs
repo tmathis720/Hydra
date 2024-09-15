@@ -44,4 +44,23 @@ impl BoundaryManager {
             condition.apply(mesh, flow_field, time_step);
         }
     }
+
+    /// Get a list of inflow elements by querying the mesh for inflow boundary conditions
+    pub fn get_inflow_elements(&self, mesh: &Mesh) -> Vec<u32> {
+        self.get_boundary_elements(mesh, BoundaryType::Inflow)
+    }
+
+    /// Get a list of outflow elements by querying the mesh for outflow boundary conditions
+    pub fn get_outflow_elements(&self, mesh: &Mesh) -> Vec<u32> {
+        self.get_boundary_elements(mesh, BoundaryType::Outflow)
+    }
+
+    /// General method to retrieve elements with a specific boundary type
+    fn get_boundary_elements(&self, mesh: &Mesh, boundary_type: BoundaryType) -> Vec<u32> {
+        if let Some(boundary_condition) = self.boundaries.get(&boundary_type) {
+            boundary_condition.get_boundary_elements(mesh)
+        } else {
+            Vec::new()  // No elements if the boundary type is not registered
+        }
+    }
 }

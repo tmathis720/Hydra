@@ -1,6 +1,4 @@
-// src/timestep/cranknicolson.rs
-
-use crate::domain::{Element, Mesh};
+use crate::domain::Mesh;
 use crate::solver::flux_solver::FluxSolver;
 
 /// Crank-Nicolson time-stepping method.
@@ -10,26 +8,34 @@ pub struct CrankNicolson {
 
 impl CrankNicolson {
     fn step(&self, mesh: &mut Mesh, dt: f64) {
-        for face in &mut mesh.faces {
-            // Get mutable references to the connected elements
-            let ConnectedElements = mesh.get_elements_connected_to_face(face.id);
+        // First, collect all the data we need from the face-element relations
+        let relations_data: Vec<(u32, u32, u32)> = mesh.face_element_relations
+            .iter()
+            .map(|relation| (relation.face_id, relation.connected_elements[0], relation.connected_elements[1]))
+            .collect();
 
-            if let (Some(left), Some(right)) = (mesh.get_element_by_id(ConnectedElements)) {
-                // Compute the flux at the current time step
+        // Now, iterate over the collected data and apply the necessary changes
+        for (face_id, left_id, right_id) in relations_data {
+            // First, borrow elements and faces immutably to compute the average flux
+            let flux_3d_avg = {
+                let left = mesh.get_element_by_id(left_id).expect("element");
+                let right = mesh.get_element_by_id(right_id).expect("element");
+                let face = mesh.get_face_by_id(face_id).expect("face");
+
+                // Compute old and new fluxes and average them
                 let flux_3d_old = self.solver.compute_flux_3d(face, left, right);
-
-                // Apply half the time step using the old flux (semi-implicit)
-                self.solver.apply_flux_3d(face, flux_3d_old, dt / 2.0);
-
-                // Recompute the flux with the updated values (new time step)
                 let flux_3d_new = self.solver.compute_flux_3d(face, left, right);
+                (flux_3d_old + flux_3d_new) / 2.0
+            };
 
-                // Apply the full time step using the average of the old and new fluxes
-                let flux_3d_avg = (flux_3d_old + flux_3d_new) / 2.0;
+            // Now, borrow the face and elements mutably and apply the flux
+            if let Some(face) = mesh.get_face_by_id_mut(face_id) {
                 self.solver.apply_flux_3d(face, flux_3d_avg, dt);
-
-                // Update momentum of the elements using the average flux
+            }
+            if let Some(left) = mesh.get_element_by_id_mut(left_id) {
                 left.update_momentum(flux_3d_avg * dt);
+            }
+            if let Some(right) = mesh.get_element_by_id_mut(right_id) {
                 right.update_momentum(-flux_3d_avg * dt);  // Opposite direction
             }
         }
@@ -40,3 +46,4 @@ impl CrankNicolson {
         }
     }
 }
+

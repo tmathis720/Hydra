@@ -61,4 +61,9 @@ impl BoundaryCondition for OutflowBoundaryCondition {
     fn mass_rate(&self) -> Option<f64> {
         Some(self.mass_rate)
     }
+
+    fn get_boundary_elements(&self, _mesh: &Mesh) -> Vec<u32> {
+        // Return the boundary elements for this inflow condition
+        self.boundary_elements.clone()
+    }
 }

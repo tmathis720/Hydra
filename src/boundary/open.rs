@@ -19,76 +19,68 @@ impl OpenBoundaryCondition {
         self.boundary_map.push((source_index, target_index));
     }
 
-    /// Apply open boundary conditions to the flow field.
-    /// This includes inflow or outflow conditions. Inflow adds mass, momentum, and pressure,
-    /// while outflow removes them.
-    fn apply_boundary_conditions(
-        &self,
-        _mesh: &mut Mesh,
-        flow_field: &mut FlowField,
-        time_step: f64,
-    ) {
-        for &(source_index, target_index) in &self.boundary_map {
-            if let (Some(source_element), Some(target_element)) = (
-                flow_field.elements.get(source_index),
-                flow_field.elements.get_mut(target_index),
-            ) {
-                if is_inflow(&source_element) {
-                    self.apply_inflow(source_element, target_element, flow_field, time_step);
-                } else if is_outflow(&source_element) {
-                    self.apply_outflow(source_element, target_element, flow_field, time_step);
-                }
-            } else {
-                eprintln!(
-                    "Invalid open boundary mapping from index {} to index {}",
-                    source_index, target_index
-                );
+    /// This method should now query the `BoundaryManager` for inflow and outflow elements.
+    fn apply_boundary_conditions(&self, mesh: &mut Mesh, flow_field: &mut FlowField, time_step: f64) {
+        // Get inflow elements and outflow elements first
+        let inflow_elements = flow_field.boundary_manager.get_inflow_elements(mesh);
+        let outflow_elements = flow_field.boundary_manager.get_outflow_elements(mesh);
+
+        // Apply inflow logic
+        for inflow_element_id in inflow_elements {
+            // Extract inflow velocity and mass rate before mutably borrowing flow_field
+            let inflow_velocity = flow_field.get_inflow_velocity(mesh).unwrap_or(Vector3::zeros());
+            let mass_rate = flow_field.get_inflow_mass_rate(mesh) * time_step;
+            
+            // Extract pressure separately before the mutable borrow occurs
+            let pressure = flow_field.get_pressure(inflow_element_id).unwrap_or(0.0);
+
+            if let Some(target_element) = flow_field.elements.get_mut(inflow_element_id as usize) {
+                // Apply inflow logic without accessing flow_field again
+                self.apply_inflow(target_element, inflow_velocity, mass_rate, pressure);
+            }
+        }
+
+        // Apply outflow logic
+        for outflow_element_id in outflow_elements {
+            // Extract outflow velocity and mass rate before mutably borrowing flow_field
+            let outflow_velocity = flow_field.get_outflow_velocity(mesh).unwrap_or(Vector3::zeros());
+            let mass_rate = flow_field.get_outflow_mass_rate(mesh) * time_step;
+
+            // Extract pressure separately before the mutable borrow occurs
+            let pressure = flow_field.get_pressure(outflow_element_id).unwrap_or(0.0);
+
+            if let Some(target_element) = flow_field.elements.get_mut(outflow_element_id as usize) {
+                // Apply outflow logic without accessing flow_field again
+                self.apply_outflow(target_element, outflow_velocity, mass_rate, pressure);
             }
         }
     }
 
-    /// Apply inflow boundary conditions. Inflow adds mass, momentum, and adjusts velocity.
+    // Adjust inflow logic to avoid mutable borrow issues
     fn apply_inflow(
         &self,
-        _source_element: &Element,
         target_element: &mut Element,
-        flow_field: &FlowField,
-        time_step: f64,
+        inflow_velocity: Vector3<f64>,
+        mass_addition: f64,
+        pressure: f64
     ) {
-        let inflow_velocity = flow_field.get_inflow_velocity().unwrap_or(Vector3::zeros());
-
-        // Add mass to the target element
-        let mass_addition = flow_field.get_inflow_mass_rate() * time_step;
         target_element.mass += mass_addition;
-
-        // Add momentum based on inflow velocity
         target_element.momentum += inflow_velocity * mass_addition;
-
-        // Adjust pressure to account for inflow
-        target_element.pressure = flow_field.get_pressure(target_element.id).unwrap_or(0.0);
+        target_element.pressure = pressure;
     }
 
-    /// Apply outflow boundary conditions. Outflow removes mass, momentum, and adjusts velocity.
+    // Adjust outflow logic to avoid mutable borrow issues
     fn apply_outflow(
         &self,
-        _source_element: &Element,
         target_element: &mut Element,
-        flow_field: &FlowField,
-        time_step: f64,
+        outflow_velocity: Vector3<f64>,
+        mass_removal: f64,
+        pressure: f64
     ) {
-        // Remove mass from the target element, ensuring non-negative mass
-        let mass_removal = flow_field.get_outflow_mass_rate() * time_step;
         target_element.mass = (target_element.mass - mass_removal).max(0.0);
-
-        // Reduce momentum based on outflow velocity
-        let outflow_velocity = flow_field.get_outflow_velocity().unwrap_or(Vector3::zeros());
         target_element.momentum -= outflow_velocity * mass_removal;
-
-        // Ensure momentum doesn't go negative
-        target_element.momentum = target_element.momentum.max(Vector3::zeros());
-
-        // Adjust pressure to account for outflow
-        target_element.pressure = flow_field.get_pressure(target_element.id).unwrap_or(0.0);
+        target_element.momentum = target_element.momentum.map(|val| val.max(0.0));
+        target_element.pressure = pressure;
     }
 }
 
@@ -117,6 +109,33 @@ impl BoundaryCondition for OpenBoundaryCondition {
 
     fn mass_rate(&self) -> Option<f64> {
         None  // Open boundary does not specify a single mass rate
+    }
+
+    /// Retrieve the inflow and outflow boundary elements from the flow field
+    fn get_boundary_elements(&self, mesh: &Mesh) -> Vec<u32> {
+        let inflow_elements = self.get_inflow_boundary_elements(mesh);
+        let outflow_elements = self.get_outflow_boundary_elements(mesh);
+
+        // Combine both inflow and outflow elements
+        [inflow_elements, outflow_elements].concat()
+    }
+}
+
+impl OpenBoundaryCondition {
+    /// Identify inflow boundary elements in the mesh
+    fn get_inflow_boundary_elements(&self, mesh: &Mesh) -> Vec<u32> {
+        mesh.elements.iter()
+            .filter(|e| is_inflow(e))
+            .map(|e| e.id)
+            .collect()
+    }
+
+    /// Identify outflow boundary elements in the mesh
+    fn get_outflow_boundary_elements(&self, mesh: &Mesh) -> Vec<u32> {
+        mesh.elements.iter()
+            .filter(|e| is_outflow(e))
+            .map(|e| e.id)
+            .collect()
     }
 }
 
