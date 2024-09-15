@@ -59,12 +59,12 @@ impl FreeSurfaceBoundary {
                 if let Some(left_element) = mesh.elements.iter_mut().find(|e| e.id == relation.left_element_id) {
                     left_element.velocity = self.outflow_velocity;
                     left_element.momentum -= self.outflow_velocity * left_element.mass;
-                    left_element.height = self.surface_elevation;  // Maintain free surface elevation at outflow
+                    left_element.height = self.surface_elevation;
                 }
                 if let Some(right_element) = mesh.elements.iter_mut().find(|e| e.id == relation.right_element_id) {
                     right_element.velocity = self.outflow_velocity;
                     right_element.momentum -= self.outflow_velocity * right_element.mass;
-                    right_element.height = self.surface_elevation;  // Maintain free surface elevation at outflow
+                    right_element.height = self.surface_elevation;
                 }
                 break;
             }
@@ -134,3 +134,157 @@ impl FreeSurfaceOutflow {
         // Optionally, adjust surface elevation at the outflow boundary
     }
 }
+
+// Add this at the end of free_surface.rs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::{Element, Face, FaceElementRelation, FlowField, Mesh, Node};
+    use nalgebra::Vector3;
+
+    #[test]
+    fn test_apply_free_surface_boundary() {
+        // Create nodes for the mesh
+        let nodes = vec![
+            Node {
+                id: 0,
+                position: Vector3::new(0.0, 0.0, 0.0), // Inflow boundary at x = 0.0
+            },
+            Node {
+                id: 1,
+                position: Vector3::new(1.0, 0.0, 0.0),
+            },
+            Node {
+                id: 2,
+                position: Vector3::new(2.0, 0.0, 0.0), // Outflow boundary at x = 2.0
+            },
+        ];
+
+        // Create elements connected to the nodes
+        let elements = vec![
+            Element {
+                id: 0,
+                nodes: vec![0, 1],
+                mass: 1.0,
+                ..Default::default()
+            },
+            Element {
+                id: 1,
+                nodes: vec![1, 2],
+                mass: 1.0,
+                ..Default::default()
+            },
+        ];
+
+        // Create faces between nodes
+        let faces = vec![
+            Face {
+                id: 0,
+                nodes: vec![0, 1],
+                area: 1.0,
+                ..Default::default()
+            },
+            Face {
+                id: 1,
+                nodes: vec![1, 2],
+                area: 1.0,
+                ..Default::default()
+            },
+        ];
+
+        // Define face-element relationships
+        let face_element_relations = vec![
+            FaceElementRelation {
+                face_id: 0,
+                left_element_id: 0,
+                right_element_id: 1, // Face between Element 0 and Element 1
+            },
+            FaceElementRelation {
+                face_id: 1,
+                left_element_id: 1,
+                right_element_id: 2, // For simplicity, assume a virtual Element 2 at outflow
+            },
+        ];
+
+        // Create the mesh
+        let mut mesh = Mesh {
+            elements,
+            nodes,
+            faces,
+            face_element_relations,
+            neighbors: vec![],
+        };
+
+        // Create the FreeSurfaceBoundary instance
+        let free_surface_boundary = FreeSurfaceBoundary {
+            inflow_velocity: Vector3::new(1.0, 0.0, 0.0),  // Inflow in x-direction
+            outflow_velocity: Vector3::new(1.0, 0.0, 0.0), // Same velocity at outflow for this test
+            surface_elevation: 2.0,                        // Set surface elevation to 2.0
+        };
+
+        // Apply the boundary conditions
+        free_surface_boundary.apply(&mut mesh);
+
+        // Assertions to verify that the boundary conditions were applied correctly
+
+        // Check inflow face
+        let inflow_face = &mesh.faces[0];
+        assert_eq!(inflow_face.velocity, free_surface_boundary.inflow_velocity);
+
+        // Check outflow face
+        let outflow_face = &mesh.faces[1];
+        assert_eq!(outflow_face.velocity, free_surface_boundary.outflow_velocity);
+
+        // Check that elements connected to inflow face have updated properties
+        let inflow_element = &mesh.elements[0];
+        assert_eq!(inflow_element.velocity, free_surface_boundary.inflow_velocity);
+        assert_eq!(inflow_element.height, free_surface_boundary.surface_elevation);
+        assert_eq!(
+            inflow_element.momentum,
+            free_surface_boundary.inflow_velocity * inflow_element.mass
+        );
+
+        // Check that elements connected to outflow face have updated properties
+        let outflow_element = &mesh.elements[1];
+        assert_eq!(outflow_element.velocity, free_surface_boundary.outflow_velocity);
+        assert_eq!(outflow_element.height, free_surface_boundary.surface_elevation);
+        // Since outflow reduces momentum, we expect it to decrease
+        assert_eq!(
+            outflow_element.momentum,
+            -free_surface_boundary.outflow_velocity * outflow_element.mass
+        );
+    }
+
+    #[test]
+    fn test_mass_conservation() {
+        // Create elements with initial mass
+        let elements = vec![
+            Element {
+                id: 0,
+                mass: 1.0,
+                ..Default::default()
+            },
+            Element {
+                id: 1,
+                mass: 1.0,
+                ..Default::default()
+            },
+        ];
+
+        // Initialize flow field with the elements
+        let flow_field = FlowField::new(elements);
+
+        // Create the FreeSurfaceBoundary instance
+        let free_surface_boundary = FreeSurfaceBoundary {
+            inflow_velocity: Vector3::new(1.0, 0.0, 0.0),
+            outflow_velocity: Vector3::new(1.0, 0.0, 0.0),
+            surface_elevation: 2.0,
+        };
+
+        // Since no mass is added or removed in this simplified test, mass should be conserved
+        let mass_conserved = free_surface_boundary.check_mass_conservation(&flow_field);
+        assert!(mass_conserved, "Mass should be conserved");
+    }
+}
+

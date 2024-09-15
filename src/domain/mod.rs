@@ -27,3 +27,4 @@ pub use node::Node;
 pub use mesh::Mesh;
 pub use neighbor::Neighbor;
 pub use face::Face;
+pub use mesh::FaceElementRelation;
