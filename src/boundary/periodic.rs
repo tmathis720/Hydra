@@ -1,12 +1,12 @@
 use crate::domain::Element;
 
-pub struct PeriodicBoundary {
+pub struct PeriodicBoundaryCondition {
     pub elements: Vec<Element>,
     // Custom boundary mapping: (source_index, target_index)
     pub boundary_map: Vec<(usize, usize)>,  
 }
 
-impl PeriodicBoundary {
+impl PeriodicBoundaryCondition {
     /// Constructor to create a periodic boundary with a default mapping (first -> last)
     pub fn new(elements: Vec<Element>) -> Self {
         let boundary_map = if elements.len() > 1 {
@@ -80,7 +80,7 @@ mod tests {
             },
         ];
 
-        let mut _periodic_boundary = PeriodicBoundary::new(elements.clone());
+        let mut _periodic_boundary = PeriodicBoundaryCondition::new(elements.clone());
 
         // Apply default periodic boundary (first -> last)
         _periodic_boundary.apply_boundary(&mut elements);
@@ -114,7 +114,7 @@ mod tests {
             },
         ];
 
-        let mut periodic_boundary = PeriodicBoundary::new(elements.clone());
+        let mut periodic_boundary = PeriodicBoundaryCondition::new(elements.clone());
 
         // Add custom mapping: map element 0 to element 2
         periodic_boundary.add_boundary_mapping(0, 2);
@@ -137,7 +137,7 @@ mod tests {
             },
         ];
 
-        let mut periodic_boundary = PeriodicBoundary::new(elements.clone());
+        let mut periodic_boundary = PeriodicBoundaryCondition::new(elements.clone());
 
         // Try to add an invalid mapping (out of bounds)
         periodic_boundary.add_boundary_mapping(0, 1);

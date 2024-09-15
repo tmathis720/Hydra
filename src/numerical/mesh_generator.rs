@@ -14,8 +14,7 @@ impl MeshGenerator {
             nodes,
             elements,
             faces,
-            face_element_relations: vec![],
-            neighbors: vec![],
+            ..Mesh::default()
         }
     }
 
@@ -29,8 +28,7 @@ impl MeshGenerator {
             nodes,
             elements,
             faces,
-            face_element_relations: vec![],
-            neighbors: vec![],
+            ..Mesh::default()
         }
     }
 
@@ -44,8 +42,7 @@ impl MeshGenerator {
             nodes,
             elements,
             faces,
-            face_element_relations: vec![],
-            neighbors: vec![],
+            ..Mesh::default()
         }
     }
 
@@ -59,8 +56,7 @@ impl MeshGenerator {
             nodes,
             elements,
             faces,
-            face_element_relations: vec![],
-            neighbors: vec![],
+            ..Mesh::default()
         }
     }
 
@@ -74,8 +70,7 @@ impl MeshGenerator {
             nodes,
             elements,
             faces,
-            face_element_relations: vec![],
-            neighbors: vec![],
+            ..Mesh::default()
         }
     }
 
@@ -197,15 +192,7 @@ impl MeshGenerator {
                 elements.push(Element {
                     id: element_id,
                     nodes: vec![n1, n2, n3, n4],
-                    faces: vec![],
-                    pressure: 0.0,
-                    height: 0.0,
-                    area: 0.0,
-                    neighbor_ref: 0,
-                    mass: 1.0,
-                    momentum: Vector3::new(0.0, 0.0, 0.0),
                     element_type: 3, // Quadrilateral
-                    velocity: Vector3::new(0.0, 0.0, 0.0),
                     ..Element::default()
                 });
                 element_id += 1;
@@ -234,15 +221,7 @@ impl MeshGenerator {
                     elements.push(Element {
                         id: element_id,
                         nodes: vec![n1, n2, n4, n3, n5, n6, n8, n7],
-                        faces: vec![],
-                        pressure: 0.0,
-                        height: 0.0,
-                        area: 0.0,
-                        neighbor_ref: 0,
-                        mass: 1.0,
-                        momentum: Vector3::new(0.0, 0.0, 0.0),
                         element_type: 4, // Hexahedral
-                        velocity: Vector3::new(0.0, 0.0, 0.0),
                         ..Element::default()
                     });
                     element_id += 1;
@@ -261,15 +240,7 @@ impl MeshGenerator {
             elements.push(Element {
                 id: i as u32,
                 nodes: vec![0, i + 1, next + 1],
-                faces: vec![],
-                pressure: 0.0,
-                height: 0.0,
-                area: 0.0,
-                neighbor_ref: 0,
-                mass: 1.0,
-                momentum: Vector3::new(0.0, 0.0, 0.0),
                 element_type: 2, // Triangular
-                velocity: Vector3::new(0.0, 0.0, 0.0),
                 ..Element::default()
             });
         }

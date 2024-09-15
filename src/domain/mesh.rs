@@ -2,7 +2,6 @@
 
 use crate::domain::{Element, Face, Node};
 use crate::input::gmsh::GmshParser;
-use nalgebra::Vector3;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -71,7 +70,7 @@ impl Mesh {
         nodes: Vec<Node>,
         faces: Vec<Face>,
     ) -> Result<Self, MeshError> {
-        let (face_element_relations, face_id_map) = Mesh::build_face_element_relations(&elements)?;
+        let (face_element_relations, _face_id_map) = Mesh::build_face_element_relations(&elements)?;
 
         let neighbors = Mesh::assign_neighbors(&elements, &face_element_relations);
 
@@ -130,7 +129,7 @@ impl Mesh {
 
     /// Assigns neighbors to each element based on shared faces.
     fn assign_neighbors(
-        elements: &[Element],
+        _elements: &[Element],
         face_element_relations: &[FaceElementRelation],
     ) -> HashMap<u32, Vec<u32>> {
         let mut neighbors = HashMap::new();

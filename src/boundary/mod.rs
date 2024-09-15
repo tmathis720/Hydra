@@ -1,5 +1,3 @@
-// src/boundary/mod.rs
-
 use std::collections::HashMap;
 
 use crate::domain::{FlowField, Mesh};
@@ -22,6 +20,7 @@ pub use periodic::PeriodicBoundaryCondition;
 pub use free_surface::FreeSurfaceBoundaryCondition;
 pub use open::OpenBoundaryCondition;
 
+#[derive(Default)]
 /// Manages all boundary conditions in the simulation.
 pub struct BoundaryManager {
     pub boundaries: HashMap<BoundaryType, Box<dyn BoundaryCondition>>,
@@ -35,16 +34,11 @@ impl BoundaryManager {
         }
     }
 
-    /// Registers a boundary condition.
-    pub fn register_boundary(
-        &mut self,
-        boundary_type: BoundaryType,
-        condition: Box<dyn BoundaryCondition>,
-    ) {
+    pub fn register_boundary(&mut self, boundary_type: BoundaryType, condition: Box<dyn BoundaryCondition>) {
         self.boundaries.insert(boundary_type, condition);
     }
 
-    /// Applies all boundary conditions to the mesh and flow field.
+    /// Applies all registered boundary conditions to the mesh and flow field.
     pub fn apply(&self, mesh: &mut Mesh, flow_field: &mut FlowField, time_step: f64) {
         for condition in self.boundaries.values() {
             condition.apply(mesh, flow_field, time_step);

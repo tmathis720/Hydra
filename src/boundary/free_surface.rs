@@ -6,13 +6,13 @@ use nalgebra::Vector3;
 const MASS_CONSERVATION_THRESHOLD: f64 = 1e-6;  // Threshold for mass conservation check
 
 /// FreeSurfaceBoundary structure applies flow conditions like free surface elevations and velocities
-pub struct FreeSurfaceBoundary {
+pub struct FreeSurfaceBoundaryCondition {
     pub inflow_velocity: Vector3<f64>,  // 3D inflow velocity
     pub outflow_velocity: Vector3<f64>, // 3D outflow velocity (if required)
     pub surface_elevation: f64,         // Free surface elevation at boundary
 }
 
-impl FreeSurfaceBoundary {
+impl FreeSurfaceBoundaryCondition {
     /// Apply free surface boundary conditions to inflow and outflow boundary faces
     pub fn apply(&self, mesh: &mut Mesh) {
         let inflow_faces = self.get_boundary_faces(mesh, BoundaryType::Inflow);
@@ -37,12 +37,12 @@ impl FreeSurfaceBoundary {
     fn apply_inflow_to_elements(&self, face_id: u32, mesh: &mut Mesh) {
         for relation in &mesh.face_element_relations {
             if relation.face_id == face_id {
-                if let Some(left_element) = mesh.elements.iter_mut().find(|e| e.id == relation.left_element_id) {
+                if let Some(left_element) = mesh.elements.iter_mut().find(|e| e.id == relation.connected_elements[0]) {
                     left_element.velocity = self.inflow_velocity;
                     left_element.momentum += self.inflow_velocity * left_element.mass;
                     left_element.height = self.surface_elevation;  // Update free surface elevation
                 }
-                if let Some(right_element) = mesh.elements.iter_mut().find(|e| e.id == relation.right_element_id) {
+                if let Some(right_element) = mesh.elements.iter_mut().find(|e| e.id == relation.connected_elements[1]) {
                     right_element.velocity = self.inflow_velocity;
                     right_element.momentum += self.inflow_velocity * right_element.mass;
                     right_element.height = self.surface_elevation;  // Update free surface elevation
@@ -56,12 +56,12 @@ impl FreeSurfaceBoundary {
     fn apply_outflow_to_elements(&self, face_id: u32, mesh: &mut Mesh) {
         for relation in &mesh.face_element_relations {
             if relation.face_id == face_id {
-                if let Some(left_element) = mesh.elements.iter_mut().find(|e| e.id == relation.left_element_id) {
+                if let Some(left_element) = mesh.elements.iter_mut().find(|e| e.id == relation.connected_elements[0]) {
                     left_element.velocity = self.outflow_velocity;
                     left_element.momentum -= self.outflow_velocity * left_element.mass;
                     left_element.height = self.surface_elevation;
                 }
-                if let Some(right_element) = mesh.elements.iter_mut().find(|e| e.id == relation.right_element_id) {
+                if let Some(right_element) = mesh.elements.iter_mut().find(|e| e.id == relation.connected_elements[1]) {
                     right_element.velocity = self.outflow_velocity;
                     right_element.momentum -= self.outflow_velocity * right_element.mass;
                     right_element.height = self.surface_elevation;
@@ -135,11 +135,12 @@ impl FreeSurfaceOutflow {
     }
 }
 
-// Add this at the end of free_surface.rs
+// Unit tests for FreeSurfaceBoundaryCondition
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::boundary::BoundaryManager;
     use crate::domain::{Element, Face, FaceElementRelation, FlowField, Mesh, Node};
     use nalgebra::Vector3;
 
@@ -197,27 +198,25 @@ mod tests {
         let face_element_relations = vec![
             FaceElementRelation {
                 face_id: 0,
-                left_element_id: 0,
-                right_element_id: 1, // Face between Element 0 and Element 1
+                connected_elements: vec![0, 1],
             },
             FaceElementRelation {
                 face_id: 1,
-                left_element_id: 1,
-                right_element_id: 2, // For simplicity, assume a virtual Element 2 at outflow
+                connected_elements: vec![1, 2],
             },
         ];
 
         // Create the mesh
         let mut mesh = Mesh {
-            elements,
+            elements: elements.clone(),
             nodes,
             faces,
             face_element_relations,
-            neighbors: vec![],
+            ..Mesh::default()
         };
 
         // Create the FreeSurfaceBoundary instance
-        let free_surface_boundary = FreeSurfaceBoundary {
+        let free_surface_boundary = FreeSurfaceBoundaryCondition {
             inflow_velocity: Vector3::new(1.0, 0.0, 0.0),  // Inflow in x-direction
             outflow_velocity: Vector3::new(1.0, 0.0, 0.0), // Same velocity at outflow for this test
             surface_elevation: 2.0,                        // Set surface elevation to 2.0
@@ -272,11 +271,14 @@ mod tests {
             },
         ];
 
-        // Initialize flow field with the elements
-        let flow_field = FlowField::new(elements);
+        // Create a BoundaryManager (empty for this test)
+        let boundary_manager = BoundaryManager::new();
+
+        // Initialize flow field with the elements and boundary manager
+        let flow_field = FlowField::new(elements.clone(), boundary_manager);
 
         // Create the FreeSurfaceBoundary instance
-        let free_surface_boundary = FreeSurfaceBoundary {
+        let free_surface_boundary = FreeSurfaceBoundaryCondition {
             inflow_velocity: Vector3::new(1.0, 0.0, 0.0),
             outflow_velocity: Vector3::new(1.0, 0.0, 0.0),
             surface_elevation: 2.0,

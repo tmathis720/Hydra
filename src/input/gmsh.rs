@@ -91,7 +91,7 @@ impl GmshParser {
         let mut split = line.split_whitespace();
 
         let id: u32 = Self::parse_next(&mut split, "Missing element ID")?;
-        let element_type: u32 = Self::parse_next(&mut split, "Missing element type")?;
+        let _element_type: u32 = Self::parse_next(&mut split, "Missing element type")?;
 
         // Skip physical and geometrical tags (not needed in this case)
         let _num_tags: u32 = Self::parse_next(&mut split, "Missing number of tags")?;
@@ -106,15 +106,6 @@ impl GmshParser {
         Ok(Element {
             id,
             nodes: node_ids,
-            faces: vec![], // Faces can be parsed separately if needed
-            pressure: 0.0,
-            height: 0.0,
-            area: 0.0,
-            neighbor_ref: 0,
-            mass: 0.0,
-            element_type,
-            momentum: nalgebra::Vector3::new(0.0, 0.0, 0.0),
-            velocity: nalgebra::Vector3::new(0.0, 0.0, 0.0),
             ..Element::default()
         })
     }

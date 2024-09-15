@@ -1,6 +1,6 @@
 // src/timestep/cranknicolson.rs
 
-use crate::domain::Mesh;
+use crate::domain::{Element, Mesh};
 use crate::solver::flux_solver::FluxSolver;
 
 /// Crank-Nicolson time-stepping method.
@@ -12,9 +12,9 @@ impl CrankNicolson {
     fn step(&self, mesh: &mut Mesh, dt: f64) {
         for face in &mut mesh.faces {
             // Get mutable references to the connected elements
-            let (left_element, right_element) = mesh.get_connected_elements(face);
+            let ConnectedElements = mesh.get_elements_connected_to_face(face.id);
 
-            if let (Some(left), Some(right)) = (left_element, right_element) {
+            if let (Some(left), Some(right)) = (mesh.get_element_by_id(ConnectedElements)) {
                 // Compute the flux at the current time step
                 let flux_3d_old = self.solver.compute_flux_3d(face, left, right);
 
