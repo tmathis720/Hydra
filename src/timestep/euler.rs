@@ -7,7 +7,7 @@ pub struct ExplicitEuler {
 }
 
 impl ExplicitEuler {
-    fn step(&self, mesh: &mut Mesh, dt: f64) {
+    fn _step(&self, mesh: &mut Mesh, dt: f64) {
         // First, collect all the data we need from the face-element relations
         let relations_data: Vec<(u32, u32, u32)> = mesh.face_element_relations
             .iter()

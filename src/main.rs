@@ -1,10 +1,43 @@
 // Import the necessary modules and types
 
 fn main() {
-    // Load the mesh from a Gmsh file
+    // Front matters
+
+    // Print the mascot!
     print_mascot()
 
-    // Further logic for the simulation goes here...
+    // Load a gmsh grid
+
+    // Setup domain
+
+    // Setup boundary conditions
+
+    // Setup flow field
+
+
+    /* // Setup solvers
+    let flux_solver = FluxSolver::new();
+    let pressure_solver = PressureSolver::new(AlgebraicMultigridSolver::new());
+    let time_stepper = CrankNicolson::new(flux_solver.clone());
+
+    // Create the PISO solver with AMG
+    let piso_solver = PisoAmgSolver::new(pressure_solver, flux_solver, time_stepper);
+
+    // Create mesh and flow field
+    let mut mesh = Mesh::load_from_gmsh("mesh.msh").expect("Failed to load mesh");
+    let mut flow_field = FlowField::initialize_from_mesh(&mesh);
+
+    // Time-stepping loop
+    let dt = 0.01;
+    for _ in 0..100 {
+        piso_solver.solve(&mut mesh, &mut flow_field, dt);
+    } */
+
+    // Write final outputs
+
+    // End matters
+
+    // end of program
 }
 
 fn print_mascot() {

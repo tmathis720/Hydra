@@ -36,7 +36,7 @@ impl EddyViscositySolver {
     ///
     /// # Returns
     /// A `Vector3<f64>` representing the velocity difference.
-    fn compute_velocity_gradient(&self, element_left: &Element, element_right: &Element) -> Vector3<f64> {
+    fn _compute_velocity_gradient(&self, element_left: &Element, element_right: &Element) -> Vector3<f64> {
         element_right.velocity - element_left.velocity
     }
 

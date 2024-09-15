@@ -7,7 +7,7 @@ pub struct CrankNicolson {
 }
 
 impl CrankNicolson {
-    fn step(&self, mesh: &mut Mesh, dt: f64) {
+    fn _step(&self, mesh: &mut Mesh, dt: f64) {
         // First, collect all the data we need from the face-element relations
         let relations_data: Vec<(u32, u32, u32)> = mesh.face_element_relations
             .iter()
@@ -39,6 +39,17 @@ impl CrankNicolson {
                 right.update_momentum(-flux_3d_avg * dt);  // Opposite direction
             }
         }
+
+        /* // This is responsible for solving the momentum equation
+        for element in &mut mesh.elements {
+            let old_velocity = element.velocity;
+
+            // Compute the new velocity using the Crank-Nicolson scheme
+            let momentum_flux = self.solver.compute_flux(element, flow_field);
+            let new_velocity = old_velocity + (momentum_flux * dt);
+
+            element.velocity = new_velocity;
+        } */
 
         // Update velocities of all elements based on the new momentum
         for element in &mut mesh.elements {
