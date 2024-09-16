@@ -1,181 +1,125 @@
-use crate::domain::{Mesh, Element, Face};
-use crate::domain::FlowField;  // Correct module import for FlowField
-use crate::boundary::BoundaryType;
+use crate::domain::Mesh;
+use crate::domain::FlowField;
+use crate::boundary::BoundaryCondition;
 use nalgebra::Vector3;
-
-const MASS_CONSERVATION_THRESHOLD: f64 = 1e-6;  // Threshold for mass conservation check
 
 /// FreeSurfaceBoundary structure applies flow conditions like free surface elevations and velocities
 pub struct FreeSurfaceBoundaryCondition {
-    pub inflow_velocity: Vector3<f64>,  // 3D inflow velocity
-    pub outflow_velocity: Vector3<f64>, // 3D outflow velocity (if required)
-    pub surface_elevation: f64,         // Free surface elevation at boundary
+    pub surface_elevation: Vec<f64>, // eta values
+    pub velocity_potential: Vec<f64>, // phi values
+    pub shear_vector: Vec<f64>, // tau values
+    pub mass_flux: f64, // mass flux currently unused
 }
 
 impl FreeSurfaceBoundaryCondition {
-    /// Apply free surface boundary conditions to inflow and outflow boundary faces
-    pub fn apply(&self, mesh: &mut Mesh) {
-        let inflow_faces = self.get_boundary_faces(mesh, BoundaryType::Inflow);
-        let outflow_faces = self.get_boundary_faces(mesh, BoundaryType::Outflow);
-
-        // Apply inflow conditions
-        for face_index in inflow_faces {
-            let face = &mut mesh.faces[face_index];
-            face.velocity = self.inflow_velocity;  // Apply 3D inflow velocity
-            self.apply_inflow_to_elements(face.id, mesh);
-        }
-
-        // Apply outflow conditions
-        for face_index in outflow_faces {
-            let face = &mut mesh.faces[face_index];
-            face.velocity = self.outflow_velocity;  // Apply 3D outflow velocity
-            self.apply_outflow_to_elements(face.id, mesh);
+    /// Creates a new instance of the free surface boundary condition.
+    pub fn new(surface_elevation: Vec<f64>, velocity_potential: Vec<f64>, shear_vector: Vec<f64>, mass_flux: f64) -> Self {
+        FreeSurfaceBoundaryCondition {
+            surface_elevation,
+            velocity_potential,
+            shear_vector,
+            mass_flux,
         }
     }
 
-    /// Apply inflow condition to elements connected to a face
-    fn apply_inflow_to_elements(&self, face_id: u32, mesh: &mut Mesh) {
-        for relation in &mesh.face_element_relations {
-            if relation.face_id == face_id {
-                if let Some(left_element) = mesh.elements.iter_mut().find(|e| e.id == relation.connected_elements[0]) {
-                    left_element.velocity = self.inflow_velocity;
-                    left_element.momentum += self.inflow_velocity * left_element.mass;
-                    left_element.height = self.surface_elevation;  // Update free surface elevation
-                }
-                if let Some(right_element) = mesh.elements.iter_mut().find(|e| e.id == relation.connected_elements[1]) {
-                    right_element.velocity = self.inflow_velocity;
-                    right_element.momentum += self.inflow_velocity * right_element.mass;
-                    right_element.height = self.surface_elevation;  // Update free surface elevation
-                }
-                break;
-            }
+    /// Adds a boundary element related to the free surface (not yet implemented).
+    /// This would likely involve marking certain mesh elements as "free surface" elements.
+    pub fn add_boundary_element(&self) {
+        // Logic to associate mesh elements with the free surface boundary
+        // For example, you could iterate over mesh surface elements and mark them
+        // as being affected by the free surface.
+        unimplemented!()
+    }
+
+    /// Applies the kinematic boundary condition for the free surface.
+    ///
+    /// The kinematic condition is typically:
+    /// d_eta/dt = w - u * d(eta)/dx
+    ///
+    /// This ensures that the vertical velocity of the surface matches the material
+    /// velocity (water moving with the surface).
+    pub fn apply_kinematic_condition(&mut self) {
+        let dx = 1.0; // Placeholder for grid spacing (to be passed or fetched from Mesh)
+        for i in 0..self.surface_elevation.len() - 1 {
+            // Calculate the vertical velocity w and horizontal velocity u
+            let u = self.velocity_potential[i];  // Placeholder: Should map to actual velocity at surface
+            let w = self.shear_vector[i];        // Placeholder: Should be related to vertical velocity at surface
+
+            // Apply kinematic condition: d_eta = w - u * (d_eta/dx)
+            self.surface_elevation[i] += w - u * (self.surface_elevation[i + 1] - self.surface_elevation[i]) / dx;
         }
     }
 
-    /// Apply outflow condition to elements connected to a face
-    fn apply_outflow_to_elements(&self, face_id: u32, mesh: &mut Mesh) {
-        for relation in &mesh.face_element_relations {
-            if relation.face_id == face_id {
-                if let Some(left_element) = mesh.elements.iter_mut().find(|e| e.id == relation.connected_elements[0]) {
-                    left_element.velocity = self.outflow_velocity;
-                    left_element.momentum -= self.outflow_velocity * left_element.mass;
-                    left_element.height = self.surface_elevation;
-                }
-                if let Some(right_element) = mesh.elements.iter_mut().find(|e| e.id == relation.connected_elements[1]) {
-                    right_element.velocity = self.outflow_velocity;
-                    right_element.momentum -= self.outflow_velocity * right_element.mass;
-                    right_element.height = self.surface_elevation;
-                }
-                break;
-            }
+    /// Applies the dynamic boundary condition for the free surface.
+    ///
+    /// The dynamic condition is typically:
+    /// d_phi/dt = - g * eta - 0.5 * (u^2 + v^2)
+    ///
+    /// This comes from Bernoulli's equation, ensuring the potential on the surface
+    /// evolves based on gravity and kinetic energy.
+    pub fn apply_dynamic_condition(&mut self) {
+        let g = 9.81; // Gravitational constant
+        for i in 0..self.velocity_potential.len() {
+            // Derivatives of velocity potential in x and y directions
+            let phi_x: f64 = 0.0; // Placeholder for d(phi)/dx
+            let phi_y: f64 = 0.0; // Placeholder for d(phi)/dy
+
+            // Apply dynamic boundary condition
+            self.velocity_potential[i] -= g * self.surface_elevation[i] + 0.5 * (phi_x.powi(2) + phi_y.powi(2));
         }
     }
 
-    /// Helper function to retrieve inflow or outflow boundary faces
-    fn get_boundary_faces(&self, mesh: &Mesh, boundary_type: BoundaryType) -> Vec<usize> {
-        mesh.faces.iter().enumerate()
-            .filter_map(|(i, face)| {
-                if (boundary_type == BoundaryType::Inflow && self.is_inflow_boundary_face(face, mesh)) ||
-                   (boundary_type == BoundaryType::Outflow && self.is_outflow_boundary_face(face, mesh)) {
-                    Some(i)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
-    /// Check if the face is at the inflow boundary
-    fn is_inflow_boundary_face(&self, face: &Face, mesh: &Mesh) -> bool {
-        let node_1 = &mesh.nodes[face.nodes[0]];
-        let node_2 = &mesh.nodes[face.nodes[1]];
-        node_1.position.x == 0.0 || node_2.position.x == 0.0  // Check inflow at x = 0
-    }
-
-    /// Check if the face is at the outflow boundary
-    fn is_outflow_boundary_face(&self, face: &Face, mesh: &Mesh) -> bool {
-        let node_1 = &mesh.nodes[face.nodes[0]];
-        let node_2 = &mesh.nodes[face.nodes[1]];
-        node_1.position.x == mesh.domain_width() || node_2.position.x == mesh.domain_width()  // Check outflow at domain's right edge
-    }
-
-    /// Check for mass conservation by comparing the initial and current total mass
-    pub fn check_mass_conservation(&self, flow_field: &FlowField) -> bool {
-        let total_mass: f64 = flow_field.elements.iter().map(|e| e.mass).sum();
-        let mass_difference = total_mass - flow_field.initial_mass;
-        mass_difference.abs() < MASS_CONSERVATION_THRESHOLD
+    /// Applies shear forces (e.g., wind shear) on the surface.
+    ///
+    /// This is the momentum balance across the surface due to shear stress.
+    pub fn apply_surface_shear(&mut self) {
+        let rho_a: f64 = 1.225; // Air density (kg/m^3)
+        let u_star: f64 = 0.0;  // Friction velocity (calculated or passed as parameter)
+        
+        for i in 0..self.shear_vector.len() {
+            // Apply shear to the surface using momentum flux tau (shear_vector).
+            self.shear_vector[i] = rho_a * u_star.powi(2);
+        }
     }
 }
 
-/// Struct to represent free surface inflow boundary conditions
-pub struct FreeSurfaceInflow {
-    pub rate: f64,  // Rate of mass/momentum added to the system
-}
+impl BoundaryCondition for FreeSurfaceBoundaryCondition {
+    /// Updates the inflow boundary condition based on time or other factors.
+    fn update(&mut self, _time: f64) {
+        // Add any time-dependent updates here if needed.
+        // For example, if surface elevation changes over time.
+    }
 
-impl FreeSurfaceInflow {
-    /// Apply free surface inflow by adding mass and momentum to the element
-    pub fn apply_boundary(&self, element: &mut Element, dt: f64) {
-        element.mass += self.rate * dt;  // Add mass
-        element.momentum += Vector3::new(self.rate * element.pressure * dt, 0.0, 0.0);  // Add momentum (assumed in x-direction)
-        // Optionally, modify surface elevation if necessary for free surface
+    /// Applies the free surface boundary condition to the surface elements in the flow field.
+    ///
+    /// # Parameters
+    /// - `_mesh`: The computational mesh.
+    /// - `_flow_field`: The flow field representing velocities, pressure, etc.
+    /// - `_time_step`: The current simulation time step.
+    fn apply(&self, _mesh: &mut Mesh, _flow_field: &mut FlowField, _time_step: f64) {
+        // You would typically:
+        // 1. Apply kinematic boundary conditions (e.g., d_eta = w - u * d_eta/dx)
+        // 2. Apply dynamic boundary conditions (e.g., adjust velocity potential)
+        //self.apply_kinematic_condition();
+        //self.apply_dynamic_condition();
+        //self.apply_surface_shear();
+    }
+
+    /// Retrieves the velocity associated with the free surface boundary condition.
+    fn velocity(&self) -> Option<Vector3<f64>> {
+        // Return a velocity vector, likely representing the surface flow.
+        Some(Vector3::new(0.0, 0.0, 0.0)) // Placeholder: Replace with actual velocity calculation.
+    }
+
+    /// Retrieves the mass rate associated with the free surface boundary condition.
+    fn mass_rate(&self) -> Option<f64> {
+        // Return the mass flux rate. Currently unused but could represent mass flow over the surface.
+        Some(self.mass_flux)
+    }
+
+    /// Retrieves the boundary elements affected by the free surface boundary condition.
+    fn get_boundary_elements(&self, _mesh: &Mesh) -> Vec<u32> {
+        // Logic to retrieve the list of boundary elements that belong to the free surface
+        vec![] // Placeholder: Replace with actual boundary element identification.
     }
 }
-
-/// Struct to represent free surface outflow boundary conditions
-pub struct FreeSurfaceOutflow {
-    pub rate: f64,  // Rate of mass/momentum removed from the system
-}
-
-impl FreeSurfaceOutflow {
-    /// Apply free surface outflow by removing mass and momentum from the element
-    pub fn apply_boundary(&self, element: &mut Element, dt: f64) {
-        element.mass = (element.mass - self.rate * dt).max(0.0);  // Ensure mass does not go negative
-        element.momentum.x = (element.momentum.x - self.rate * element.pressure * dt).max(0.0);  // Prevent negative momentum
-        // Optionally, adjust surface elevation at the outflow boundary
-    }
-}
-
-// Unit tests for FreeSurfaceBoundaryCondition
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::boundary::BoundaryManager;
-    use crate::domain::{Element, FlowField};
-    use nalgebra::Vector3;
-
-    #[test]
-    fn test_mass_conservation() {
-        // Create elements with initial mass
-        let elements = vec![
-            Element {
-                id: 0,
-                mass: 1.0,
-                ..Default::default()
-            },
-            Element {
-                id: 1,
-                mass: 1.0,
-                ..Default::default()
-            },
-        ];
-
-        // Create a BoundaryManager (empty for this test)
-        let boundary_manager = BoundaryManager::new();
-
-        // Initialize flow field with the elements and boundary manager
-        let flow_field = FlowField::new(elements.clone(), boundary_manager);
-
-        // Create the FreeSurfaceBoundary instance
-        let free_surface_boundary = FreeSurfaceBoundaryCondition {
-            inflow_velocity: Vector3::new(1.0, 0.0, 0.0),
-            outflow_velocity: Vector3::new(1.0, 0.0, 0.0),
-            surface_elevation: 2.0,
-        };
-
-        // Since no mass is added or removed in this simplified test, mass should be conserved
-        let mass_conserved = free_surface_boundary.check_mass_conservation(&flow_field);
-        assert!(mass_conserved, "Mass should be conserved");
-    }
-}
-

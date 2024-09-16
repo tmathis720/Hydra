@@ -82,6 +82,22 @@ impl OpenBoundaryCondition {
         target_element.momentum = target_element.momentum.map(|val| val.max(0.0));
         target_element.pressure = pressure;
     }
+
+    /// Identify inflow boundary elements in the mesh
+    fn get_inflow_boundary_elements(&self, mesh: &Mesh) -> Vec<u32> {
+        mesh.elements.iter()
+            .filter(|e| is_inflow(e))
+            .map(|e| e.id)
+            .collect()
+    }
+
+    /// Identify outflow boundary elements in the mesh
+    fn get_outflow_boundary_elements(&self, mesh: &Mesh) -> Vec<u32> {
+        mesh.elements.iter()
+            .filter(|e| is_outflow(e))
+            .map(|e| e.id)
+            .collect()
+    }
 }
 
 /// Determines whether an element is at an inflow boundary.
@@ -118,23 +134,5 @@ impl BoundaryCondition for OpenBoundaryCondition {
 
         // Combine both inflow and outflow elements
         [inflow_elements, outflow_elements].concat()
-    }
-}
-
-impl OpenBoundaryCondition {
-    /// Identify inflow boundary elements in the mesh
-    fn get_inflow_boundary_elements(&self, mesh: &Mesh) -> Vec<u32> {
-        mesh.elements.iter()
-            .filter(|e| is_inflow(e))
-            .map(|e| e.id)
-            .collect()
-    }
-
-    /// Identify outflow boundary elements in the mesh
-    fn get_outflow_boundary_elements(&self, mesh: &Mesh) -> Vec<u32> {
-        mesh.elements.iter()
-            .filter(|e| is_outflow(e))
-            .map(|e| e.id)
-            .collect()
     }
 }

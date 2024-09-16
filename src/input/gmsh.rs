@@ -149,15 +149,147 @@ mod tests {
     }
 
     #[test]
-    fn test_load_mesh() {
-        // Create a temporary Gmsh file
+    fn test_circle_mesh_import() {
+        let temp_file_path = "inputs/circular_lake.msh2";
+
+        let result = GmshParser::load_mesh(temp_file_path);
+        assert!(result.is_ok());
+
+        let (nodes, elements, _) = result.unwrap();
+
+        // Test for basic validity
+        assert!(!nodes.is_empty(), "Circle mesh nodes should not be empty");
+        assert!(!elements.is_empty(), "Circle mesh elements should not be empty");
+
+        // Check that the number of nodes matches the expected value
+        assert_eq!(nodes.len(), 424, "Incorrect number of nodes in circle mesh");
+        assert_eq!(elements.len(), 849, "Incorrect number of elements in circle mesh");
+    }
+
+    #[test]
+    fn test_coastal_island_mesh_import() {
+        let temp_file_path = "inputs/coastal_island.msh2";
+
+        let result = GmshParser::load_mesh(temp_file_path);
+        assert!(result.is_ok());
+
+        let (nodes, elements, _) = result.unwrap();
+
+        // Validate the mesh structure
+        assert!(!nodes.is_empty(), "Coastal Island mesh nodes should not be empty");
+        assert!(!elements.is_empty(), "Coastal Island mesh elements should not be empty");
+
+        // Add specific tests based on expected structure
+        assert_eq!(nodes.len(), 1075, "Incorrect number of nodes in Coastal Island mesh");
+        assert_eq!(elements.len(), 2154, "Incorrect number of elements in Coastal Island mesh");
+    }
+
+    #[test]
+    fn test_lagoon_mesh_import() {
+        let temp_file_path = "inputs/elliptical_lagoon.msh2";
+
+        let result = GmshParser::load_mesh(temp_file_path);
+        assert!(result.is_ok());
+
+        let (nodes, elements, _) = result.unwrap();
+
+        // Validate the mesh structure
+        assert!(!nodes.is_empty(), "Lagoon mesh nodes should not be empty");
+        assert!(!elements.is_empty(), "Lagoon mesh elements should not be empty");
+
+        // Further checks on expected properties
+        assert_eq!(nodes.len(), 848, "Incorrect number of nodes in Lagoon mesh");
+        assert_eq!(elements.len(), 1697, "Incorrect number of elements in Lagoon mesh");
+    }
+
+    #[test]
+    fn test_meandering_river_mesh_import() {
+        let temp_file_path = "inputs/meandering_river.msh2";
+
+        let result = GmshParser::load_mesh(temp_file_path);
+        assert!(result.is_ok());
+
+        let (nodes, elements, _) = result.unwrap();
+
+        // Validate the mesh structure
+        assert!(!nodes.is_empty(), "Meandering River mesh nodes should not be empty");
+        assert!(!elements.is_empty(), "Meandering River mesh elements should not be empty");
+
+        // Further checks on the structure
+        assert_eq!(nodes.len(), 695, "Incorrect number of nodes in Meandering River mesh");
+        assert_eq!(elements.len(), 1386, "Incorrect number of elements in Meandering River mesh");
+    }
+
+    #[test]
+    fn test_polygon_estuary_mesh_import() {
+        let temp_file_path = "inputs/polygon_estuary.msh2";
+
+        let result = GmshParser::load_mesh(temp_file_path);
+        assert!(result.is_ok());
+
+        let (nodes, elements, _) = result.unwrap();
+        
+        // Validate the mesh structure
+        assert!(!nodes.is_empty(), "Polygon Estuary mesh nodes should not be empty");
+        assert!(!elements.is_empty(), "Polygon Estuary mesh elements should not be empty");
+
+        // Further checks on the structure
+        assert_eq!(nodes.len(), 469, "Incorrect number of nodes in Polygon Estuary mesh");
+        assert_eq!(elements.len(), 941, "Incorrect number of elements in Polygon Estuary mesh");
+    }
+
+    #[test]
+    fn test_rectangle_mesh_import() {
         let temp_file_path = "inputs/rectangle.msh2";
 
         let result = GmshParser::load_mesh(temp_file_path);
         assert!(result.is_ok());
 
         let (nodes, elements, _) = result.unwrap();
-        assert_eq!(nodes.len(), 78);
-        assert_eq!(elements.len(), 158);
+        
+        // Validate the mesh structure
+        assert!(!nodes.is_empty(), "Rectangle mesh nodes should not be empty");
+        assert!(!elements.is_empty(), "Rectangle mesh elements should not be empty");
+
+        // Further checks on the structure
+        assert_eq!(nodes.len(), 78, "Incorrect number of nodes in Rectangle mesh");
+        assert_eq!(elements.len(), 158, "Incorrect number of elements in Rectangle mesh");
+    }
+
+    #[test]
+    fn test_rectangle_channel_mesh_import() {
+        let temp_file_path = "inputs/rectangular_channel.msh2";
+
+        let result = GmshParser::load_mesh(temp_file_path);
+        assert!(result.is_ok());
+
+        let (nodes, elements, _) = result.unwrap();
+        
+        // Validate the mesh structure
+        assert!(!nodes.is_empty(), "Rectangular Channel mesh nodes should not be empty");
+        assert!(!elements.is_empty(), "Rectangular Channel mesh elements should not be empty");
+
+        // Further checks on the structure
+        assert_eq!(nodes.len(), 149, "Incorrect number of nodes in Rectangular Channel mesh");
+        assert_eq!(elements.len(), 300, "Incorrect number of elements in Rectangular Channel mesh");
+    }
+
+    #[test]
+    fn test_triangle_basin_mesh_import() {
+        let temp_file_path = "inputs/triangular_basin.msh2";
+
+        let result = GmshParser::load_mesh(temp_file_path);
+        assert!(result.is_ok());
+
+        let (nodes, elements, _) = result.unwrap();
+        
+        // Validate the mesh structure
+        assert!(!nodes.is_empty(), "Triangular Basin mesh nodes should not be empty");
+        assert!(!elements.is_empty(), "Triangular Basin mesh elements should not be empty");
+
+
+        // Further checks on the structure
+        assert_eq!(nodes.len(), 66, "Incorrect number of nodes in Triangular Basin mesh");
+        assert_eq!(elements.len(), 133, "Incorrect number of elements in Triangular Basin mesh");
     }
 }
