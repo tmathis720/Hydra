@@ -7,6 +7,22 @@ pub struct Node {
 }
 
 impl Node {
+    /// Creates a new 'Node' with the given parameters.
+    /// 
+    /// # Parameters
+    /// - 'id': Unique identifier for the node.
+    /// - 'position': 3D coordinates of the node.
+    /// 
+    /// # Returns
+    /// A new 'Node' instance with default properties.
+    pub fn new(id: u32, position: Vector3<f64>) -> Self {
+        Self {
+            id,
+            position,
+        }
+    }
+
+
     /// Calculate the Euclidean distance between this node and another node in 3D space.
     pub fn distance(&self, other: &Node) -> f64 {
         (self.position - other.position).norm()  // Use nalgebra's norm to compute the distance

@@ -1,6 +1,7 @@
 // src/domain/mesh.rs
 
 use crate::domain::{Element, Face, Node};
+use crate::boundary::BoundaryType;
 use crate::input::gmsh::GmshParser;
 use std::collections::HashMap;
 use std::error::Error;
@@ -268,6 +269,44 @@ impl Mesh {
         self.faces
             .iter()
             .filter(|face| face.is_boundary)
+            .collect()
+    }
+
+    /// Identifies if a face is part of the free surface.
+    ///
+    /// For 2D meshes, this checks if any of the face's nodes have the maximum y-coordinate.
+    /// For 3D meshes, it checks if the face is on the top surface based on its node positions.
+    pub fn is_surface_face(&self, face: &Face) -> bool {
+        let max_y = self.nodes.iter().map(|n| n.position.y).fold(f64::NEG_INFINITY, f64::max);
+
+        // Check if any node in the face has the maximum y-coordinate (for 2D).
+        face.nodes.iter().any(|&node_id| {
+            if let Some(node) = self.nodes.get(node_id as usize) {
+                node.position.y == max_y
+            } else {
+                false
+            }
+        })
+    }
+
+    /// Marks a face as part of the free surface by setting a boundary flag.
+    ///
+    /// # Arguments
+    /// * `face_id` - The ID of the face to mark.
+    /// * `boundary_type` - The type of boundary condition (e.g., "free_surface").
+    pub fn mark_face_as_boundary(&mut self, face_id: u32, boundary_type: BoundaryType) {
+        if let Some(face) = self.get_face_by_id_mut(face_id) {
+            face.set_boundary(true);
+            face.set_boundary_type(Some(boundary_type));
+        }
+    }
+
+    /// Retrieves a list of faces that belong to the free surface.
+    pub fn get_free_surface_faces(&self) -> Vec<u32> {
+        self.faces
+            .iter()
+            .filter(|face| self.is_surface_face(face))
+            .map(|face| face.id)
             .collect()
     }
 }
