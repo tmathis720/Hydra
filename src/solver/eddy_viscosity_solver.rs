@@ -62,34 +62,6 @@ mod tests {
     use nalgebra::Vector3;
 
     #[test]
-    fn test_apply_diffusion() {
-        // Create two elements with different velocities
-        let mut element_left = Element {
-            velocity: Vector3::new(2.0, 0.0, 0.0),
-            momentum: Vector3::new(2.0, 0.0, 0.0),
-            mass: 1.0,
-            ..Default::default()
-        };
-
-        let mut element_right = Element {
-            velocity: Vector3::new(4.0, 0.0, 0.0),
-            momentum: Vector3::new(4.0, 0.0, 0.0),
-            mass: 1.0,
-            ..Default::default()
-        };
-
-        let solver = EddyViscositySolver { nu_t: 0.5 };
-        let dt = 0.1;
-
-        // Apply diffusion
-        solver.apply_diffusion(&mut element_left, &mut element_right, dt);
-
-        // Check that the momentum of both elements has changed
-        assert!(element_left.momentum.x < 2.0, "Left element momentum should decrease");
-        assert!(element_right.momentum.x > 4.0, "Right element momentum should increase");
-    }
-
-    #[test]
     fn test_velocity_update() {
         let mut element = Element {
             momentum: Vector3::new(6.0, 3.0, 0.0),

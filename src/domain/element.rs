@@ -62,15 +62,8 @@ impl Element {
             id,
             nodes,
             faces,
-            pressure: 0.0,
-            height: 0.0,
-            area: 0.0,
-            neighbor_refs: vec![],
-            mass: 0.0,
             element_type,
-            momentum: Vector3::zeros(),
-            velocity: Vector3::zeros(),
-            laminar_viscosity: None,
+            ..Element::default()
         }
     }
 

@@ -38,7 +38,7 @@ impl ExplicitEuler {
 
         // Update velocities of all elements based on the new momentum
         for element in &mut mesh.elements {
-            element.update_velocity_from_momentum();
+            let _ = element.update_velocity_from_momentum();
         }
     }
 }

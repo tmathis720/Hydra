@@ -71,7 +71,7 @@ impl FlowField {
     }
 
     /// Compute the pressure gradient for an element (needed for correction)
-    pub fn compute_pressure_gradient(&self, element: &Element) -> Vector3<f64> {
+    pub fn compute_pressure_gradient(&self, _element: &Element) -> Vector3<f64> {
         // Placeholder for computing the pressure gradient
         unimplemented!()
     }

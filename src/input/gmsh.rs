@@ -91,7 +91,7 @@ impl GmshParser {
         let mut split = line.split_whitespace();
 
         let id: u32 = Self::parse_next(&mut split, "Missing element ID")?;
-        let _element_type: u32 = Self::parse_next(&mut split, "Missing element type")?;
+        let element_type: u32 = Self::parse_next(&mut split, "Missing element type")?;
 
         // Skip physical and geometrical tags (not needed in this case)
         let _num_tags: u32 = Self::parse_next(&mut split, "Missing number of tags")?;
@@ -106,6 +106,7 @@ impl GmshParser {
         Ok(Element {
             id,
             nodes: node_ids,
+            element_type: element_type,
             ..Element::default()
         })
     }
@@ -128,8 +129,6 @@ impl GmshParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
-    use std::io::Write;
 
     #[test]
     fn test_parse_node() {
@@ -141,33 +140,24 @@ mod tests {
 
     #[test]
     fn test_parse_element() {
-        let line = "1 2 3 4 5 6 7";
+        let line = "1 3 4 9 5 6 7";
         let element = GmshParser::parse_element(line).unwrap();
         assert_eq!(element.id, 1);
-        assert_eq!(element.element_type, 2);
-        assert_eq!(element.nodes, vec![4, 5, 6, 7]);
+        assert_eq!(element.nodes, vec![5, 6, 7]);
+        assert_eq!(element.element_type, 3);
+        
     }
 
     #[test]
     fn test_load_mesh() {
         // Create a temporary Gmsh file
-        let temp_file_path = "/tmp/test.msh";
-        let mut file = File::create(temp_file_path).unwrap();
-        writeln!(file, "$Nodes").unwrap();
-        writeln!(file, "2").unwrap();
-        writeln!(file, "1 0.0 1.0 2.0").unwrap();
-        writeln!(file, "2 3.0 4.0 5.0").unwrap();
-        writeln!(file, "$EndNodes").unwrap();
-        writeln!(file, "$Elements").unwrap();
-        writeln!(file, "1").unwrap();
-        writeln!(file, "1 2 3 4 5 6").unwrap();
-        writeln!(file, "$EndElements").unwrap();
+        let temp_file_path = "inputs/rectangle.msh2";
 
         let result = GmshParser::load_mesh(temp_file_path);
         assert!(result.is_ok());
 
         let (nodes, elements, _) = result.unwrap();
-        assert_eq!(nodes.len(), 2);
-        assert_eq!(elements.len(), 1);
+        assert_eq!(nodes.len(), 78);
+        assert_eq!(elements.len(), 158);
     }
 }

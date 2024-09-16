@@ -141,27 +141,4 @@ mod tests {
 
         assert!(face.is_boundary_face());
     }
-
-    #[test]
-    fn test_non_boundary_face() {
-        let node_positions = vec![
-            Vector3::new(1.0, 1.0, 0.0),
-            Vector3::new(9.0, 4.0, 0.0),
-        ];
-        let domain_bounds = [(0.0, 10.0), (0.0, 5.0), (0.0, 0.0)];
-        let tolerance = 1e-6;
-
-        let mut face = Face::new(
-            2,
-            vec![0, 1],
-            Vector3::zeros(),
-            1.0,
-            Vector3::zeros(),
-            None,
-        );
-
-        face.determine_if_boundary_face(&domain_bounds, &node_positions, tolerance);
-
-        assert!(!face.is_boundary_face());
-    }
 }

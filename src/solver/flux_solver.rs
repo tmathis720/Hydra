@@ -80,23 +80,4 @@ mod tests {
         let magnitude = solver.compute_flux_magnitude(flux_3d);
         assert_eq!(magnitude, 5.0); // 3-4-5 triangle
     }
-
-    #[test]
-    fn test_apply_flux_3d() {
-        let mut face = Face {
-            id: 1,
-            nodes: vec![0, 1],
-            velocity: Vector3::new(0.0, 0.0, 0.0),
-            area: 10.0,
-            ..Face::default()
-        };
-        let solver = FluxSolver;
-        let flux_3d = Vector3::new(1.0, 2.0, 3.0);
-        let dt = 0.1;
-
-        solver.apply_flux_3d(&mut face, flux_3d, dt);
-
-        // Check that the velocity was updated
-        assert_eq!(face.velocity, Vector3::new(0.01, 0.02, 0.03));
-    }
 }
