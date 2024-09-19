@@ -1,112 +1,80 @@
 # HYDRA: Short-Term Roadmap for Incremental Test-Driven Development (TDD)
 
-This roadmap outlines the short-term goals for the HYDRA project, focusing on test-driven development (TDD) principles. The goal is to incrementally add features while maintaining high test coverage, ensuring stability and modularity of the codebase.
+HYDRA is a high-performance Rust-based hydrodynamic modeling system designed to simulate complex geophysical phenomena, particularly for surface water bodies. The focus of the project is on ensuring computational efficiency, stability, and flexibility through Rust's concurrency and memory safety features. The project employs a staggered unstructured finite-volume method (FVM) to solve the Reynolds-averaged Navier-Stokes equations (RANS) in two- or three-dimensional boundary-fitted domains.
 
-## 1. Mesh Parsing and Verification
+## Key Priorities:
 
-**Goal:** Ensure that the mesh parsing module is robust and tested for different input cases.
+1. Enhance core simulation stability by refining numerical methods.
+2. Extend boundary conditions and solvers for a broader range of geophysical phenomena.
+3. Develop testing strategies to ensure model robustness.
+4. Optimize computational performance, leveraging Rust's unique capabilities.
 
-**Milestones:**
+## Short-Term Milestones
 
-- **Task 1.1:** Refactor mesh loading to ensure flexibility and extensibility.
-   - **Tests:** Mock different .msh2 inputs with various node and element counts, including edge cases (e.g., empty mesh, invalid formats).
-**Test Implementation:**
-    - Verify the correct number of nodes and elements are parsed.
-    - Validate node and element properties (coordinates, IDs, neighbors).
-- **Task 1.2:** Test for failure conditions.
-    - **Tests:** Ensure error handling works (e.g., file not found, incorrect format).
+**Numerical Core Development**
 
+Status: Basic solvers and boundary handling implemented.
+Tasks:
 
-## 2. Element Geometry Calculations
+    Refactor the numerical module to enhance modularity and readability.
+    Extend the solver module to handle adaptive time-stepping and implicit solver methodologies.
+    Improve timestep module to ensure compatibility with new solver methods.
+    Add turbulence models for simulating marine and atmospheric flows (linking with approaches like k-ε models)​.
 
-**Goal:** Isolate and verify geometry-related computations such as element areas and neighbor relationships.
+**Boundary and Domain Handling**
 
-**Milestones:**
+Status: Basic boundary condition implementation in the boundary module.
+Tasks:
 
-- **Task 2.1:** Refactor area computations into a separate geometry_ops.rs module.
-    - **Tests:** Use mock triangular element data to validate area calculations.
-    - **Test Implementation:**
-        - Test area computation for various types of triangles, including degenerate cases (zero area).
-- **Task 2.2:** Test and validate neighbor relationships based on shared edges.
-    - **Tests:** Use small mock meshes to validate that neighbors are correctly identified and assigned.
+    Expand boundary module to support more complex boundary conditions, such as non-slip, free-surface, and open boundary conditions commonly used in marine simulations​.
+    Refactor domain to support multi-region simulations for handling complex geophysical domains.
 
+**Input Handling and Data Management**
 
-## 3. Flux Calculation Module
+Status: Initial input framework in the input directory.
+Tasks:
 
-**Goal:** Implement and test flux calculations based on the computed element states and geometry.
+    Enhance the input module to support multiple file formats (e.g., NetCDF, HDF5).
+    Add preprocessing tools for input data validation and grid generation.
 
-**Milestones:**
+**Transport and Solver Updates**
 
-- **Task 3.1:** Refactor flux calculation into flux_ops.rs under the transport_mod.
-    - **Tests:** Use mock elements with pre-set states to validate that flux is correctly computed.
-    - **Test Implementation:**
-        - Test with various configurations of element states and areas.
-        - Validate that positive and negative fluxes behave correctly based on physical intuition (e.g., higher state element should have an outgoing flux to a lower state element).
-- **Task 3.2:** Test boundary conditions.
-    - **Tests:** Simulate elements on the boundary with and without neighbors to ensure the solver handles boundaries correctly.
+Status: Initial implementation exists in the transport and solver modules.
+Tasks:
 
+    Add support for advanced transport models, including diffusive and dispersive processes for contaminants and tracers.
+    Integrate with external libraries or tools for large-scale linear solvers, potentially leveraging PETSc​.
+    Implement adaptive solver techniques, enhancing model performance on multi-core and distributed systems.
 
-## 4. Linear Solver Development
+**Time-Stepping Methods**
 
-**Goal:** Implement a robust linear solver module that operates on the computed fluxes and updates element states.
+Status: Basic time-stepping strategy implemented.
+Tasks:
 
-### Milestones:
+    Integrate error-controlled adaptive time-stepping methods.
+    Ensure stability and efficiency of solvers in combination with multi-scale phenomena like turbulence and coastal boundary layer effects​​.
 
-- **Task 4.1:** Implement a LinearSolver struct that computes element fluxes and updates the state accordingly.
-    - **Tests:** Verify that fluxes computed in the previous step are applied to element states.
-	- **Test Implementation:**
-		- Use small mock meshes with known states to validate that the state is correctly updated after each solver step.
-		- Validate that the flux application behaves consistently across multiple time steps.
+**Testing and Continuous Integration**
 
+Status: Basic tests exist.
+Tasks:
 
-## 5. Explicit Time-Stepping Module
+    Expand unit and integration tests in the tests module, focusing on solver robustness and accuracy.
+    Automate testing for a variety of inputs, including edge cases like complex bathymetries and extreme boundary conditions.
+    Create benchmark tests for comparison with legacy systems like FVCOM and Delft3D​.
 
-**Goal:** Develop a flexible time-stepping framework, starting with an explicit Euler scheme.
+## Long-Term Vision
 
-### Milestones:
+**Full 3D Model Support**
 
-- **Task 5.1:** Implement ExplicitEuler time-stepping in time_stepping_mod.
-	- **Tests:** Ensure that the time stepper advances the solution by applying the solver and updating element states.
-**Test Implementation:**
-	- Validate small time-step increments on mock meshes (e.g., diffusion across elements).
-	- Test the behavior over multiple steps, ensuring consistency in state updates.
-- **Task 5.2:** Extend test coverage for time-stepping.
-	- **Tests:** Verify behavior for varying time step sizes, testing both stability and accuracy.
+Extend from 2D shallow-water models to full 3D RANS models.
+Add multi-threaded support and MPI parallelism for large-scale distributed computing environments.
 
+**GPU Acceleration**
 
-## 6. Integration of Tests Across Modules
+Investigate GPU acceleration for heavy computational tasks (e.g., linear solvers and matrix assembly).
+Leverage Rust’s interoperability with CUDA or OpenCL for optimized performance.
 
-**Goal:** Combine individual module tests into integration tests to verify end-to-end functionality.
+**Advanced Physical Models**
 
-### Milestones:
-
-- **Task 6.1:** Design integration tests that simulate the entire pipeline from mesh parsing to flux computation, solving, and time-stepping.
-	- **Tests:** Run integration tests on small mock meshes to ensure all components work together.
-	- **Test Implementation:**
-        - Verify the complete simulation lifecycle, ensuring that the solver behaves as expected over multiple time steps.
-        - Validate the overall conservation of flux or other relevant physical properties.
-
-
-## 7. Error Handling and Edge Case Testing
-
-**Goal:** Identify and test edge cases, focusing on failure modes and robustness.
-
-### Milestones:
-
-- **Task 7.1:** Test invalid inputs (e.g., degenerate meshes, zero-area elements, boundary edge cases).
-	- **Tests:** Validate that the program fails gracefully, producing clear error messages.
-
-
-## 8. Continuous Integration (CI) Integration
-
-**Goal:** Set up automated testing to enforce TDD principles using a CI pipeline.
-
-### Milestones:
-
-- **Task 8.1:** Set up GitHub Actions or a similar CI tool.
-	- **Tests:** Ensure all tests (unit and integration) are run automatically on every push or pull request.
-
-
-## Summary
-
-This roadmap focuses on incremental development with continuous testing, keeping the code modular and well-tested. Each component is isolated and validated before integrating it into the broader framework, maintaining alignment with test-driven development principles.
+Incorporate advanced geophysical models, such as sediment transport, biogeochemical cycles, and ecosystem dynamics, with the transport and domain modules.

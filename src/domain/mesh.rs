@@ -43,7 +43,7 @@ pub struct FaceElementRelation {
     pub connected_elements: Vec<u32>, // IDs of elements sharing the face
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Mesh {
     pub elements: Vec<Element>,         // List of all elements in the mesh
     pub nodes: Vec<Node>,               // List of all nodes in the mesh
@@ -308,6 +308,18 @@ impl Mesh {
             .filter(|face| self.is_surface_face(face))
             .map(|face| face.id)
             .collect()
+    }
+}
+
+impl Default for Mesh {
+    fn default() -> Self {
+        Mesh {
+            elements: vec![],
+            nodes: vec![],
+            faces: vec![],
+            neighbors: HashMap::new(),
+            face_element_relations: vec![],
+        }
     }
 }
 
