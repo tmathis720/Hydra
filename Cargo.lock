@@ -243,6 +243,7 @@ dependencies = [
  "criterion",
  "nalgebra",
  "rand",
+ "rayon",
 ]
 
 [[package]]

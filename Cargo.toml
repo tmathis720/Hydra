@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 nalgebra = "0.31"
+rayon = "1.10"
 
 [dev-dependencies]
 criterion = "0.4"

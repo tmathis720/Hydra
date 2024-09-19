@@ -4,13 +4,12 @@ use nalgebra::Vector3;
 use rayon::prelude::*;
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::path::Path;
 use std::error::Error;
 
 // Enum to represent different bottom profile types
 pub enum BottomProfile {
     FileBased(Vec<f64>),   // Heights from a file (CSV, raster, etc.)
-    FunctionBased(Box<dyn Fn(f64, f64) -> f64>),  // Function-based bottom profile
+    FunctionBased(Box<dyn Fn(f64, f64) -> f64 + Send + Sync>),  // Thread-safe function-based bottom profile
 }
 
 // Enum for different vertical coordinate systems
@@ -94,12 +93,12 @@ pub fn extrude_2d_to_3d(
     num_layers: usize,
     refinement_options: &RefinementOptions
 ) -> Mesh {
-    let mut iter_node_id = mesh.nodes.len();
+    let mut iter_node_id: u32 = mesh.nodes.len().try_into().unwrap();
     
     // Step 1: Parallel node extrusion based on bottom profile and vertical coordinate system
     let nodes_3d: Vec<Node> = mesh.nodes.par_iter().flat_map(|node| {
         let bottom_elevation = match bottom_profile {
-            BottomProfile::FileBased(heights) => heights[node.id],
+            BottomProfile::FileBased(heights) => heights[node.id as usize],  // Cast u32 to usize
             BottomProfile::FunctionBased(f) => f(node.position.x, node.position.y),
         };
 
@@ -132,15 +131,14 @@ pub fn extrude_2d_to_3d(
 
 // Helper function to get nodes in a specific layer
 fn get_layer_nodes(nodes_3d: &[Node], element: &Element, layer: usize) -> Vec<Node> {
-    element.node_ids.iter().map(|&node_id| {
-        nodes_3d[node_id + layer * element.node_ids.len()].clone()
+    element.nodes.iter().map(|&node_id| {
+        nodes_3d[node_id + layer * element.nodes.len()].clone()  // Access nodes correctly
     }).collect()
 }
 
 // Helper function to create a 3D prism element from two layers of nodes
 fn create_prism_element(base_layer: Vec<Node>, top_layer: Vec<Node>) -> Element {
-    // Use your specific logic for creating a prism or 3D element from two layers
-    Element::new(vec![], vec![base_layer, top_layer], ..Element::default(), ..Element::default())
+    Element::new(0, base_layer.iter().map(|node| node.id as usize).collect(), top_layer.iter().map(|node| node.id as u32).collect(), 3) // Assuming 3 represents a prism element type
 }
 
 #[cfg(test)]
@@ -156,8 +154,8 @@ mod tests {
                          Node::new(2, Vector3::new(0.0, 1.0, 0.0))];
         let elements = vec![Element::new(1, 
                                                        vec![0, 1, 2],
-                                                       ..Element::default(),
-                                                       ..Element::default())];
+                                                       vec![],
+                                                       3)];
         let mesh_2d = Mesh { nodes, elements, ..Mesh::default() };
         
         // Flat bottom profile
@@ -178,7 +176,7 @@ mod tests {
         let nodes = vec![Node::new(0, Vector3::new(0.0, 0.0, 0.0)), 
                          Node::new(1, Vector3::new(1.0, 0.0, 0.0)), 
                          Node::new(2, Vector3::new(0.0, 1.0, 0.0))];
-        let elements = vec![Element::new(1, vec![0, 1, 2], ..Element::default(), ..Element::default())];
+        let elements = vec![Element::new(1, vec![0, 1, 2], vec![], 3)];
         let mesh_2d = Mesh { nodes, elements, ..Mesh::default() };
 
         // Sloped bottom profile
