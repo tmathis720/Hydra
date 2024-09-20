@@ -1,6 +1,6 @@
 // src/domain/element.rs
 
-use crate::domain::Node;
+use crate::domain::{Node, Mesh};
 use nalgebra::Vector3;
 use std::error::Error;
 
@@ -13,6 +13,9 @@ pub struct Element {
 
     /// Indices of nodes that define the element.
     pub nodes: Vec<usize>,
+
+    /// Centroid coordinates for the element, based on the node position
+    pub centroid_coordinates: Vec<f64>,
 
     /// Indices of faces that bound the element.
     pub faces: Vec<u32>,
@@ -29,6 +32,9 @@ pub struct Element {
 
     /// References to neighboring elements (indices).
     pub neighbor_refs: Vec<usize>,
+
+    /// Distance to neighboring elements.
+    pub neighbor_distance: Vec<f64>,
 
     /// Mass of the element (units: kilograms).
     pub mass: f64,
@@ -77,6 +83,34 @@ impl Element {
     pub fn has_node(&self, node_index: usize) -> bool {
         self.nodes.contains(&node_index)
     }
+
+    /// Computes the centroid of the element based on its nodes' positions.
+///
+/// This function assumes the positions of the nodes are stored in the mesh.
+/// 
+/// # Parameters
+/// - `mesh`: A reference to the `Mesh` where node positions are stored.
+///
+/// # Returns
+/// A `Vec<f64>` representing the centroid coordinates of the element.
+pub fn compute_centroid(&self, mesh: &Mesh) -> Vec<f64> {
+    let mut centroid = vec![];  // Assuming 2D or 3D space
+    
+    for &node_id in &self.nodes {
+        if let Some(node) = mesh.get_node_by_id(node_id) {
+            for i in 0..centroid.len() {
+                centroid[i] += node.position[i];
+            }
+        }
+    }
+    
+    // Divide by the number of nodes to compute the average (centroid)
+    for i in 0..centroid.len() {
+        centroid[i] /= self.nodes.len() as f64;
+    }
+    
+    centroid
+}
 
     /// Calculates the area (2D) or volume (3D) of the element based on its nodes' positions.
     ///
@@ -304,11 +338,13 @@ impl Default for Element {
         Element {
             id: 0,
             nodes: vec![],
+            centroid_coordinates: vec![],
             faces: vec![],
             pressure: 0.0,
             height: 0.0,
             area: 0.0,
             neighbor_refs: vec![],
+            neighbor_distance: vec![],
             mass: 0.0,
             element_type: 0,
             momentum: Vector3::zeros(),

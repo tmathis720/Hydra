@@ -60,8 +60,8 @@ fn exponential_refinement(
     num_layers: usize,
     bottom_elevation: f64,
     surface_elevation: f64,
-    surface_refinement: f64,
-    bottom_refinement: f64,
+    _surface_refinement: f64,
+    _bottom_refinement: f64,
 ) -> f64 {
     let alpha = 2.0; // Exponential factor
     let dz = (surface_elevation - bottom_elevation) / (num_layers as f64);
@@ -69,7 +69,7 @@ fn exponential_refinement(
 }
 
 // Function to parse a bottom profile from a CSV file
-fn parse_bottom_profile_from_file(file_path: &str) -> Result<BottomProfile, Box<dyn Error>> {
+fn _parse_bottom_profile_from_file(file_path: &str) -> Result<BottomProfile, Box<dyn Error>> {
     let mut heights = Vec::new();
     let file = File::open(file_path)?;
     let reader = io::BufReader::new(file);
@@ -91,7 +91,7 @@ pub fn extrude_2d_to_3d(
     bottom_profile: &BottomProfile,
     vertical_coord: &VerticalCoordinateSystem,
     num_layers: usize,
-    refinement_options: &RefinementOptions
+    _refinement_options: &RefinementOptions
 ) -> Mesh {
     let mut iter_node_id: u32 = mesh.nodes.len().try_into().unwrap();
     
