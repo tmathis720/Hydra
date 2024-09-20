@@ -3,7 +3,8 @@
 use crate::domain::{Element, Face, Node};
 use crate::boundary::BoundaryType;
 use crate::input::gmsh::GmshParser;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use nalgebra::Vector3;
 use std::error::Error;
 use std::fmt;
 use std::io;
@@ -308,6 +309,100 @@ impl Mesh {
             .filter(|face| self.is_surface_face(face))
             .map(|face| face.id)
             .collect()
+    }
+
+    /// Generate faces for all elements in the mesh
+    pub fn generate_faces_from_elements(&mut self) {
+        let mut face_id = 0;
+        let mut face_set: HashSet<(Vec<usize>, usize)> = HashSet::new(); // Use a set to avoid duplicate faces
+
+        for element in &self.elements {
+            let element_faces = Self::generate_faces_from_element(element, &self.nodes);
+
+            for face in element_faces {
+                let face_key = Self::generate_face_key(&face.nodes);
+
+                // Check if the face already exists (i.e., shared by another element)
+                if !face_set.contains(&face_key) {
+                    face_set.insert(face_key);
+                    self.faces.push(Face {
+                        id: face_id,
+                        nodes: face.nodes,
+                        velocity: Vector3::zeros(),
+                        area: face.area,
+                        normal: face.normal,
+                        boundary_type: None,
+                        is_boundary: false,
+                    });
+                    face_id += 1;
+                }
+            }
+        }
+    }
+
+    /// Helper function to generate faces for a single element based on its nodes
+    fn generate_faces_from_element(element: &Element, nodes: &[Node]) -> Vec<Face> {
+        let mut faces = Vec::new();
+        let element_node_positions: Vec<Vector3<f64>> = element
+            .nodes
+            .iter()
+            .map(|&node_id| nodes[node_id].position)
+            .collect();
+
+        // Example: for a tetrahedron (4 nodes), generate 4 triangular faces
+        // This can be adapted to other element types
+        if element.nodes.len() == 4 {
+            let element_faces = vec![
+                vec![element.nodes[0], element.nodes[1], element.nodes[2]], // Face 1
+                vec![element.nodes[0], element.nodes[1], element.nodes[3]], // Face 2
+                vec![element.nodes[1], element.nodes[2], element.nodes[3]], // Face 3
+                vec![element.nodes[0], element.nodes[2], element.nodes[3]], // Face 4
+            ];
+
+            for face_nodes in element_faces {
+                let face_normal = Self::calculate_face_normal(&face_nodes, &element_node_positions);
+                let face_area = Self::calculate_face_area(&face_nodes, &element_node_positions);
+
+                faces.push(Face {
+                    id: 0,  // ID will be set when added to the mesh
+                    nodes: face_nodes,
+                    velocity: Vector3::zeros(),
+                    area: face_area,
+                    normal: face_normal,
+                    boundary_type: None,
+                    is_boundary: false,  // To be determined later
+                });
+            }
+        }
+
+        faces
+    }
+
+    /// Helper function to generate a unique key for a face based on its nodes
+    fn generate_face_key(nodes: &[usize]) -> (Vec<usize>, usize) {
+        let mut sorted_nodes = nodes.to_vec();
+        sorted_nodes.sort();
+        (sorted_nodes, nodes.len())
+    }
+
+    /// Calculate the normal vector for a triangular face given its node indices and positions
+    fn calculate_face_normal(nodes: &[usize], node_positions: &[Vector3<f64>]) -> Vector3<f64> {
+        if nodes.len() == 3 {
+            let v0 = node_positions[1] - node_positions[0];
+            let v1 = node_positions[2] - node_positions[0];
+            return v0.cross(&v1).normalize();
+        }
+        Vector3::zeros() // Default for unsupported cases
+    }
+
+    /// Calculate the area of a triangular face given its node indices and positions
+    fn calculate_face_area(nodes: &[usize], node_positions: &[Vector3<f64>]) -> f64 {
+        if nodes.len() == 3 {
+            let v0 = node_positions[1] - node_positions[0];
+            let v1 = node_positions[2] - node_positions[0];
+            return v0.cross(&v1).magnitude() / 2.0;
+        }
+        0.0 // Default for unsupported cases
     }
 }
 

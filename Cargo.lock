@@ -244,6 +244,7 @@ dependencies = [
  "nalgebra",
  "rand",
  "rayon",
+ "uom",
 ]
 
 [[package]]
@@ -660,6 +661,16 @@ name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+
+[[package]]
+name = "uom"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e76503e636584f1e10b9b3b9498538279561adcef5412927ba00c2b32c4ce5ed"
+dependencies = [
+ "num-traits",
+ "typenum",
+]
 
 [[package]]
 name = "walkdir"

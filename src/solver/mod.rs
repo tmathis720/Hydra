@@ -4,7 +4,7 @@ pub mod eddy_viscosity_solver;
 pub mod crank_nicolson_solver;
 pub mod flux_limiter;
 pub mod semi_implicit_solver;
-//pub mod algebraic_multigrid;
+pub mod algebraic_multigrid;
 //pub mod pressure_solver;
 
 // Export solvers so they can be used in other parts of the codebase
