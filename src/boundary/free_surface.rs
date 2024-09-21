@@ -397,7 +397,7 @@ mod tests {
         FlowField::new(vec![], boundary_manager)
     }
 
-    fn create_mock_free_surface() -> FreeSurfaceBoundaryCondition {
+    fn _create_mock_free_surface() -> FreeSurfaceBoundaryCondition {
         FreeSurfaceBoundaryCondition::new(
             vec![0.0, 1.0],  // Surface elevation values (eta) for 2 faces
             vec![0.5, 0.5],  // Velocity potential values for 2 faces

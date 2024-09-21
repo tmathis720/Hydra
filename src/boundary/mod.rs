@@ -110,7 +110,6 @@ mod tests {
     use crate::domain::{Mesh, Node, Face, Element, FlowField};
     use crate::boundary::{BoundaryType, FreeSurfaceBoundaryCondition, InflowBoundaryCondition, OutflowBoundaryCondition};
     use nalgebra::Vector3;
-    use std::collections::HashMap;
 
     /// Helper function to create a mock mesh for testing
     fn create_mock_mesh() -> Mesh {
@@ -204,7 +203,7 @@ mod tests {
         let inflow_boundary = Box::new(InflowBoundaryCondition::default());
         boundary_manager.register_boundary(BoundaryType::Inflow, inflow_boundary);
 
-        let mut mesh = Mesh {
+        let mesh = Mesh {
             elements: vec![create_mock_element(1, 5.0, 2.0), create_mock_element(2, 3.0, 1.5)],
             ..Default::default()
         };
@@ -222,7 +221,7 @@ mod tests {
         let outflow_boundary = Box::new(OutflowBoundaryCondition::default());
         boundary_manager.register_boundary(BoundaryType::Outflow, outflow_boundary);
 
-        let mut mesh = Mesh {
+        let mesh = Mesh {
             elements: vec![create_mock_element(1, 5.0, 2.0), create_mock_element(2, 3.0, 1.5)],
             ..Default::default()
         };

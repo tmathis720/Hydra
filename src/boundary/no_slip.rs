@@ -1,5 +1,5 @@
 use crate::boundary::BoundaryCondition;
-use crate::domain::{FlowField, Mesh, Face};
+use crate::domain::{FlowField, Mesh};
 use nalgebra::Vector3;
 
 pub struct NoSlipBoundaryCondition {
@@ -116,7 +116,7 @@ mod tests {
     #[test]
     fn test_no_slip_boundary_does_not_affect_elements() {
         // Create mock mesh with faces, but no effect on elements
-        let mesh = create_mock_mesh();
+        let _mesh = create_mock_mesh();
 
         // Create the NoSlipBoundaryCondition
         let mut no_slip_boundary = NoSlipBoundaryCondition::new();

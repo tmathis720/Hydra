@@ -326,7 +326,7 @@ mod tests {
     }
 
     /// Helper function to create a mock mesh with one element for testing.
-    fn create_mock_mesh() -> Mesh {
+    fn _create_mock_mesh() -> Mesh {
         Mesh {
             faces: vec![],
             nodes: vec![],
