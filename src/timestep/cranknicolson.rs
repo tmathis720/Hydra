@@ -40,17 +40,6 @@ impl CrankNicolson {
             }
         }
 
-        /* // This is responsible for solving the momentum equation
-        for element in &mut mesh.elements {
-            let old_velocity = element.velocity;
-
-            // Compute the new velocity using the Crank-Nicolson scheme
-            let momentum_flux = self.solver.compute_flux(element, flow_field);
-            let new_velocity = old_velocity + (momentum_flux * dt);
-
-            element.velocity = new_velocity;
-        } */
-
         // Update velocities of all elements based on the new momentum
         for element in &mut mesh.elements {
             let _ = element.update_velocity_from_momentum();

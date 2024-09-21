@@ -138,14 +138,18 @@ impl FlowField {
 
         let mut gradient = Vector3::zeros();
 
-        // Sum up contributions from each neighboring element
-        for &neighbor_id in &element.neighbor_refs {
-            if let Some(neighbor) = self.elements.iter().find(|e| e.id == neighbor_id) {
+        // Iterate over neighbor_refs and compute contributions to the pressure gradient
+        for (i, &neighbor_id) in element.neighbor_refs.iter().enumerate() {
+            if let Some(neighbor) = self.elements.iter().find(|e| e.id == neighbor_id.try_into().unwrap()) {
                 let delta_pressure = neighbor.pressure - element.pressure;
-                let delta_position = neighbor.nodes - element.nodes;
+                let distance = element.neighbor_distance[i];  // Use precomputed neighbor distance
+
+                // Convert centroid coordinates into nalgebra vectors for vector subtraction
+                let delta_position = Vector3::from_column_slice(&neighbor.centroid_coordinates)
+                    - Vector3::from_column_slice(&element.centroid_coordinates);
 
                 // Add the contribution to the pressure gradient
-                gradient += (delta_pressure / delta_position.norm()) * delta_position.normalize();
+                gradient += (delta_pressure / distance) * delta_position.normalize();
             }
         }
 
@@ -237,4 +241,171 @@ impl FlowField {
 
         Some(avg_velocity)
     }
+
+    /// Retrieves the average outflow velocity at the outflow boundary.
+    ///
+    /// This function calculates the outflow velocity by averaging the velocities
+    /// of all elements at the outflow boundary.
+    ///
+    /// # Parameters
+    /// - `mesh`: A mutable reference to the `Mesh`.
+    ///
+    /// # Returns
+    /// An `Option<Vector3<f64>>` containing the average outflow velocity, or `None` if no outflow elements are found.
+    pub fn get_outflow_velocity(&self, mesh: &mut Mesh) -> Option<Vector3<f64>> {
+        let outflow_elements = self.boundary_manager.get_outflow_elements(mesh);
+
+        if outflow_elements.is_empty() {
+            return None;
+        }
+
+        // Sum the velocities of the outflow elements
+        let total_velocity: Vector3<f64> = outflow_elements.iter()
+            .filter_map(|&element_id| self.get_velocity(element_id))
+            .fold(Vector3::zeros(), |acc, vel| acc + vel);
+
+        // Compute the average velocity
+        let avg_velocity = total_velocity / outflow_elements.len() as f64;
+
+        Some(avg_velocity)
+    }
+
+    /// Retrieves the total outflow mass rate at the outflow boundary.
+    ///
+    /// This function calculates the outflow mass rate by multiplying the average outflow velocity,
+    /// area, and density of the outflow elements.
+    ///
+    /// # Parameters
+    /// - `mesh`: A mutable reference to the `Mesh`.
+    ///
+    /// # Returns
+    /// The total outflow mass rate as an `f64`.
+    pub fn get_outflow_mass_rate(&self, mesh: &mut Mesh) -> f64 {
+        let outflow_elements = self.boundary_manager.get_outflow_elements(mesh);
+        let velocity = self.get_outflow_velocity(mesh).unwrap_or(Vector3::zeros());
+        let area = self.calculate_outflow_area(mesh, &outflow_elements);
+        let density = self.calculate_outflow_density(&outflow_elements);
+
+        // Return the mass flow rate: density * velocity * area
+        density * velocity.magnitude() * area
+    }
+
+    /// Calculates the total outflow area by summing the areas of outflow elements.
+    fn calculate_outflow_area(&self, mesh: &Mesh, outflow_elements: &[u32]) -> f64 {
+        outflow_elements.iter().fold(0.0, |total_area, &element_id| {
+            if let Some(element) = mesh.get_element_by_id(element_id) {
+                total_area + element.area
+            } else {
+                total_area
+            }
+        })
+    }
+
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::boundary::BoundaryManager;
+    use crate::domain::{Element, Mesh};
+    use nalgebra::Vector3;
+
+    /// Helper function to create a mock element for testing.
+    fn create_mock_element(id: u32, mass: f64, area: f64, velocity: Vector3<f64>, pressure: f64) -> Element {
+        Element {
+            id,
+            mass,
+            area,
+            velocity,
+            pressure,
+            centroid_coordinates: vec![0.0, 0.0, 0.0],
+            neighbor_refs: vec![],
+            neighbor_distance: vec![],
+            ..Element::default()
+        }
+    }
+
+    /// Helper function to create a mock mesh with one element for testing.
+    fn create_mock_mesh() -> Mesh {
+        Mesh {
+            faces: vec![],
+            nodes: vec![],
+            elements: vec![],
+            neighbors: Default::default(),
+            face_element_relations: vec![],
+        }
+    }
+
+    /// Helper function to create a mock flow field.
+    fn create_mock_flow_field() -> FlowField {
+        let element1 = create_mock_element(1, 5.0, 2.0, Vector3::new(1.0, 0.0, 0.0), 10.0);
+        let element2 = create_mock_element(2, 3.0, 1.5, Vector3::new(0.0, 1.0, 0.0), 8.0);
+        let elements = vec![element1, element2];
+        let boundary_manager = BoundaryManager::new();
+        FlowField::new(elements, boundary_manager)
+    }
+
+    #[test]
+    fn test_initial_mass_calculation() {
+        let flow_field = create_mock_flow_field();
+        assert_eq!(flow_field.initial_mass, 8.0, "Initial mass should be correctly calculated.");
+    }
+
+    #[test]
+    fn test_compute_mass() {
+        let flow_field = create_mock_flow_field();
+        let element = &flow_field.elements[0];
+        assert_eq!(flow_field.compute_mass(element), 5.0, "Mass should be correctly computed.");
+    }
+
+    #[test]
+    fn test_compute_density() {
+        let flow_field = create_mock_flow_field();
+        let element = &flow_field.elements[0];
+        assert_eq!(flow_field.compute_density(element), Some(2.5), "Density should be correctly calculated.");
+    }
+
+    #[test]
+    fn test_compute_density_zero_area() {
+        let element = create_mock_element(1, 5.0, 0.0, Vector3::new(1.0, 0.0, 0.0), 10.0);
+        let flow_field = FlowField::new(vec![element], BoundaryManager::new());
+        assert_eq!(flow_field.compute_density(&flow_field.elements[0]), None, "Density should return None for zero area.");
+    }
+
+    #[test]
+    fn test_mass_conservation_pass() {
+        let flow_field = create_mock_flow_field();
+        assert!(flow_field.check_mass_conservation().is_ok(), "Mass conservation should pass when mass is conserved.");
+    }
+
+    #[test]
+    fn test_mass_conservation_fail() {
+        let mut flow_field = create_mock_flow_field();
+        flow_field.elements[0].mass = 10.0;  // Change mass to violate mass conservation
+        assert!(flow_field.check_mass_conservation().is_err(), "Mass conservation should fail when mass changes.");
+    }
+
+    #[test]
+    fn test_get_velocity() {
+        let flow_field = create_mock_flow_field();
+        let velocity = flow_field.get_velocity(1);
+        assert_eq!(velocity, Some(Vector3::new(1.0, 0.0, 0.0)), "Velocity should be correctly retrieved.");
+    }
+
+    #[test]
+    fn test_get_pressure() {
+        let flow_field = create_mock_flow_field();
+        let pressure = flow_field.get_pressure(1);
+        assert_eq!(pressure, Some(10.0), "Pressure should be correctly retrieved.");
+    }
+
+    #[test]
+    fn test_compute_pressure_gradient_no_neighbors() {
+        let flow_field = create_mock_flow_field();
+        let element = &flow_field.elements[0];
+        let gradient = flow_field.compute_pressure_gradient(element);
+        assert_eq!(gradient, Vector3::zeros(), "Pressure gradient should be zero with no neighbors.");
+    }
+
+    // Add more tests to cover boundary condition application, inflow mass rate, and other methods as needed.
 }

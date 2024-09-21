@@ -86,6 +86,20 @@ impl Mesh {
         })
     }
 
+    /// Retrieves a node by its ID.
+    ///
+    /// This function looks up a node in the mesh by its ID and returns a reference to the node
+    /// if it exists.
+    ///
+    /// # Parameters
+    /// - `node_id`: The ID of the node to retrieve.
+    ///
+    /// # Returns
+    /// An `Option<&Node>` containing the node if it exists, or `None` otherwise.
+    pub fn get_node_by_id(&self, node_id: usize) -> Option<&Node> {
+        self.nodes.iter().find(|&node| node.id == node_id.try_into().unwrap())
+    }
+
     /// Load mesh data from a Gmsh file.
     pub fn load_from_gmsh(file_path: &str) -> Result<Mesh, MeshError> {
         let (nodes, elements, faces) = GmshParser::load_mesh(file_path)?;
@@ -275,19 +289,28 @@ impl Mesh {
 
     /// Identifies if a face is part of the free surface.
     ///
-    /// For 2D meshes, this checks if any of the face's nodes have the maximum y-coordinate.
-    /// For 3D meshes, it checks if the face is on the top surface based on its node positions.
+    /// This checks if any of the face's nodes have the maximum z-coordinate, 
+    /// assuming the z-coordinate represents the water surface in 3D.
     pub fn is_surface_face(&self, face: &Face) -> bool {
-        let max_y = self.nodes.iter().map(|n| n.position.y).fold(f64::NEG_INFINITY, f64::max);
+        // Find the maximum z-coordinate of all nodes in the mesh (assumed to represent the surface)
+        let max_z = self.nodes.iter().map(|n| n.position.z).fold(f64::NEG_INFINITY, f64::max);
 
-        // Check if any node in the face has the maximum y-coordinate (for 2D).
-        face.nodes.iter().any(|&node_id| {
+        // Debug node positions
+        println!("Checking if face {} is a surface face. Nodes: {:?}", face.id, face.nodes);
+        println!("Max z-coordinate in mesh: {}", max_z);
+
+        // Check if any node in the face has the maximum z-coordinate (for surface detection)
+        let is_surface = face.nodes.iter().any(|&node_id| {
             if let Some(node) = self.nodes.get(node_id as usize) {
-                node.position.y == max_y
+                println!("Node {} position: {:?}", node_id, node.position);
+                node.position.z == max_z
             } else {
                 false
             }
-        })
+        });
+
+        println!("Face {} is_surface_face: {}", face.id, is_surface);
+        is_surface
     }
 
     /// Marks a face as part of the free surface by setting a boundary flag.

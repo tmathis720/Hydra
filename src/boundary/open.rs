@@ -136,3 +136,153 @@ impl BoundaryCondition for OpenBoundaryCondition {
         [inflow_elements, outflow_elements].concat()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::boundary::{BoundaryManager, BoundaryType};
+    use crate::domain::{Element, FlowField, Mesh, Node};
+    use nalgebra::Vector3;
+
+    /// Helper function to create a mock mesh with elements.
+    fn create_mock_mesh() -> Mesh {
+        let elements = vec![
+            Element {
+                id: 1,
+                velocity: Vector3::new(1.0, 0.0, 0.0),  // Inflow (positive x-velocity)
+                mass: 5.0,
+                pressure: 101.0,
+                ..Default::default()
+            },
+            Element {
+                id: 2,
+                velocity: Vector3::new(-1.0, 0.0, 0.0), // Outflow (negative x-velocity)
+                mass: 3.0,
+                pressure: 100.0,
+                ..Default::default()
+            },
+        ];
+
+        let nodes = vec![
+            Node::new(0, Vector3::new(0.0, 1.0, 0.0)),
+            Node::new(1, Vector3::new(1.0, 1.0, 0.0)),
+            Node::new(2, Vector3::new(0.0, 2.0, 0.0)),
+            Node::new(3, Vector3::new(1.0, 2.0, 0.0)),
+        ];
+
+        Mesh {
+            elements,
+            nodes,
+            faces: vec![],
+            neighbors: Default::default(),
+            face_element_relations: vec![],
+        }
+    }
+
+    #[test]
+    fn test_apply_open_boundary_conditions_inflow() {
+        let mut mesh = create_mock_mesh();
+
+        // Create an OpenBoundaryCondition with default settings
+        let open_boundary = OpenBoundaryCondition::new(None);
+
+        // Create a BoundaryManager and register the open boundary condition
+        let mut boundary_manager = BoundaryManager::new();
+        boundary_manager.register_boundary(BoundaryType::Open, Box::new(open_boundary));
+
+        // Create the FlowField with elements and boundary manager
+        let mut flow_field = FlowField::new(mesh.elements.clone(), boundary_manager);
+
+        // Apply the boundary conditions for a time step
+        let time_step = 0.1;
+        flow_field.apply_boundary_conditions(&mut mesh, time_step);
+
+        // Verify inflow element (ID 1)
+        let element_1 = &flow_field.elements[0]; // ID 1 is at index 0
+        assert!(element_1.mass > 5.0, "Inflow element mass should increase.");
+        assert!(element_1.momentum.x > 1.0, "Inflow element momentum should increase.");
+        assert_eq!(element_1.pressure, 101.0, "Inflow element pressure should remain unchanged.");
+    }
+
+    #[test]
+    fn test_apply_open_boundary_conditions_outflow() {
+        let mut mesh = create_mock_mesh();
+
+        // Create an OpenBoundaryCondition with default settings
+        let open_boundary = OpenBoundaryCondition::new(None);
+
+        // Create a BoundaryManager and register the open boundary condition
+        let mut boundary_manager = BoundaryManager::new();
+        boundary_manager.register_boundary(BoundaryType::Open, Box::new(open_boundary));
+
+        // Create the FlowField with elements and boundary manager
+        let mut flow_field = FlowField::new(mesh.elements.clone(), boundary_manager);
+
+        // Apply the boundary conditions for a time step
+        let time_step = 0.1;
+        flow_field.apply_boundary_conditions(&mut mesh, time_step);
+
+        // Verify outflow element (ID 2)
+        let element_2 = &flow_field.elements[1]; // ID 2 is at index 1
+        assert!(element_2.mass < 3.0, "Outflow element mass should decrease.");
+        assert!(element_2.momentum.x < -1.0, "Outflow element momentum should decrease.");
+        assert_eq!(element_2.pressure, 100.0, "Outflow element pressure should remain unchanged.");
+    }
+
+    #[test]
+    fn test_custom_boundary_mapping() {
+        let mut mesh = create_mock_mesh();
+
+        // Create a custom mapping for inflow and outflow
+        let mut open_boundary = OpenBoundaryCondition::new(None);
+        open_boundary.add_boundary_mapping(1, 2);  // Map inflow element 1 to outflow element 2
+
+        // Create a BoundaryManager and register the open boundary condition
+        let mut boundary_manager = BoundaryManager::new();
+        boundary_manager.register_boundary(BoundaryType::Open, Box::new(open_boundary));
+
+        // Create the FlowField with elements and boundary manager
+        let mut flow_field = FlowField::new(mesh.elements.clone(), boundary_manager);
+
+        // Apply the boundary conditions for a time step
+        let time_step = 0.1;
+        flow_field.apply_boundary_conditions(&mut mesh, time_step);
+
+        // Check if custom boundary mapping applied correctly (e.g., inflow modifies outflow)
+        let element_1 = &flow_field.elements[0]; // ID 1 inflow
+        let element_2 = &flow_field.elements[1]; // ID 2 outflow
+
+        assert!(element_1.mass > 5.0, "Inflow element mass should increase.");
+        assert!(element_2.mass < 3.0, "Outflow element mass should decrease.");
+    }
+
+    #[test]
+    fn test_no_change_if_no_inflow_or_outflow() {
+        let mut mesh = create_mock_mesh();
+
+        // Modify mesh so no elements qualify as inflow or outflow
+        mesh.elements[0].velocity = Vector3::new(0.0, 0.0, 0.0); // Neither inflow nor outflow
+        mesh.elements[1].velocity = Vector3::new(0.0, 0.0, 0.0); // Neither inflow nor outflow
+
+        // Create an OpenBoundaryCondition with default settings
+        let open_boundary = OpenBoundaryCondition::new(None);
+
+        // Create a BoundaryManager and register the open boundary condition
+        let mut boundary_manager = BoundaryManager::new();
+        boundary_manager.register_boundary(BoundaryType::Open, Box::new(open_boundary));
+
+        // Create the FlowField with elements and boundary manager
+        let mut flow_field = FlowField::new(mesh.elements.clone(), boundary_manager);
+
+        // Apply the boundary conditions for a time step
+        let time_step = 0.1;
+        flow_field.apply_boundary_conditions(&mut mesh, time_step);
+
+        // Verify no changes are applied
+        let element_1 = &flow_field.elements[0]; // ID 1
+        let element_2 = &flow_field.elements[1]; // ID 2
+
+        assert_eq!(element_1.mass, 5.0, "No change expected for element 1 mass.");
+        assert_eq!(element_2.mass, 3.0, "No change expected for element 2 mass.");
+    }
+}

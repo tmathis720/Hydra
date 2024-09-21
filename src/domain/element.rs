@@ -85,32 +85,74 @@ impl Element {
     }
 
     /// Computes the centroid of the element based on its nodes' positions.
-///
-/// This function assumes the positions of the nodes are stored in the mesh.
-/// 
-/// # Parameters
-/// - `mesh`: A reference to the `Mesh` where node positions are stored.
-///
-/// # Returns
-/// A `Vec<f64>` representing the centroid coordinates of the element.
-pub fn compute_centroid(&self, mesh: &Mesh) -> Vec<f64> {
-    let mut centroid = vec![];  // Assuming 2D or 3D space
-    
-    for &node_id in &self.nodes {
-        if let Some(node) = mesh.get_node_by_id(node_id) {
-            for i in 0..centroid.len() {
-                centroid[i] += node.position[i];
+    ///
+    /// This function assumes the positions of the nodes are stored in the mesh.
+    /// 
+    /// # Parameters
+    /// - `mesh`: A reference to the `Mesh` where node positions are stored.
+    ///
+    /// # Returns
+    /// A `Vec<f64>` representing the centroid coordinates of the element.
+    pub fn compute_centroid(&self, mesh: &Mesh) -> Vec<f64> {
+        let mut centroid = vec![];  // Assuming 2D or 3D space
+        
+        for &node_id in &self.nodes {
+            if let Some(node) = mesh.get_node_by_id(node_id.try_into().unwrap()) {
+                for i in 0..centroid.len() {
+                    centroid[i] += node.position[i];
+                }
+            }
+        }
+        
+        // Divide by the number of nodes to compute the average (centroid)
+        for i in 0..centroid.len() {
+            centroid[i] /= self.nodes.len() as f64;
+        }
+        
+        centroid
+    }
+
+    /// Computes the distances between this element and its neighbors.
+    ///
+    /// This function computes the Euclidean distance between the centroids of the
+    /// element and each of its neighboring elements, and stores these distances in the
+    /// `neighbor_distance` vector.
+    ///
+    /// # Parameters
+    /// - `mesh`: A reference to the `Mesh` for accessing neighboring element information.
+    pub fn compute_neighbor_distances(&mut self, mesh: &Mesh) {
+        // First, compute the centroid of this element
+        let centroid = self.compute_centroid(mesh);
+
+        // Clear previous distance data
+        self.neighbor_distance.clear();
+
+        // Iterate over neighbor_refs and compute distance to each
+        for &neighbor_id in &self.neighbor_refs {
+            if let Some(neighbor) = mesh.get_element_by_id(neighbor_id.try_into().unwrap()) {
+                let neighbor_centroid = neighbor.compute_centroid(mesh);
+
+                // Compute Euclidean distance between the centroids
+                let distance = Self::euclidean_distance(&centroid, &neighbor_centroid);
+                self.neighbor_distance.push(distance);
             }
         }
     }
-    
-    // Divide by the number of nodes to compute the average (centroid)
-    for i in 0..centroid.len() {
-        centroid[i] /= self.nodes.len() as f64;
+
+    /// Helper function to compute the Euclidean distance between two points in n-dimensional space.
+    ///
+    /// # Parameters
+    /// - `point1`: The first point as a reference to a `Vec<f64>`.
+    /// - `point2`: The second point as a reference to a `Vec<f64>`.
+    ///
+    /// # Returns
+    /// The Euclidean distance between the two points as `f64`.
+    fn euclidean_distance(point1: &Vec<f64>, point2: &Vec<f64>) -> f64 {
+        point1.iter().zip(point2.iter())
+            .map(|(x1, x2)| (x2 - x1).powi(2))
+            .sum::<f64>()
+            .sqrt()
     }
-    
-    centroid
-}
 
     /// Calculates the area (2D) or volume (3D) of the element based on its nodes' positions.
     ///
