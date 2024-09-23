@@ -2,14 +2,14 @@ use std::collections::{HashMap, HashSet};
 use crate::domain::mesh_entity::MeshEntity;
 
 /// Overlap structure to handle relationships between local and ghost entities
-struct Overlap {
-    local_entities: HashSet<MeshEntity>,  // Local mesh entities
-    ghost_entities: HashSet<MeshEntity>,  // Entities shared with other processes
+pub struct Overlap {
+    pub local_entities: HashSet<MeshEntity>,  // Local mesh entities
+    pub ghost_entities: HashSet<MeshEntity>,  // Entities shared with other processes
 }
 
 impl Overlap {
     /// Creates a new, empty Overlap
-    fn new() -> Self {
+    pub fn new() -> Self {
         Overlap {
             local_entities: HashSet::new(),
             ghost_entities: HashSet::new(),
@@ -17,77 +17,77 @@ impl Overlap {
     }
 
     /// Add a local entity to the overlap
-    fn add_local_entity(&mut self, entity: MeshEntity) {
+    pub fn add_local_entity(&mut self, entity: MeshEntity) {
         self.local_entities.insert(entity);
     }
 
     /// Add a ghost entity to the overlap (shared with other processes)
-    fn add_ghost_entity(&mut self, entity: MeshEntity) {
+    pub fn add_ghost_entity(&mut self, entity: MeshEntity) {
         self.ghost_entities.insert(entity);
     }
 
     /// Check if an entity is local
-    fn is_local(&self, entity: &MeshEntity) -> bool {
+    pub fn is_local(&self, entity: &MeshEntity) -> bool {
         self.local_entities.contains(entity)
     }
 
     /// Check if an entity is a ghost entity (shared with other processes)
-    fn is_ghost(&self, entity: &MeshEntity) -> bool {
+    pub fn is_ghost(&self, entity: &MeshEntity) -> bool {
         self.ghost_entities.contains(entity)
     }
 
     /// Get all local entities
-    fn local_entities(&self) -> &HashSet<MeshEntity> {
+    pub fn local_entities(&self) -> &HashSet<MeshEntity> {
         &self.local_entities
     }
 
     /// Get all ghost entities
-    fn ghost_entities(&self) -> &HashSet<MeshEntity> {
+    pub fn ghost_entities(&self) -> &HashSet<MeshEntity> {
         &self.ghost_entities
     }
 
     /// Merge another overlap into this one (used when communicating between partitions)
-    fn merge(&mut self, other: &Overlap) {
+    pub fn merge(&mut self, other: &Overlap) {
         self.local_entities.extend(&other.local_entities);
         self.ghost_entities.extend(&other.ghost_entities);
     }
 }
 
 /// Delta structure to manage transformation and data consistency across overlaps
-struct Delta<T> {
-    data: HashMap<MeshEntity, T>,  // Transformation data over overlapping regions
+pub struct Delta<T> {
+    pub data: HashMap<MeshEntity, T>,  // Transformation data over overlapping regions
 }
 
 impl<T> Delta<T> {
     /// Creates a new, empty Delta
-    fn new() -> Self {
+    pub fn new() -> Self {
         Delta {
             data: HashMap::new(),
         }
     }
 
     /// Set transformation data for a specific mesh entity
-    fn set_data(&mut self, entity: MeshEntity, value: T) {
+    pub fn set_data(&mut self, entity: MeshEntity, value: T) {
         self.data.insert(entity, value);
     }
 
     /// Get transformation data for a specific entity
-    fn get_data(&self, entity: &MeshEntity) -> Option<&T> {
+    pub fn get_data(&self, entity: &MeshEntity) -> Option<&T> {
         self.data.get(entity)
     }
 
     /// Remove the data associated with a mesh entity
-    fn remove_data(&mut self, entity: &MeshEntity) -> Option<T> {
+    pub fn remove_data(&mut self, entity: &MeshEntity) -> Option<T> {
         self.data.remove(entity)
     }
 
     /// Check if there is transformation data for a specific entity
-    fn has_data(&self, entity: &MeshEntity) -> bool {
+    pub fn has_data(&self, entity: &MeshEntity) -> bool {
         self.data.contains_key(entity)
     }
 
     /// Apply a function to all entities in the delta
-    fn apply<F>(&self, mut func: F)
+    pub fn apply<F>(&self, mut func: F)
     where
         F: FnMut(&MeshEntity, &T),
     {
@@ -97,7 +97,7 @@ impl<T> Delta<T> {
     }
 
     /// Merge another delta into this one (used to combine data from different partitions)
-    fn merge(&mut self, other: &Delta<T>)
+    pub fn merge(&mut self, other: &Delta<T>)
     where
         T: Clone,
     {

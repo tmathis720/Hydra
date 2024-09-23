@@ -1,80 +1,99 @@
-# HYDRA: Short-Term Roadmap for Incremental Test-Driven Development (TDD)
+# updated progress and next steps
 
-HYDRA is a high-performance Rust-based hydrodynamic modeling system designed to simulate complex geophysical phenomena, particularly for surface water bodies. The focus of the project is on ensuring computational efficiency, stability, and flexibility through Rust's concurrency and memory safety features. The project employs a staggered unstructured finite-volume method (FVM) to solve the Reynolds-averaged Navier-Stokes equations (RANS) in two- or three-dimensional boundary-fitted domains.
+## 1. geometry handling (`geometry.rs` and its modules)
 
-## Key Priorities:
+we have successfully made significant strides in the geometry handling module, specifically targeting the representation and computation of centroids and volumes for various 3d mesh elements, such as tetrahedrons, prisms, pyramids, and hexahedrons. these elements are critical in defining complex unstructured meshes and setting the groundwork for computational operations such as finite volume methods (fvm) and finite element methods (fem).
 
-1. Enhance core simulation stability by refining numerical methods.
-2. Extend boundary conditions and solvers for a broader range of geophysical phenomena.
-3. Develop testing strategies to ensure model robustness.
-4. Optimize computational performance, leveraging Rust's unique capabilities.
+### key accomplishments:
 
-## Short-Term Milestones
+- **basic geometry handling module (`geometry.rs`)**:
+  - we structured geometric operations around various 3d shapes (tetrahedrons, hexahedrons, prisms, pyramids).
+  - computation of centroids and volumes for each shape has been implemented using both analytical methods and numerical methods (e.g., splitting pyramids into tetrahedrons for more accurate volume and centroid calculations).
 
-**Numerical Core Development**
+- **shape-specific modules**:
+  - each 3d shape (e.g., `tetrahedron.rs`, `pyramid.rs`, etc.) contains:
+    - functions to compute centroid and volume.
+    - methods to divide complex elements (e.g., splitting pyramids into tetrahedrons).
+  - robust unit tests ensure the correctness of these calculations, though further adjustments and debugging are required in edge cases (like degenerate shapes).
 
-Status: Basic solvers and boundary handling implemented.
-Tasks:
+- **testing and debugging**:
+  - extensive testing helped identify failures in pyramid centroid and volume calculations. these were traced back to improper weighting and centroid calculations, particularly in degenerate cases.
+  - a numerical approach was adopted to split shapes into simpler sub-elements (e.g., tetrahedrons) for more reliable calculations.
 
-    Refactor the numerical module to enhance modularity and readability.
-    Extend the solver module to handle adaptive time-stepping and implicit solver methodologies.
-    Improve timestep module to ensure compatibility with new solver methods.
-    Add turbulence models for simulating marine and atmospheric flows (linking with approaches like k-ε models)​.
+## 2. mesh entity management and sieve data structure
 
-**Boundary and Domain Handling**
+previous work on managing mesh entities and defining relationships between these entities has been solidified. specifically:
 
-Status: Basic boundary condition implementation in the boundary module.
-Tasks:
+- mesh entities such as vertices, edges, faces, and cells are organized using a combination of enums and arrows (incidence relationships between entities).
+- the sieve data structure effectively handles hierarchical relationships between mesh entities, forming the core of the topological operations on the mesh.
 
-    Expand boundary module to support more complex boundary conditions, such as non-slip, free-surface, and open boundary conditions commonly used in marine simulations​.
-    Refactor domain to support multi-region simulations for handling complex geophysical domains.
+### core operations:
 
-**Input Handling and Data Management**
+- `cone`, `closure`, `support`, and `star` operations: capture the hierarchical and topological relationships between mesh entities. these are critical for pde solvers that require efficient access to neighboring or related entities in the mesh.
+- `meet` and `join`: these operations handle minimal separators for closures and stars, which are particularly useful in stratified meshes.
 
-Status: Initial input framework in the input directory.
-Tasks:
+## 3. section data management (`section.rs`)
 
-    Enhance the input module to support multiple file formats (e.g., NetCDF, HDF5).
-    Add preprocessing tools for input data validation and grid generation.
+the section structure was implemented to allow association of data (e.g., vertex coordinates, element values) with mesh entities. this will be expanded as geometry handling is further refined.
 
-**Transport and Solver Updates**
+### key functionality:
 
-Status: Initial implementation exists in the transport and solver modules.
-Tasks:
+- `set`, `restrict`, and `update` data: functions that allow associating, retrieving, and updating data related to specific entities.
+- efficient storage: data is stored in contiguous arrays for better performance, especially when dealing with large meshes.
 
-    Add support for advanced transport models, including diffusive and dispersive processes for contaminants and tracers.
-    Integrate with external libraries or tools for large-scale linear solvers, potentially leveraging PETSc​.
-    Implement adaptive solver techniques, enhancing model performance on multi-core and distributed systems.
+## 4. reordering and stratification
 
-**Time-Stepping Methods**
+to enhance memory locality and solver performance, we have implemented:
 
-Status: Basic time-stepping strategy implemented.
-Tasks:
+- **cuthill-mckee algorithm** for reordering mesh entities.
+- **stratification** of entities by dimension (e.g., vertices, edges, faces), allowing optimized processing for different solver techniques.
 
-    Integrate error-controlled adaptive time-stepping methods.
-    Ensure stability and efficiency of solvers in combination with multi-scale phenomena like turbulence and coastal boundary layer effects​​.
+## 5. overlap and parallelism
 
-**Testing and Continuous Integration**
+we designed the overlap structure to manage distributed meshes, supporting local and ghost entities. this is critical for parallel computation in large-scale simulations:
 
-Status: Basic tests exist.
-Tasks:
+- **delta structures** store transformation data and ensure consistency across partitions.
 
-    Expand unit and integration tests in the tests module, focusing on solver robustness and accuracy.
-    Automate testing for a variety of inputs, including edge cases like complex bathymetries and extreme boundary conditions.
-    Create benchmark tests for comparison with legacy systems like FVCOM and Delft3D​.
+## 6. unit tests and validation
 
-## Long-Term Vision
+### progress in testing and validation:
 
-**Full 3D Model Support**
+- unit tests have been written for the geometry module (prisms, tetrahedrons, pyramids, etc.) and for other modules (e.g., sieve, reordering, section).
+- debugging and adjustments continue in edge cases, particularly for degenerate geometries.
 
-Extend from 2D shallow-water models to full 3D RANS models.
-Add multi-threaded support and MPI parallelism for large-scale distributed computing environments.
+## 7. updated next steps
 
-**GPU Acceleration**
+### immediate priorities:
 
-Investigate GPU acceleration for heavy computational tasks (e.g., linear solvers and matrix assembly).
-Leverage Rust’s interoperability with CUDA or OpenCL for optimized performance.
+- **finalizing geometry handling**:
+  - complete debugging of pyramid centroid and volume calculations to handle edge cases more robustly.
+  - implement optimized methods for handling prisms and hexahedrons using the divergence theorem or similar analytical methods for efficiency.
 
-**Advanced Physical Models**
+- **boundary conditions**:
+  - develop modules to handle boundary conditions (e.g., dirichlet, neumann). these will interact with the `section.rs` structure to allow for boundary-specific data association.
 
-Incorporate advanced geophysical models, such as sediment transport, biogeochemical cycles, and ecosystem dynamics, with the transport and domain modules.
+- **solver integration**:
+  - begin integrating the mesh infrastructure with pde solvers (e.g., petsc’s `dmplex`).
+  - develop the interface between geometry handling and linear system assembly for fem or fvm solvers.
+
+### longer-term objectives:
+
+- **performance optimization**:
+  - profiling of key areas such as adjacency lookups, reordering algorithms, and mesh partitioning should be prioritized to ensure scalability.
+
+- **parallelization**:
+  - leverage mpi or other parallelization frameworks in conjunction with the overlap structure for distributed mesh handling.
+
+- **documentation**:
+  - continue to expand in-line documentation for each module. this will ensure clear usage and facilitate future maintenance.
+  - create a user guide with examples of mesh creation, data association, and geometry computations.
+
+- **comprehensive testing**:
+  - develop integration tests that combine multiple components of the system (e.g., sieve + section + overlap) to ensure everything works together as expected in real-world scenarios.
+
+## 8. challenges and focus areas
+
+- **parallelization and performance**: managing data consistency and efficiency at scale will be key challenges as we move into solver integration and larger meshes.
+- **handling complex geometries**: ensuring that degenerate and complex shapes (e.g., concave polyhedrons) are handled efficiently is a focus for the geometry module.
+
+by continuing to focus on these areas, we will develop a robust, scalable, and efficient framework for unstructured mesh management and computation.

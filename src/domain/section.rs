@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use crate::domain::mesh_entity::MeshEntity;  // Assuming MeshEntity is defined in mesh_entity.rs
 
 /// Section structure for associating data with mesh entities
-struct Section<T> {
-    data: Vec<T>,  // Contiguous storage for associated data
-    offsets: HashMap<MeshEntity, usize>,  // Map points to offsets in the data
+pub struct Section<T> {
+    pub data: Vec<T>,  // Contiguous storage for associated data
+    pub offsets: HashMap<MeshEntity, usize>,  // Map points to offsets in the data
 }
 
 impl<T> Section<T> {
     /// Creates a new, empty Section
-    fn new() -> Self {
+    pub fn new() -> Self {
         Section {
             data: Vec::new(),
             offsets: HashMap::new(),
@@ -17,20 +17,20 @@ impl<T> Section<T> {
     }
 
     /// Associate data with a mesh entity
-    fn set_data(&mut self, entity: MeshEntity, value: T) {
+    pub fn set_data(&mut self, entity: MeshEntity, value: T) {
         let offset = self.data.len();
         self.offsets.insert(entity, offset);  // Map the entity to its position in the data
         self.data.push(value);  // Store the associated data in contiguous storage
     }
 
     /// Restrict data to a given mesh entity (immutable access)
-    fn restrict(&self, entity: &MeshEntity) -> Option<&T> {
+    pub fn restrict(&self, entity: &MeshEntity) -> Option<&T> {
         self.offsets.get(entity).map(|&offset| &self.data[offset])
     }
 
     /// Restrict data to a given mesh entity (mutable access)
     // Restrict data to a given mesh entity (mutable access)
-    fn restrict_mut(&mut self, entity: &MeshEntity) -> Option<&mut T> {
+    pub fn restrict_mut(&mut self, entity: &MeshEntity) -> Option<&mut T> {
         // First, we retrieve the offset immutably from self.offsets
         let offset = self.offsets.get(entity)?;
         
@@ -39,7 +39,7 @@ impl<T> Section<T> {
     }
 
     /// Update the data for a given mesh entity
-    fn update_data(&mut self, entity: &MeshEntity, new_value: T) -> Result<(), String> {
+    pub fn update_data(&mut self, entity: &MeshEntity, new_value: T) -> Result<(), String> {
         if let Some(&offset) = self.offsets.get(entity) {
             self.data[offset] = new_value;  // Update the data at the entity's offset
             Ok(())
@@ -49,17 +49,17 @@ impl<T> Section<T> {
     }
 
     /// Get all mesh entities associated with this section
-    fn entities(&self) -> Vec<MeshEntity> {
+    pub fn entities(&self) -> Vec<MeshEntity> {
         self.offsets.keys().cloned().collect()
     }
 
     /// Get all data stored in this section
-    fn all_data(&self) -> &Vec<T> {
+    pub fn all_data(&self) -> &Vec<T> {
         &self.data
     }
 
     /// Get mutable access to all data stored in this section
-    fn all_data_mut(&mut self) -> &mut Vec<T> {
+    pub fn all_data_mut(&mut self) -> &mut Vec<T> {
         &mut self.data
     }
 }
