@@ -48,6 +48,12 @@ impl<T> Section<T> {
         }
     }
 
+    /// Clear all data in the section
+    pub fn clear(&mut self) {
+        self.data.clear();
+        self.offsets.clear();
+    }
+
     /// Get all mesh entities associated with this section
     pub fn entities(&self) -> Vec<MeshEntity> {
         self.offsets.keys().cloned().collect()

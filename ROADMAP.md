@@ -1,99 +1,176 @@
-# updated progress and next steps
+# Project Roadmap
 
-## 1. geometry handling (`geometry.rs` and its modules)
+## Overview
 
-we have successfully made significant strides in the geometry handling module, specifically targeting the representation and computation of centroids and volumes for various 3d mesh elements, such as tetrahedrons, prisms, pyramids, and hexahedrons. these elements are critical in defining complex unstructured meshes and setting the groundwork for computational operations such as finite volume methods (fvm) and finite element methods (fem).
+The primary goal of this project is to develop a robust Finite Volume Method (FVM) solver using Rust. The solver aims to:
 
-### key accomplishments:
+- **Accurately Solve Partial Differential Equations (PDEs):** Implement numerical methods to solve PDEs over complex geometries and meshes.
+- **Flexible Mesh Representation:** Create a mesh data structure capable of representing various elements like cells, faces, edges, and vertices, along with their hierarchical relationships.
+- **Boundary Condition Handling:** Incorporate Dirichlet and Neumann boundary conditions to define values and fluxes on the boundaries of the computational domain.
+- **Geometric Computations:** Develop a geometry module to compute areas, volumes, centroids, and distances essential for the FVM discretization.
+- **Efficient Solver Implementation:** Assemble and solve linear systems resulting from the discretization efficiently, ensuring scalability and performance.
+- **Testing and Validation:** Establish a suite of unit tests and validation cases to ensure the correctness and reliability of the solver.
 
-- **basic geometry handling module (`geometry.rs`)**:
-  - we structured geometric operations around various 3d shapes (tetrahedrons, hexahedrons, prisms, pyramids).
-  - computation of centroids and volumes for each shape has been implemented using both analytical methods and numerical methods (e.g., splitting pyramids into tetrahedrons for more accurate volume and centroid calculations).
+---
 
-- **shape-specific modules**:
-  - each 3d shape (e.g., `tetrahedron.rs`, `pyramid.rs`, etc.) contains:
-    - functions to compute centroid and volume.
-    - methods to divide complex elements (e.g., splitting pyramids into tetrahedrons).
-  - robust unit tests ensure the correctness of these calculations, though further adjustments and debugging are required in edge cases (like degenerate shapes).
+## Progress So Far
 
-- **testing and debugging**:
-  - extensive testing helped identify failures in pyramid centroid and volume calculations. these were traced back to improper weighting and centroid calculations, particularly in degenerate cases.
-  - a numerical approach was adopted to split shapes into simpler sub-elements (e.g., tetrahedrons) for more reliable calculations.
+### 1. Geometry Handling (`src/geometry/` and Its Modules)
 
-## 2. mesh entity management and sieve data structure
+We have successfully made significant strides in the geometry handling module, specifically targeting the representation and computation of centroids and volumes for various mesh elements such as tetrahedrons, prisms, pyramids, and hexahedrons. These elements are critical in defining complex unstructured meshes and setting the groundwork for computational operations like the Finite Volume Method (FVM) and Finite Element Method (FEM).
 
-previous work on managing mesh entities and defining relationships between these entities has been solidified. specifically:
+**Key Accomplishments:**
 
-- mesh entities such as vertices, edges, faces, and cells are organized using a combination of enums and arrows (incidence relationships between entities).
-- the sieve data structure effectively handles hierarchical relationships between mesh entities, forming the core of the topological operations on the mesh.
+- **Basic Geometry Handling Module (`src/geometry/mod.rs`):**
+  - Structured geometric operations around various 3D shapes (tetrahedrons, hexahedrons, prisms, pyramids).
+  - Implemented computation of centroids and volumes for each shape using both analytical and numerical methods (e.g., splitting pyramids into tetrahedrons for more accurate volume and centroid calculations).
+  - Developed methods for computing face areas and centroids, including handling of triangles and quadrilaterals.
 
-### core operations:
+- **Shape-Specific Modules:**
+  - Each 3D shape module (e.g., `tetrahedron.rs`, `pyramid.rs`) contains:
+    - Functions to compute centroid and volume.
+    - Methods to divide complex elements into simpler sub-elements for reliable calculations.
+  - Robust unit tests ensure the correctness of these calculations, though further adjustments and debugging are required for edge cases (like degenerate shapes).
 
-- `cone`, `closure`, `support`, and `star` operations: capture the hierarchical and topological relationships between mesh entities. these are critical for pde solvers that require efficient access to neighboring or related entities in the mesh.
-- `meet` and `join`: these operations handle minimal separators for closures and stars, which are particularly useful in stratified meshes.
+- **Testing and Debugging:**
+  - Extensive testing helped identify failures in pyramid centroid and volume calculations. Issues were traced back to improper weighting and centroid calculations, particularly in degenerate cases.
+  - Adopted numerical approaches, such as splitting shapes into simpler sub-elements, for more reliable calculations.
 
-## 3. section data management (`section.rs`)
+### 2. Mesh Entity Management and Sieve Data Structure
 
-the section structure was implemented to allow association of data (e.g., vertex coordinates, element values) with mesh entities. this will be expanded as geometry handling is further refined.
+We have solidified the management of mesh entities and defined relationships between these entities.
 
-### key functionality:
+**Core Operations:**
 
-- `set`, `restrict`, and `update` data: functions that allow associating, retrieving, and updating data related to specific entities.
-- efficient storage: data is stored in contiguous arrays for better performance, especially when dealing with large meshes.
+- **Mesh Entities:**
+  - Defined mesh entities such as vertices, edges, faces, and cells using enums and arrows (incidence relationships between entities).
+  - Organized entities using a sieve data structure, effectively handling hierarchical relationships between mesh entities.
 
-## 4. reordering and stratification
+- **Sieve Data Structure:**
+  - Implemented operations such as `cone`, `closure`, `support`, and `star` to capture hierarchical and topological relationships.
+  - These operations are critical for PDE solvers requiring efficient access to neighboring or related entities.
+  - Implemented `meet` and `join` operations to handle minimal separators for closures and stars, useful in stratified meshes.
 
-to enhance memory locality and solver performance, we have implemented:
+### 3. Boundary Conditions (`src/boundary/`)
 
-- **cuthill-mckee algorithm** for reordering mesh entities.
-- **stratification** of entities by dimension (e.g., vertices, edges, faces), allowing optimized processing for different solver techniques.
+We developed modules to handle boundary conditions, integrating them with the solver.
 
-## 5. overlap and parallelism
+**Key Functionality:**
 
-we designed the overlap structure to manage distributed meshes, supporting local and ghost entities. this is critical for parallel computation in large-scale simulations:
+- **Dirichlet Boundary Conditions (`DirichletBC`):**
+  - Utilized `HashMap<MeshEntity, f64>` to map mesh entities to prescribed values.
+  - Implemented methods `is_bc` and `get_value` to check and retrieve boundary condition values.
+  - Updated the `apply_bc` method to modify the system matrix and RHS vector appropriately.
 
-- **delta structures** store transformation data and ensure consistency across partitions.
+- **Neumann Boundary Conditions (`NeumannBC`):**
+  - Used `HashMap<MeshEntity, f64>` to associate mesh entities with flux values.
+  - Added methods `is_bc` and `get_flux` for checking and retrieving fluxes.
+  - Adjusted the `apply_bc` method to correctly update the RHS vector based on flux values and face areas.
 
-## 6. unit tests and validation
+### 4. Section Data Management (`section.rs`)
 
-### progress in testing and validation:
+The `Section` structure was implemented to allow association of data (e.g., vertex coordinates, element values) with mesh entities.
 
-- unit tests have been written for the geometry module (prisms, tetrahedrons, pyramids, etc.) and for other modules (e.g., sieve, reordering, section).
-- debugging and adjustments continue in edge cases, particularly for degenerate geometries.
+**Key Functionality:**
 
-## 7. updated next steps
+- Implemented `set`, `restrict`, and `update` data functions to associate, retrieve, and update data related to specific entities.
+- Ensured efficient storage by using contiguous arrays, improving performance when dealing with large meshes.
 
-### immediate priorities:
+### 5. Solver Integration (`src/solver/fvm_solver.rs`)
 
-- **finalizing geometry handling**:
-  - complete debugging of pyramid centroid and volume calculations to handle edge cases more robustly.
-  - implement optimized methods for handling prisms and hexahedrons using the divergence theorem or similar analytical methods for efficiency.
+We have integrated the mesh infrastructure with the FVM solver.
 
-- **boundary conditions**:
-  - develop modules to handle boundary conditions (e.g., dirichlet, neumann). these will interact with the `section.rs` structure to allow for boundary-specific data association.
+**Key Accomplishments:**
 
-- **solver integration**:
-  - begin integrating the mesh infrastructure with pde solvers (e.g., petsc’s `dmplex`).
-  - develop the interface between geometry handling and linear system assembly for fem or fvm solvers.
+- **FVMSolver Structure:**
+  - Developed the `FVMSolver` struct to handle assembling and solving the linear system resulting from FVM discretization.
+  - Implemented methods for assembling the system matrix and RHS vector, incorporating geometry computations and boundary conditions.
 
-### longer-term objectives:
+- **Geometry Computations in Solver:**
+  - Integrated the geometry module with the solver to compute necessary geometric quantities like cell volumes, face areas, and centroids.
 
-- **performance optimization**:
-  - profiling of key areas such as adjacency lookups, reordering algorithms, and mesh partitioning should be prioritized to ensure scalability.
+- **Boundary Condition Application:**
+  - Applied Dirichlet and Neumann boundary conditions within the solver, ensuring they correctly modify the system matrix and RHS vector.
 
-- **parallelization**:
-  - leverage mpi or other parallelization frameworks in conjunction with the overlap structure for distributed mesh handling.
+### 6. Error Handling and Robustness
 
-- **documentation**:
-  - continue to expand in-line documentation for each module. this will ensure clear usage and facilitate future maintenance.
-  - create a user guide with examples of mesh creation, data association, and geometry computations.
+- **Compilation and Runtime Errors:**
+  - Resolved borrowing and ownership issues by adjusting function return types and dereferencing appropriately.
+  - Ensured that geometry computation methods are correctly called on instances of the `Geometry` struct.
 
-- **comprehensive testing**:
-  - develop integration tests that combine multiple components of the system (e.g., sieve + section + overlap) to ensure everything works together as expected in real-world scenarios.
+- **Test Failures:**
+  - Addressed test failures by refining mesh definitions in tests and adjusting geometry computations to handle 1D elements.
+  - Updated the `FVMSolver` and geometry functions to process 1D mesh elements appropriately.
 
-## 8. challenges and focus areas
+### 7. Unit Tests and Validation
 
-- **parallelization and performance**: managing data consistency and efficiency at scale will be key challenges as we move into solver integration and larger meshes.
-- **handling complex geometries**: ensuring that degenerate and complex shapes (e.g., concave polyhedrons) are handled efficiently is a focus for the geometry module.
+**Progress in Testing and Validation:**
 
-by continuing to focus on these areas, we will develop a robust, scalable, and efficient framework for unstructured mesh management and computation.
+- Unit tests have been written for the geometry module and other modules like sieve, section, and solver.
+- Debugging and adjustments continue for edge cases, particularly with degenerate geometries.
+- Test coverage ensures that changes in code are validated against expected outcomes.
+
+---
+
+## Next Steps
+
+### Immediate Priorities
+
+1. **Finalize Geometry Handling:**
+   - Complete debugging of pyramid centroid and volume calculations to robustly handle edge cases.
+   - Implement optimized methods for handling prisms and hexahedrons using analytical methods for efficiency.
+
+2. **Enhance Boundary Condition Handling:**
+   - Expand boundary condition modules to support more complex scenarios and mixed types.
+   - Implement error handling to gracefully manage missing or invalid boundary condition data.
+
+3. **Extend Solver Capabilities:**
+   - Incorporate support for 2D and 3D meshes in the solver.
+   - Implement more efficient solvers or integrate with external libraries for larger systems (e.g., iterative solvers).
+
+4. **Performance Optimization:**
+   - Profile key areas such as adjacency lookups, reordering algorithms, and mesh partitioning to ensure scalability.
+   - Optimize data structures and algorithms to improve computational efficiency.
+
+### Longer-Term Objectives
+
+1. **Parallelization and Scalability:**
+   - Leverage Rust's concurrency features to parallelize computations where possible.
+   - Explore distributed computing options for handling large-scale simulations, potentially using MPI or other frameworks.
+
+2. **Advanced Mesh Features:**
+   - Implement adaptive mesh refinement techniques to improve solution accuracy in regions with high gradients.
+   - Add support for more complex cell and face shapes, such as polygons and polyhedra.
+
+3. **Comprehensive Testing and Validation:**
+   - Develop integration tests that combine multiple components to ensure they work together in real-world scenarios.
+   - Validate solver results against analytical solutions or benchmark problems to verify accuracy.
+
+4. **Documentation and Usability:**
+   - Continue to expand inline documentation for each module to ensure clear usage and facilitate future maintenance.
+   - Create a user guide with examples of mesh creation, data association, and geometry computations.
+   - Develop a user-friendly interface or API for setting up simulations, defining meshes, and applying boundary conditions.
+
+5. **Community Engagement:**
+   - Consider open-sourcing the project to invite collaboration, code reviews, and contributions from the community.
+   - Engage with potential users or stakeholders to gather feedback on features, usability, and performance.
+
+6. **Error Handling and Robustness:**
+   - Replace `panic!` calls with proper error handling using `Result` and custom error types.
+   - Implement input validation to ensure robustness against invalid or corrupted data.
+
+---
+
+## Challenges and Focus Areas
+
+- **Parallelization and Performance:** Managing data consistency and efficiency at scale will be key challenges as we move into solver integration and larger meshes.
+- **Handling Complex Geometries:** Ensuring that degenerate and complex shapes (e.g., concave polyhedra) are handled efficiently is a focus for the geometry module.
+- **Error Handling:** Implementing comprehensive error handling to make the solver robust and user-friendly.
+
+---
+
+By focusing on these areas, we will develop a robust, scalable, and efficient framework for unstructured mesh management and computation. The project aims to provide a valuable tool for solving PDEs using the Finite Volume Method in Rust, suitable for both academic research and practical engineering applications.
+
+---
+
+*This roadmap is intended to provide a clear understanding of the project's framework, progress to date, and future plans. It serves as a guide for contributors and stakeholders to align efforts and expectations.*
