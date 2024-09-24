@@ -23,7 +23,7 @@ impl Geometry {
             vec![cell_vertices[0], cell_vertices[1], cell_vertices[2], cell_vertices[3]] // Square base
         };
 
-        // Split into two tetrahedrons if square base
+        // For a square-based pyramid (split into two tetrahedrons), adjust centroid calculation:
         if num_vertices == 5 {
             let tetra1 = vec![cell_vertices[0], cell_vertices[1], cell_vertices[2], apex];
             let tetra2 = vec![cell_vertices[0], cell_vertices[2], cell_vertices[3], apex];
@@ -35,13 +35,17 @@ impl Geometry {
             let centroid1 = self.compute_tetrahedron_centroid(&tetra1);
             let centroid2 = self.compute_tetrahedron_centroid(&tetra2);
 
-            // Weighted average
+            // Total volume of pyramid is sum of tetrahedron volumes
             total_volume = volume1 + volume2;
+
+            // Weighted centroid: combining centroids of both tetrahedrons
             weighted_centroid[0] = (centroid1[0] * volume1 + centroid2[0] * volume2) / total_volume;
             weighted_centroid[1] = (centroid1[1] * volume1 + centroid2[1] * volume2) / total_volume;
             weighted_centroid[2] = (centroid1[2] * volume1 + centroid2[2] * volume2) / total_volume;
+            
+            // NOTE: Do not reapply the base-apex averaging rule here as weighted centroids are already applied.
         } else {
-            // Single tetrahedron for triangular base pyramid
+            // For triangular base (tetrahedron), no need for further splitting
             let tetra = vec![cell_vertices[0], cell_vertices[1], cell_vertices[2], apex];
             let volume = self.compute_tetrahedron_volume(&tetra);
             let centroid = self.compute_tetrahedron_centroid(&tetra);
@@ -50,19 +54,19 @@ impl Geometry {
             weighted_centroid = centroid;
         }
 
-        // Correct for centroid of a pyramid:
-        // The centroid should be 1/4 of the way from the base centroid to the apex
+        // Correct the centroid by adjusting the weight between the base centroid and apex
         let base_centroid = self.compute_face_centroid(
             if num_vertices == 4 { FaceShape::Triangle } else { FaceShape::Quadrilateral },
             &base_vertices,
         );
 
+        // Apply the correct weighting for the pyramid's centroid.
+        // Pyramid centroid = 3/4 * base_centroid + 1/4 * apex
         weighted_centroid[0] = (3.0 * base_centroid[0] + apex[0]) / 4.0;
         weighted_centroid[1] = (3.0 * base_centroid[1] + apex[1]) / 4.0;
         weighted_centroid[2] = (3.0 * base_centroid[2] + apex[2]) / 4.0;
 
-        println!("Total volume: {:?}", total_volume);
-        println!("Final weighted centroid: {:?}", weighted_centroid);
+        println!("Adjusted weighted centroid: {:?}", weighted_centroid);
 
         weighted_centroid
     }
@@ -209,8 +213,8 @@ mod tests {
 
         let centroid = geometry.compute_pyramid_centroid(&pyramid_vertices);
 
-        // Expected centroid: the weighted average of the base centroid and apex
-        assert_eq!(centroid, [0.5, 0.5, 0.5]);
+        // The correct centroid is at (0.5, 0.5, 0.25)
+        assert_eq!(centroid, [0.5, 0.5, 0.25]);
     }
 
     #[test]
@@ -227,14 +231,8 @@ mod tests {
 
         let centroid = geometry.compute_pyramid_centroid(&pyramid_vertices);
 
-        // Expected centroid for the triangular pyramid
-        // Base centroid = (1/3, 1/3, 0), apex = (0.5, 0.5, 1.0) -> centroid = (avg base + apex)
-        let expected_centroid = [
-            (1.0 / 3.0 + 0.5) / 2.0,
-            (1.0 / 3.0 + 0.5) / 2.0,
-            (0.0 + 1.0) / 2.0,
-        ];
-        assert_eq!(centroid, expected_centroid);
+        // The correct centroid is at (0.375, 0.375, 0.25)
+        assert_eq!(centroid, [0.375, 0.375, 0.25]);
     }
 
     #[test]
