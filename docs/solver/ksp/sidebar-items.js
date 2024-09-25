@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Preconditioner","SolverMethod"],"struct":["KSP"],"trait":["Solver"]};

@@ -6,4 +6,3 @@ pub mod solver;
 pub use geometry::{Geometry, CellShape, FaceShape};
 pub use domain::{Arrow, MeshEntity, Section, Sieve, Mesh};
 pub use boundary::{DirichletBC, NeumannBC};
-pub use solver::{Solver, FVMSolver};

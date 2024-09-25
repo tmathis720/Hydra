@@ -1,5 +1,7 @@
-pub mod solver;
-pub mod fvm_solver;
+pub mod ksp;  // Krylov subspace solver
+pub mod cg;   // Conjugate Gradient solver
+pub mod jacobi;  // Jacobi preconditioner
 
-pub use solver::Solver;
-pub use fvm_solver::FVMSolver;
+// For future additions
+// pub mod gmres;
+// pub mod ilu;
