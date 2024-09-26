@@ -1,16 +1,16 @@
 use crate::domain::{Section, MeshEntity};
-use nalgebra::{DMatrix, DVector};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
+use faer_core::{inner::DenseColMajor, Matrix};
 
 pub struct DirichletBC {
-    pub values: HashMap<MeshEntity, f64>,  // Map boundary entities to their prescribed values
+    pub values: FxHashMap<MeshEntity, f64>,  // Map boundary entities to their prescribed values
 }
 
 impl DirichletBC {
     /// Creates a new DirichletBC structure
     pub fn new() -> Self {
         DirichletBC {
-            values: HashMap::new(),
+            values: FxHashMap::default(),
         }
     }
 
@@ -34,25 +34,25 @@ impl DirichletBC {
 
     /// Apply the Dirichlet boundary condition to the system matrix and RHS vector
     ///
-    /// `matrix`: The system matrix (DMatrix)
-    /// `rhs`: The RHS vector (DVector)
+    /// `matrix`: The system matrix (`faer::Matrix`)
+    /// `rhs`: The RHS vector (`faer::Matrix` for a column vector)
     /// `entity_to_index`: Mapping from MeshEntity to matrix index
     pub fn apply_bc(
         &self,
-        matrix: &mut DMatrix<f64>,
-        rhs: &mut DVector<f64>,
-        entity_to_index: &HashMap<MeshEntity, usize>,
+        matrix: &mut Matrix<DenseColMajor<f64>>,  // Replacing DMatrix<f64> with faer::Matrix
+        rhs: &mut Matrix<DenseColMajor<f64>>,    // Replacing DVector<f64> with faer::Matrix (1D column matrix)
+        entity_to_index: &FxHashMap<MeshEntity, usize>,
     ) {
         for (entity, &value) in &self.values {
             if let Some(&index) = entity_to_index.get(entity) {
                 // Set the corresponding row in the matrix to zero
                 for j in 0..matrix.ncols() {
-                    matrix[(index, j)] = 0.0;
+                    matrix.write(index, j, 0.0);
                 }
                 // Set the diagonal to 1
-                matrix[(index, index)] = 1.0;
+                matrix.write(index, index, 1.0);
                 // Set the RHS value
-                rhs[index] = value;
+                rhs.write(index, 0, value);
             } else {
                 panic!("Entity {:?} not found in entity_to_index mapping", entity);
             }
@@ -64,14 +64,14 @@ impl DirichletBC {
 mod tests {
     use super::*;
     use crate::domain::mesh_entity::MeshEntity;
-    use nalgebra::{DMatrix, DVector};
-    use std::collections::HashMap;
+    use rustc_hash::FxHashMap;  // Updated to use FxHashMap instead of std::collections::HashMap
+    use faer_core::{inner::DenseColMajor, Matrix};
 
     #[test]
     fn test_dirichlet_bc() {
         // Create a mock solution vector and system matrix
-        let mut matrix = DMatrix::<f64>::zeros(5, 5);
-        let mut rhs = DVector::<f64>::zeros(5);
+        let mut matrix = Matrix::<DenseColMajor<f64>>::zeros(5, 5);  // 5x5 system matrix
+        let mut rhs = Matrix::<DenseColMajor<f64>>::zeros(5, 1);     // 5x1 RHS vector (column matrix)
 
         // Create the DirichletBC structure
         let mut dirichlet_bc = DirichletBC::new();
@@ -85,7 +85,7 @@ mod tests {
         dirichlet_bc.set_bc(boundary_entity_2, 50.0);
 
         // Create entity to index mapping
-        let mut entity_to_index = HashMap::new();
+        let mut entity_to_index = FxHashMap::default();
         entity_to_index.insert(MeshEntity::Cell(0), 0);
         entity_to_index.insert(MeshEntity::Cell(1), 1);
         entity_to_index.insert(MeshEntity::Cell(2), 2);
@@ -96,13 +96,13 @@ mod tests {
         dirichlet_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index);
 
         // Check that the RHS vector was modified correctly
-        assert_eq!(rhs[1], 100.0);
-        assert_eq!(rhs[3], 50.0);
+        assert_eq!(rhs.read(1, 0), 100.0);
+        assert_eq!(rhs.read(3, 0), 50.0);
 
         // Check that the system matrix was modified (rows corresponding to boundary conditions)
         for j in 0..5 {
-            assert_eq!(matrix[(1, j)], if j == 1 { 1.0 } else { 0.0 });
-            assert_eq!(matrix[(3, j)], if j == 3 { 1.0 } else { 0.0 });
+            assert_eq!(matrix.read(1, j), if j == 1 { 1.0 } else { 0.0 });
+            assert_eq!(matrix.read(3, j), if j == 3 { 1.0 } else { 0.0 });
         }
     }
 }

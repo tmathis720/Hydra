@@ -50,7 +50,8 @@ impl NeumannBC {
                         "Area not found for face {}",
                         face_id
                     ));
-                    rhs.write(0, rhs.read(cell_index) + flux * area);
+                    let updated_value = rhs.read(cell_index) + flux * area;  // Only use row index
+                    rhs.write(cell_index, updated_value);  // Write with row index and value
                 } else {
                     panic!("Neumann BC should be applied to Face entities, got {:?}", face_entity);
                 }
@@ -71,7 +72,7 @@ mod tests {
     #[test]
     fn test_neumann_bc() {
         // Create a mock RHS vector (faer::Matrix)
-        let mut rhs = Matrix::<DenseColOwn<f64>>::zeros(5);  // Equivalent to a DVector of size 5
+        let mut rhs = Matrix::<DenseColOwn<f64>>::zeros(5);  // Single-column matrix equivalent to a DVector of size 5
 
         // Create the NeumannBC structure
         let mut neumann_bc = NeumannBC::new();
