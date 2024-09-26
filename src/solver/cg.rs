@@ -1,56 +1,28 @@
-use faer_core::Mat;
-use crate::solver::linear_operator::LinearOperator;
+use crate::solver::ksp::{KSP, SolverResult};
+use crate::solver::{Matrix, Vector};
 
-pub struct ConjugateGradient<'a, M: LinearOperator> {
-    matrix: &'a M,
+pub struct ConjugateGradient {
+    pub max_iter: usize,
+    pub tol: f64,
 }
 
-impl<'a, M: LinearOperator> ConjugateGradient<'a, M> {
-    pub fn new(matrix: &'a M) -> Self {
-        ConjugateGradient { matrix }
-    }
+impl KSP for ConjugateGradient {
+    fn solve(&mut self, a: &dyn Matrix<Scalar = f64>, b: &dyn Vector<Scalar = f64>, x: &mut dyn Vector<Scalar = f64>) -> SolverResult {
+        // Placeholder for actual Conjugate Gradient implementation
+        let mut iterations = 0;
+        let mut residual_norm = 1.0;
 
-    pub fn solve(&self, rhs: &Mat<f64>, x: &mut Mat<f64>) {
-        let n = rhs.nrows();
-        let mut r = Mat::<f64>::zeros(n, 1);
-        let mut p = Mat::<f64>::zeros(n, 1);
-        let mut ap = Mat::<f64>::zeros(n, 1);
-
-        self.matrix.matvec(x, &mut r);
-        for i in 0..n {
-            r[(i, 0)] = rhs[(i, 0)] - r[(i, 0)];
-            p[(i, 0)] = r[(i, 0)];
+        // Pseudo code structure for solving the linear system Ax = b
+        while iterations < self.max_iter && residual_norm > self.tol {
+            // Perform CG algorithm iterations here
+            iterations += 1;
         }
 
-        for _ in 0..n {
-            self.matrix.matvec(&p, &mut ap);
-
-            let alpha = dot(&r, &r) / dot(&p, &ap);
-            for i in 0..n {
-                x[(i, 0)] += alpha * p[(i, 0)];
-                r[(i, 0)] -= alpha * ap[(i, 0)];
-            }
-
-            let beta = dot(&r, &r) / alpha;
-            for i in 0..n {
-                p[(i, 0)] = r[(i, 0)] + beta * p[(i, 0)];
-            }
-
-            if norm(&r) < 1e-10 {
-                break;
-            }
+        SolverResult {
+            converged: residual_norm <= self.tol,
+            iterations,
+            residual_norm,
         }
     }
 }
 
-fn dot(a: &Mat<f64>, b: &Mat<f64>) -> f64 {
-    let mut result = 0.0;
-    for i in 0..a.nrows() {
-        result += a[(i, 0)] * b[(i, 0)];
-    }
-    result
-}
-
-fn norm(v: &Mat<f64>) -> f64 {
-    dot(v, v).sqrt()
-}

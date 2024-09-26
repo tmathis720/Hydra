@@ -1,18 +1,15 @@
 use faer_core::Mat;
+use crate::solver::preconditioner::Preconditioner;
+use crate::solver::{Matrix, Vector};
 
-pub struct LUPreconditioner {
-    lu: Mat<f64>,
+pub struct LU {
+    lu: Mat<f64>,  // LU factorization matrix
 }
 
-impl LUPreconditioner {
-    pub fn new(a: &Mat<f64>) -> Self {
-        let lu = a.clone();
-        // Perform LU decomposition on 'a'
-        // Assuming faer provides LU decomposition functionality
-        LUPreconditioner { lu }
-    }
-
-    pub fn apply(&self, r: &Mat<f64>, solution: &mut Mat<f64>) {
-        // Solve LU system using forward and backward substitution
+impl Preconditioner for LU {
+    fn apply(&self, a: &dyn Matrix<Scalar = f64>, r: &dyn Vector<Scalar = f64>, z: &mut dyn Vector<Scalar = f64>) {
+        // Implement LU preconditioning, likely using forward and backward substitution
+        // Placeholder: LU decomposition and solving r = LU * z
     }
 }
+

@@ -1,6 +1,6 @@
-use crate::domain::mesh_entity::MeshEntity;
+use crate::domain::MeshEntity;
 use rustc_hash::FxHashMap;
-use faer_core::{inner::DenseColOwn, Matrix};
+use faer_core::{Mat, MatMut};
 
 pub struct NeumannBC {
     pub fluxes: FxHashMap<MeshEntity, f64>,  // Map boundary entities to their flux values
@@ -34,12 +34,12 @@ impl NeumannBC {
 
     /// Apply the Neumann boundary condition to the RHS vector
     ///
-    /// `rhs`: The right-hand side vector (faer::Matrix)
-    /// `entity_to_index`: Mapping from MeshEntity to vector index
+    /// `rhs`: The right-hand side vector (faer::Mat)
+    /// `face_to_cell_index`: Mapping from MeshEntity to vector index
     /// `face_areas`: Map from face IDs to face areas
     pub fn apply_bc(
         &self,
-        rhs: &mut Matrix<DenseColOwn<f64>>,  // Replacing DVector<f64> with faer::Matrix<f64>
+        rhs: &mut MatMut<f64>,  // Mutable access to the RHS vector
         face_to_cell_index: &FxHashMap<MeshEntity, usize>,
         face_areas: &FxHashMap<usize, f64>,
     ) {
@@ -50,8 +50,9 @@ impl NeumannBC {
                         "Area not found for face {}",
                         face_id
                     ));
-                    let updated_value = rhs.read(cell_index) + flux * area;  // Only use row index
-                    rhs.write(cell_index, updated_value);  // Write with row index and value
+                    // Update RHS: Add the flux * area to the current value in the RHS
+                    let updated_value = rhs.read(cell_index, 0) + flux * area;  // Access the RHS
+                    rhs.write(cell_index, 0, updated_value);  // Write updated value in RHS
                 } else {
                     panic!("Neumann BC should be applied to Face entities, got {:?}", face_entity);
                 }
@@ -66,13 +67,13 @@ impl NeumannBC {
 mod tests {
     use super::*;
     use crate::domain::mesh_entity::MeshEntity;
-    use rustc_hash::FxHashMap;  // Updated to use FxHashMap instead of std::collections::HashMap
-    use faer_core::{inner::DenseColOwn, Matrix};
+    use rustc_hash::FxHashMap;
+    use faer_core::{mat, Mat, MatMut};
 
     #[test]
     fn test_neumann_bc() {
-        // Create a mock RHS vector (faer::Matrix)
-        let mut rhs = Matrix::<DenseColOwn<f64>>::zeros(5);  // Single-column matrix equivalent to a DVector of size 5
+        // Create a mock RHS vector (faer::Mat)
+        let mut rhs = Mat::<f64>::zeros(5, 1);  // Single-column matrix (equivalent to DVector)
 
         // Create the NeumannBC structure
         let mut neumann_bc = NeumannBC::new();
@@ -85,21 +86,22 @@ mod tests {
         neumann_bc.set_bc(boundary_face_1, 10.0);
         neumann_bc.set_bc(boundary_face_2, -5.0);
 
-        // Create face to cell index mapping
+        // Create face-to-cell index mapping
         let mut face_to_cell_index = FxHashMap::default();
-        face_to_cell_index.insert(boundary_face_1, 1); // Assuming Face(1) is adjacent to cell index 1
-        face_to_cell_index.insert(boundary_face_2, 3); // Assuming Face(3) is adjacent to cell index 3
+        face_to_cell_index.insert(boundary_face_1, 1);  // Face 1 maps to cell index 1
+        face_to_cell_index.insert(boundary_face_2, 3);  // Face 3 maps to cell index 3
 
         // Create face areas mapping
         let mut face_areas = FxHashMap::default();
-        face_areas.insert(1, 2.0); // Area of face 1
-        face_areas.insert(3, 1.5); // Area of face 3
+        face_areas.insert(1, 2.0);  // Area of face 1
+        face_areas.insert(3, 1.5);  // Area of face 3
 
         // Apply the boundary conditions to the RHS vector
-        neumann_bc.apply_bc(&mut rhs, &face_to_cell_index, &face_areas);
+        let mut rhs_mut = rhs.as_mut();  // Get mutable access to the RHS
+        neumann_bc.apply_bc(&mut rhs_mut, &face_to_cell_index, &face_areas);
 
         // Check that the RHS vector was modified correctly
-        assert_eq!(rhs.read(1), 10.0 * 2.0);  // 10.0 flux multiplied by area 2.0
-        assert_eq!(rhs.read(3), -5.0 * 1.5);  // -5.0 flux multiplied by area 1.5
+        assert_eq!(rhs.read(1, 0), 10.0 * 2.0);  // 10.0 flux multiplied by area 2.0
+        assert_eq!(rhs.read(3, 0), -5.0 * 1.5);  // -5.0 flux multiplied by area 1.5
     }
 }
