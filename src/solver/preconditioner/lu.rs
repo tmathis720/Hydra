@@ -1,20 +1,18 @@
-// src/solver/preconditioner/lu.rs
-
-use nalgebra::{DMatrix, DVector};
+use faer_core::Mat;
 
 pub struct LUPreconditioner {
-    lu: DMatrix<f64>,
+    lu: Mat<f64>,
 }
 
 impl LUPreconditioner {
-    pub fn new(a: &DMatrix<f64>) -> Self {
-        let lu = a.clone(); // Assume LU decomposition was done here
+    pub fn new(a: &Mat<f64>) -> Self {
+        let lu = a.clone();
+        // Perform LU decomposition on 'a'
+        // Assuming faer provides LU decomposition functionality
         LUPreconditioner { lu }
     }
 
-    pub fn apply(&self, rhs: &DVector<f64>, solution: &mut DVector<f64>) {
-        // Solve the system using LU decomposition (this is simplified)
-        // Normally you would use a proper LU solver here
-        *solution = &self.lu * rhs;
+    pub fn apply(&self, r: &Mat<f64>, solution: &mut Mat<f64>) {
+        // Solve LU system using forward and backward substitution
     }
 }

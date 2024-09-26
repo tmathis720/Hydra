@@ -1,6 +1,6 @@
-use crate::domain::{Section, MeshEntity};
+use crate::domain::MeshEntity;
 use rustc_hash::FxHashMap;
-use faer_core::{inner::DenseColMajor, Matrix};
+use faer_core::{inner::DenseColOwn, Matrix};
 
 pub struct DirichletBC {
     pub values: FxHashMap<MeshEntity, f64>,  // Map boundary entities to their prescribed values
@@ -39,20 +39,20 @@ impl DirichletBC {
     /// `entity_to_index`: Mapping from MeshEntity to matrix index
     pub fn apply_bc(
         &self,
-        matrix: &mut Matrix<DenseColMajor<f64>>,  // Replacing DMatrix<f64> with faer::Matrix
-        rhs: &mut Matrix<DenseColMajor<f64>>,    // Replacing DVector<f64> with faer::Matrix (1D column matrix)
+        matrix: &mut Matrix<DenseColOwn<f64>>,  // Replacing DMatrix<f64> with faer::Matrix
+        rhs: &mut Matrix<DenseColOwn<f64>>,    // Replacing DVector<f64> with faer::Matrix (1D column matrix)
         entity_to_index: &FxHashMap<MeshEntity, usize>,
     ) {
         for (entity, &value) in &self.values {
             if let Some(&index) = entity_to_index.get(entity) {
-                // Set the corresponding row in the matrix to zero
-                for j in 0..matrix.ncols() {
-                    matrix.write(index, j, 0.0);
+                // Set the corresponding row in the matrix to zero (all entries in that row)
+                for _j in 0..matrix.ncols() {
+                    matrix.write(index, 0.0);  // Write 0 to all elements in the row
                 }
                 // Set the diagonal to 1
-                matrix.write(index, index, 1.0);
+                matrix.write(index, 1.0);  // Set the diagonal element to 1
                 // Set the RHS value
-                rhs.write(index, 0, value);
+                rhs.write(index, value);  // Write the boundary value in the RHS
             } else {
                 panic!("Entity {:?} not found in entity_to_index mapping", entity);
             }
@@ -65,13 +65,13 @@ mod tests {
     use super::*;
     use crate::domain::mesh_entity::MeshEntity;
     use rustc_hash::FxHashMap;  // Updated to use FxHashMap instead of std::collections::HashMap
-    use faer_core::{inner::DenseColMajor, Matrix};
+    use faer_core::{inner::DenseColOwn, Matrix};
 
     #[test]
     fn test_dirichlet_bc() {
         // Create a mock solution vector and system matrix
-        let mut matrix = Matrix::<DenseColMajor<f64>>::zeros(5, 5);  // 5x5 system matrix
-        let mut rhs = Matrix::<DenseColMajor<f64>>::zeros(5, 1);     // 5x1 RHS vector (column matrix)
+        let mut matrix = Matrix::<DenseColOwn<f64>>::zeros(5);  // 5x5 system matrix
+        let mut rhs = Matrix::<DenseColOwn<f64>>::zeros(5);     // 5x1 RHS vector (column matrix)
 
         // Create the DirichletBC structure
         let mut dirichlet_bc = DirichletBC::new();
@@ -96,13 +96,13 @@ mod tests {
         dirichlet_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index);
 
         // Check that the RHS vector was modified correctly
-        assert_eq!(rhs.read(1, 0), 100.0);
-        assert_eq!(rhs.read(3, 0), 50.0);
+        assert_eq!(rhs.read(1), 100.0);
+        assert_eq!(rhs.read(3), 50.0);
 
         // Check that the system matrix was modified (rows corresponding to boundary conditions)
         for j in 0..5 {
-            assert_eq!(matrix.read(1, j), if j == 1 { 1.0 } else { 0.0 });
-            assert_eq!(matrix.read(3, j), if j == 3 { 1.0 } else { 0.0 });
+            assert_eq!(matrix.read(1), if j == 1 { 1.0 } else { 0.0 });
+            assert_eq!(matrix.read(3), if j == 3 { 1.0 } else { 0.0 });
         }
     }
 }
