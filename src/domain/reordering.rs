@@ -1,10 +1,11 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::VecDeque;
+use rustc_hash::{FxHashMap, FxHashSet};
 use crate::domain::mesh_entity::MeshEntity;
 
 /// Reorders mesh entities using the Cuthill-McKee algorithm.
 /// This improves memory locality and is useful for solver optimization.
-pub fn cuthill_mckee(entities: &[MeshEntity], adjacency: &HashMap<MeshEntity, Vec<MeshEntity>>) -> Vec<MeshEntity> {
-    let mut visited: HashSet<MeshEntity> = HashSet::new();
+pub fn cuthill_mckee(entities: &[MeshEntity], adjacency: &FxHashMap<MeshEntity, Vec<MeshEntity>>) -> Vec<MeshEntity> {
+    let mut visited: FxHashSet<MeshEntity> = FxHashSet::default();
     let mut queue: VecDeque<MeshEntity> = VecDeque::new();
     let mut ordered: Vec<MeshEntity> = Vec::new();
 

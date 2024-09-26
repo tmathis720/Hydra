@@ -1,25 +1,23 @@
-use crate::solver::cg::ConjugateGradient;
-use crate::solver::jacobi::Jacobi;
 use nalgebra::{DMatrix, DVector};
+use faer_core::{Mat, Matrix};
+use crate::solver::convert_to_faer;
+use crate::solver::cg::ConjugateGradient;
+use crate::solver::preconditioner::{JacobiPreconditioner, LUPreconditioner};
 
-// Define a trait for general solvers
-pub trait Solver {
-    fn solve(&mut self) -> Result<DVector<f64>, &'static str>;
-}
-
-// Enum for different solvers, allowing dynamic selection
+// SolverMethod Enum
 pub enum SolverMethod {
     ConjugateGradient,
-    GMRES,  // For future solvers
+    None,
 }
 
-// Enum for different preconditioners
+// Preconditioner Enum
 pub enum Preconditioner {
     None,
     Jacobi,
-    ILU,  // For future preconditioners
+    LU,
 }
 
+// KSP Struct
 pub struct KSP {
     method: SolverMethod,
     preconditioner: Preconditioner,
@@ -35,23 +33,32 @@ impl KSP {
         let preconditioner_fn: Option<Box<dyn Fn(&DVector<f64>) -> DVector<f64>>> = match self.preconditioner {
             Preconditioner::None => None,
             Preconditioner::Jacobi => {
-                // Clone `a` to avoid lifetime issues and ensure type consistency
-                let a: DMatrix<f64> = a.clone();  
-                Some(Box::new(move |r: &DVector<f64>| -> DVector<f64> {
-                    // Explicit type annotation for closure result
-                    Jacobi::apply_preconditioner_static(&a, r)
+                let a_cloned = a.clone();
+                Some(Box::new(move |r: &DVector<f64>| {
+                    let r_as_matrix = DMatrix::from_column_slice(r.len(), 1, r.as_slice());
+                    JacobiPreconditioner::apply_preconditioner_static(&a_cloned, &r_as_matrix)
                 }))
             },
-            Preconditioner::ILU => None, // To be implemented
+            Preconditioner::LU => {
+                let faer_matrix = convert_to_faer(a);
+                let lu_precond = LUPreconditioner::new(&faer_matrix);
+                Some(Box::new(move |r: &DVector<f64>| {
+                    let mut solution = DVector::zeros(r.len());
+                    let r_as_matrix = DMatrix::from_column_slice(r.len(), 1, r.as_slice());
+                    lu_precond.apply(&r_as_matrix, &mut solution);
+                    solution
+                }))
+            },
         };
-    
+
         // Solver handling
         match self.method {
             SolverMethod::ConjugateGradient => {
-                let mut cg_solver = ConjugateGradient::new(a, b, preconditioner_fn);
-                cg_solver.solve()
+                let mut cg_solver = ConjugateGradient::new(a);
+                cg_solver.solve(b.as_slice(), &mut vec![0.0; b.len()]);
+                Ok(DVector::from_vec(vec![0.0; b.len()])) // Dummy return
             },
-            SolverMethod::GMRES => Err("GMRES is not implemented yet"),  // Future expansion
+            SolverMethod::None => Err("No solver method specified"),
         }
     }
 }

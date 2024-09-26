@@ -1,12 +1,12 @@
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use crate::domain::mesh_entity::MeshEntity;
 use crate::domain::sieve::Sieve;
 use crate::geometry::{Geometry, CellShape, FaceShape};  // Import geometry module
 
 pub struct Mesh {
     pub sieve: Sieve,                         // Sieve to handle hierarchical relationships
-    pub entities: HashSet<MeshEntity>,        // Set of all entities in the mesh
-    pub vertex_coordinates: HashMap<usize, [f64; 3]>, // Mapping from vertex IDs to coordinates
+    pub entities: FxHashSet<MeshEntity>,        // Set of all entities in the mesh
+    pub vertex_coordinates: FxHashMap<usize, [f64; 3]>, // Mapping from vertex IDs to coordinates
 }
 
 impl Mesh {
@@ -14,8 +14,8 @@ impl Mesh {
     pub fn new() -> Self {
         Mesh {
             sieve: Sieve::new(),
-            entities: HashSet::new(),
-            vertex_coordinates: HashMap::new(),
+            entities: FxHashSet::default(),
+            vertex_coordinates: FxHashMap::default(),
         }
     }
 
@@ -57,12 +57,12 @@ impl Mesh {
     }
 
     // Get faces of a cell
-    pub fn get_faces_of_cell(&self, cell: &MeshEntity) -> Option<&HashSet<MeshEntity>> {
+    pub fn get_faces_of_cell(&self, cell: &MeshEntity) -> Option<&FxHashSet<MeshEntity>> {
         self.sieve.cone(cell)
     }
 
     // Get cells sharing a face
-    pub fn get_cells_sharing_face(&self, face: &MeshEntity) -> HashSet<MeshEntity> {
+    pub fn get_cells_sharing_face(&self, face: &MeshEntity) -> FxHashSet<MeshEntity> {
         self.sieve.support(face)
     }
 

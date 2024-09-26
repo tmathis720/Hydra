@@ -1,6 +1,6 @@
 [package]
 name = "hydra"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [lib]
@@ -8,9 +8,11 @@ name = "hydra"
 path = "src/lib.rs"
 
 [dependencies]
-nalgebra = "0.31"
-rayon = "1.10"
-uom = "0.30"
+rustc-hash = "2.0.0"
+rayon = "1.5"
+faer = "0.17"
+faer-lu = "0.17"
+faer-core = "0.17"
 
 [dev-dependencies]
 criterion = "0.4"

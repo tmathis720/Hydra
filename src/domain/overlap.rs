@@ -1,18 +1,18 @@
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use crate::domain::mesh_entity::MeshEntity;
 
 /// Overlap structure to handle relationships between local and ghost entities
 pub struct Overlap {
-    pub local_entities: HashSet<MeshEntity>,  // Local mesh entities
-    pub ghost_entities: HashSet<MeshEntity>,  // Entities shared with other processes
+    pub local_entities: FxHashSet<MeshEntity>,  // Local mesh entities
+    pub ghost_entities: FxHashSet<MeshEntity>,  // Entities shared with other processes
 }
 
 impl Overlap {
     /// Creates a new, empty Overlap
     pub fn new() -> Self {
         Overlap {
-            local_entities: HashSet::new(),
-            ghost_entities: HashSet::new(),
+            local_entities: FxHashSet::default(),
+            ghost_entities: FxHashSet::default(),
         }
     }
 
@@ -37,12 +37,12 @@ impl Overlap {
     }
 
     /// Get all local entities
-    pub fn local_entities(&self) -> &HashSet<MeshEntity> {
+    pub fn local_entities(&self) -> &FxHashSet<MeshEntity> {
         &self.local_entities
     }
 
     /// Get all ghost entities
-    pub fn ghost_entities(&self) -> &HashSet<MeshEntity> {
+    pub fn ghost_entities(&self) -> &FxHashSet<MeshEntity> {
         &self.ghost_entities
     }
 
@@ -55,14 +55,14 @@ impl Overlap {
 
 /// Delta structure to manage transformation and data consistency across overlaps
 pub struct Delta<T> {
-    pub data: HashMap<MeshEntity, T>,  // Transformation data over overlapping regions
+    pub data: FxHashMap<MeshEntity, T>,  // Transformation data over overlapping regions
 }
 
 impl<T> Delta<T> {
     /// Creates a new, empty Delta
     pub fn new() -> Self {
         Delta {
-            data: HashMap::new(),
+            data: FxHashMap::default(),
         }
     }
 

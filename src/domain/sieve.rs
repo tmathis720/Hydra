@@ -1,35 +1,35 @@
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use crate::domain::mesh_entity::MeshEntity;  // Assuming MeshEntity is defined in mesh_entity.rs
 
 pub struct Sieve {
-    pub adjacency: HashMap<MeshEntity, HashSet<MeshEntity>>, // Incidence relations (arrows)
+    pub adjacency: FxHashMap<MeshEntity, FxHashSet<MeshEntity>>, // Incidence relations (arrows)
 }
 
 impl Sieve {
     // Constructor to initialize an empty Sieve
     pub fn new() -> Self {
         Sieve {
-            adjacency: HashMap::new(),
+            adjacency: FxHashMap::default(),
         }
     }
 
     // Adds an incidence (arrow) from one entity to another
     pub fn add_arrow(&mut self, from: MeshEntity, to: MeshEntity) {
         // Add the direct incidence relation
-        self.adjacency.entry(from.clone()).or_insert_with(HashSet::new).insert(to.clone());
+        self.adjacency.entry(from.clone()).or_insert_with(|| FxHashSet::default()).insert(to.clone());
         
         // Also add the reverse relation to indicate that `to` is supported by `from`
-        self.adjacency.entry(to).or_insert_with(HashSet::new).insert(from);
+        self.adjacency.entry(to).or_insert_with(|| FxHashSet::default()).insert(from);
     }
 
     // Cone operation: Find points covering a given point
-    pub fn cone(&self, point: &MeshEntity) -> Option<&HashSet<MeshEntity>> {
+    pub fn cone(&self, point: &MeshEntity) -> Option<&FxHashSet<MeshEntity>> {
         self.adjacency.get(point)
     }
 
     // Closure operation: Transitive closure of cone
-    pub fn closure(&self, point: &MeshEntity) -> HashSet<MeshEntity> {
-        let mut result = HashSet::new();
+    pub fn closure(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
+        let mut result = FxHashSet::default();
         let mut stack = vec![point.clone()];
         while let Some(p) = stack.pop() {
             if let Some(cones) = self.cone(&p) {
@@ -44,8 +44,8 @@ impl Sieve {
     }
 
     // Support operation: Find all points supported by a given point
-    pub fn support(&self, point: &MeshEntity) -> HashSet<MeshEntity> {
-        let mut result = HashSet::new();
+    pub fn support(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
+        let mut result = FxHashSet::default();
         for (from, to_set) in &self.adjacency {
             if to_set.contains(point) {
                 result.insert(from.clone());
@@ -55,8 +55,8 @@ impl Sieve {
     }
 
     // Star operation: Transitive closure of support
-    pub fn star(&self, point: &MeshEntity) -> HashSet<MeshEntity> {
-        let mut result = HashSet::new();
+    pub fn star(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
+        let mut result = FxHashSet::default();
         let mut stack = vec![point.clone()];  // Start with the point itself
 
         while let Some(p) = stack.pop() {
@@ -78,20 +78,20 @@ impl Sieve {
     }
 
     // Meet operation: Minimal separator of closure(p) and closure(q)
-    pub fn meet(&self, p: &MeshEntity, q: &MeshEntity) -> HashSet<MeshEntity> {
+    pub fn meet(&self, p: &MeshEntity, q: &MeshEntity) -> FxHashSet<MeshEntity> {
         let closure_p = self.closure(p);
         let closure_q = self.closure(q);
         closure_p.intersection(&closure_q).cloned().collect()
     }
 
     // Join operation: Minimal separator of star(p) and star(q)
-    pub fn join(&self, p: &MeshEntity, q: &MeshEntity) -> HashSet<MeshEntity> {
+    pub fn join(&self, p: &MeshEntity, q: &MeshEntity) -> FxHashSet<MeshEntity> {
 
         let star_p = self.star(p);  // Get all entities related to p
         let star_q = self.star(q);  // Get all entities related to q
 
         // Return the union of both stars (the minimal separator)
-        let join_result: HashSet<MeshEntity> = star_p.union(&star_q).cloned().collect();
+        let join_result: FxHashSet<MeshEntity> = star_p.union(&star_q).cloned().collect();
         join_result
     }
 }

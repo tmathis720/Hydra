@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use crate::domain::mesh_entity::MeshEntity;  // Assuming MeshEntity is defined in mesh_entity.rs
 
 /// Section structure for associating data with mesh entities
 pub struct Section<T> {
     pub data: Vec<T>,  // Contiguous storage for associated data
-    pub offsets: HashMap<MeshEntity, usize>,  // Map points to offsets in the data
+    pub offsets: FxHashMap<MeshEntity, usize>,  // Map points to offsets in the data
 }
 
 impl<T> Section<T> {
@@ -12,7 +12,7 @@ impl<T> Section<T> {
     pub fn new() -> Self {
         Section {
             data: Vec::new(),
-            offsets: HashMap::new(),
+            offsets: FxHashMap::default(),
         }
     }
 
