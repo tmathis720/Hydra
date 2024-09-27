@@ -28,7 +28,7 @@ impl Preconditioner for Jacobi {
 #[cfg(test)]
 mod tests {
     use super::*;  // Import the Jacobi preconditioner from the parent module
-    use faer_core::{mat, Mat, MatMut};
+    use faer::{mat, Mat, MatMut};
 
     #[test]
     fn test_jacobi_preconditioner_simple() {

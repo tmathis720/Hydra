@@ -1,6 +1,6 @@
 use crate::domain::MeshEntity;
 use rustc_hash::FxHashMap;
-use faer_core::{Mat, MatMut};
+use faer::{Mat, MatMut};
 
 pub struct DirichletBC {
     pub values: FxHashMap<MeshEntity, f64>,  // Map boundary entities to their prescribed values
@@ -65,7 +65,7 @@ mod tests {
     use super::*;
     use crate::domain::mesh_entity::MeshEntity;
     use rustc_hash::FxHashMap;
-    use faer_core::{mat, Mat, MatMut};
+    use faer::{mat, Mat, MatMut};
 
     #[test]
     fn test_dirichlet_bc() {

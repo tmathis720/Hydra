@@ -1,4 +1,4 @@
-use faer_core::{Mat, MatMut};
+use faer::{Mat, MatMut};
 use crate::solver::cg::ConjugateGradient;
 use crate::solver::preconditioner::{Jacobi, LU};
 use crate::solver::{Matrix, Vector};
