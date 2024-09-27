@@ -1,20 +1,17 @@
+use crate::time_stepping::ts::TimeStepper;
+use crate::time_stepping::ts::TimeDependentProblem;
+use crate::time_stepping::ts::ProblemError;
+
 pub struct ForwardEuler;
 
-impl TimeStepper for ForwardEuler {
-    type State = Vec<f64>; // or a custom state type
-    type Time = f64;
-
-    fn step(
-        &mut self,
-        problem: &dyn TimeDependentProblem<State = Self::State, Time = Self::Time>,
-        current_time: Self::Time,
-        dt: Self::Time,
-        state: &mut Self::State,
-    ) -> Result<(), TimeSteppingError> {
-        let mut derivative = state.clone();
-        problem.compute_rhs(current_time, state, &mut derivative)?;
+impl<P: TimeDependentProblem> TimeStepper<P> for ForwardEuler {
+    fn step(&mut self, problem: &P, time: P::Time, dt: P::Time, state: &mut P::State) -> Result<(), ProblemError> {
+        let mut rhs = state.clone(); // Create a copy of the state to store the result
+        problem.compute_rhs(time, state, &mut rhs)?;
+        
+        // Update state: u_new = u_old + dt * f(t, u)
         for i in 0..state.len() {
-            state[i] += dt * derivative[i];
+            state[i] += dt * rhs[i];
         }
         Ok(())
     }
