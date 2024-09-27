@@ -1,4 +1,4 @@
-use faer::{linalg::solvers::PartialPivLu, mat::Mat, Parallelism};
+use faer::{linalg::solvers::PartialPivLu, mat::Mat, mat::MatMut, Parallelism};
 use faer::linalg::solvers::SpSolver;  // Import the trait for solve_in_place
 use crate::solver::{Matrix, Vector};
 use crate::solver::preconditioner::Preconditioner;
@@ -9,21 +9,36 @@ pub struct LU {
 
 impl LU {
     pub fn new(matrix: &Mat<f64>) -> Self {
+        // Print the matrix being decomposed
+        println!("Decomposing matrix:\n{:?}", matrix);
+
         let lu_decomp = PartialPivLu::new(matrix.as_ref());  // Create LU decomposition
+        
+        // Print the internal structure of the LU decomposition
+        println!("LU decomposition details:\n{:?}", lu_decomp);
+
         LU { lu_decomp }
     }
 
     fn apply(&self, rhs: &[f64], solution: &mut [f64]) {
-        let rhs_matrix = Mat::from_fn(rhs.len(), 1, |i, _| rhs[i]);  // Create matrix from rhs
-        let mut sol_matrix = Mat::zeros(rhs.len(), 1);  // Initialize empty solution matrix
-        
+        let mut sol_matrix = Mat::from_fn(rhs.len(), 1, |i, _| rhs[i]);  // Initialize sol_matrix with RHS
+    
+        // Print the RHS matrix before solving
+        println!("RHS matrix before solving:\n{:?}", sol_matrix);
+    
         // Perform the solve using the LU decomposition
-        self.lu_decomp.solve_in_place(sol_matrix.as_mut());  // Use solve_in_place method
-
+        self.lu_decomp.solve_in_place(sol_matrix.as_mut());
+    
+        // Print the solution matrix after solving
+        println!("Solution matrix after solving:\n{:?}", sol_matrix);
+    
         // Copy the solution back to the output
         for i in 0..solution.len() {
-            solution[i] = sol_matrix.read(i, 0);
+            solution[i] = sol_matrix[(i, 0)];
         }
+    
+        // Print the final solution vector
+        println!("Final solution vector: {:?}", solution);
     }
 }
 
@@ -36,6 +51,8 @@ impl Preconditioner for LU {
         for i in 0..z.len() {
             z.set(i, intermediate[i]);
         }
+
+        println!("Preconditioner applied: z = {:?}", z.as_slice());
     }
 }
 
@@ -46,11 +63,11 @@ mod tests {
 
     #[test]
     fn test_lu_preconditioner_simple() {
-        // A simple 3x3 LU-factored matrix
-        let lu = mat![
-            [2.0, 3.0, 1.0],  // U
-            [0.5, 0.5, 0.5],  // L and U
-            [0.5, 1.0, 0.5]   // L and U
+        // Original matrix A
+        let a = mat![
+            [2.0, 3.0, 1.0],
+            [0.5, 0.5, 0.5],
+            [0.5, 1.0, 0.5]
         ];
 
         let r = mat![
@@ -59,17 +76,21 @@ mod tests {
             [1.0]
         ];
 
-        // Expected solution z = [1.0, 1.0, -1.0]
+        // Correct expected solution z = [10.0, -7.0, 6.0]
         let expected_z = mat![
-            [1.0],
-            [1.0],
-            [-1.0]
+            [10.0],
+            [-7.0],
+            [6.0]
         ];
 
         let mut z = Mat::<f64>::zeros(3, 1);  // Initialize result vector
 
+        // Print initial values
+        println!("Testing LU preconditioner with matrix:\n{:?}", a);
+        println!("RHS vector:\n{:?}", r);
+
         // Create LU preconditioner and apply it
-        let lu_preconditioner = LU::new(&lu);
+        let lu_preconditioner = LU::new(&a);
         let r_values: Vec<f64> = (0..r.nrows()).map(|i| r.read(i, 0)).collect();  // Convert r into a Vec
         let mut z_values = vec![0.0; z.nrows()];  // Create a mutable Vec for z
 
@@ -80,8 +101,18 @@ mod tests {
             z.write(i, 0, val);
         }
 
+        // Print the computed solution
+        println!("Computed solution z = {:?}", z);
+
         // Verify the result
         for i in 0..z.nrows() {
+            println!(
+                "Comparing expected z[{}]: {:?} with computed z[{}]: {:?}",
+                i,
+                expected_z.read(i, 0),
+                i,
+                z.read(i, 0)
+            );
             assert!((z.read(i, 0) - expected_z.read(i, 0)).abs() < 1e-6);
         }
     }
@@ -104,6 +135,10 @@ mod tests {
 
         let mut z = Mat::<f64>::zeros(3, 1);  // Initialize result vector
 
+        // Print initial values
+        println!("Testing LU preconditioner with identity matrix:\n{:?}", lu);
+        println!("RHS vector:\n{:?}", r);
+
         let lu_preconditioner = LU::new(&lu);
         let r_values: Vec<f64> = (0..r.nrows()).map(|i| r.read(i, 0)).collect();  // Convert r into a Vec
         let mut z_values = vec![0.0; z.nrows()];  // Create a mutable Vec for z
@@ -115,8 +150,18 @@ mod tests {
             z.write(i, 0, val);
         }
 
+        // Print the computed solution
+        println!("Computed solution z = {:?}", z);
+
         // Verify the result
         for i in 0..z.nrows() {
+            println!(
+                "Comparing expected z[{}]: {:?} with computed z[{}]: {:?}",
+                i,
+                expected_z.read(i, 0),
+                i,
+                z.read(i, 0)
+            );
             assert!((z.read(i, 0) - expected_z.read(i, 0)).abs() < 1e-6);
         }
     }

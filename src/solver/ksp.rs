@@ -3,6 +3,7 @@ use crate::solver::cg::ConjugateGradient;
 use crate::solver::preconditioner::{Jacobi, LU};
 use crate::solver::{Matrix, Vector};
 
+#[derive(Debug)]
 pub struct SolverResult {
     pub converged: bool,
     pub iterations: usize,

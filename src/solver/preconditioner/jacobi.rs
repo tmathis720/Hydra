@@ -4,6 +4,7 @@ use crate::solver::{Matrix, Vector};
 use crate::solver::preconditioner::Preconditioner;
 
 // Example of a Jacobi preconditioner using Arc<Mutex<T>> for safe parallelism
+#[derive(Default)]
 pub struct Jacobi;
 
 impl Preconditioner for Jacobi {

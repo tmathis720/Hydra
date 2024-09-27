@@ -84,3 +84,23 @@ impl Vector for Mat<f64> {
             .expect("Column is not contiguous")  // Handle the potential `None` case
     }
 }
+
+impl Vector for Vec<f64> {
+    type Scalar = f64;
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn get(&self, i: usize) -> f64 {
+        self[i]
+    }
+
+    fn set(&mut self, i: usize, value: f64) {
+        self[i] = value;
+    }
+
+    fn as_slice(&self) -> &[f64] {
+        &self
+    }
+}
