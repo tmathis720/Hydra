@@ -17,7 +17,7 @@ impl ForwardEuler {
     }
 }
 
-impl<P> TimeStepper for ForwardEuler
+impl<P> TimeStepper<P> for ForwardEuler
 where
     P: TimeDependentProblem<State = Vec<f64>, Time = f64>, // Assuming the state is a vector of f64
 {

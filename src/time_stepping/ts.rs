@@ -1,4 +1,5 @@
 
+use crate::Section;
 // TimeStepper trait defining a common interface for time-stepping methods
 pub trait TimeStepper<P: TimeDependentProblem> {
     /// Advance the solution by one time step.
@@ -165,17 +166,6 @@ pub trait TimeDependentProblem {
     /// - `position`: The spatial position where the coefficient is evaluated.
     /// - Returns: The coefficient value at the given position.
     fn coefficient(&self, position: &[f64]) -> f64;
-}
-
-// Example implementation of a PDE problem using the TimeDependentProblem trait
-pub struct PDEProblem<State, Time> {
-    pub mesh: Mesh,
-    pub coefficient_section: Section<CoefficientFn>,
-    pub boundary_condition_section: Section<BoundaryConditionFn>,
-    pub initial_condition_fn: InitialConditionFn<State>,
-    pub boundary_condition_fn: BoundaryConditionFn<State, Time>,
-    pub source_term_fn: SourceTermFn<State, Time>,
-    pub coefficient_fn: CoefficientFn,
 }
 
 impl<State, Time> TimeDependentProblem for PDEProblem<State, Time> {
