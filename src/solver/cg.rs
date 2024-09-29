@@ -163,7 +163,6 @@ mod tests {
     use super::*;
     use crate::solver::ksp::KSP;
     use crate::solver::preconditioner::Jacobi;
-    use crate::linalg::{Matrix, Vector};
     use faer::mat;
     use faer::Mat;
 

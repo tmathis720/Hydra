@@ -155,7 +155,7 @@ mod tests {
 
         // Initialize vector y using Vec<f64>
         let mut y = vec![0.0; mat_ref.nrows()];
-        let mut y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
+        let y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
 
         // Perform y = A * x
         mat_ref.mat_vec(x_ref, y_ref);
@@ -195,7 +195,7 @@ mod tests {
 
         // Initialize vector y using faer::Mat<f64> as a column vector
         let mut y = create_faer_vector(vec![0.0; mat_ref.nrows()]);
-        let mut y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
+        let y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
 
         // Perform y = A * x
         mat_ref.mat_vec(x_ref, y_ref);
@@ -231,7 +231,7 @@ mod tests {
 
         // Initialize vector y using Vec<f64>
         let mut y = vec![0.0; mat_ref.nrows()];
-        let mut y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
+        let y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
 
         // Perform y = A * x
         mat_ref.mat_vec(x_ref, y_ref);
@@ -266,7 +266,7 @@ mod tests {
 
         // Initialize vector y using faer::Mat<f64> as a column vector
         let mut y = create_faer_vector(vec![0.0; mat_ref.nrows()]);
-        let mut y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
+        let y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
 
         // Perform y = A * x
         mat_ref.mat_vec(x_ref, y_ref);
@@ -301,7 +301,7 @@ mod tests {
 
         // Initialize vector y (size 2) using Vec<f64>
         let mut y = vec![0.0; mat_ref.nrows()];
-        let mut y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
+        let y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
 
         // Perform y = A * x
         mat_ref.mat_vec(x_ref, y_ref);
@@ -336,7 +336,7 @@ mod tests {
 
         // Initialize vector y (size 2) using faer::Mat<f64> as a column vector
         let mut y = create_faer_vector(vec![0.0; mat_ref.nrows()]);
-        let mut y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
+        let y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
 
         // Perform y = A * x
         mat_ref.mat_vec(x_ref, y_ref);
@@ -405,7 +405,7 @@ mod tests {
 
                     // Initialize vector y using Vec<f64>
                     let mut y = vec![0.0; mat_clone.nrows()];
-                    let mut y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
+                    let y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
 
                     // Perform y = A * x
                     mat_clone.mat_vec(x_ref, y_ref);
