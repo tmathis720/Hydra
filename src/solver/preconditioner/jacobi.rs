@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
-use crate::solver::{Matrix, Vector};
+use crate::linalg::{Matrix, Vector};
 use crate::solver::preconditioner::Preconditioner;
 
 // Example of a Jacobi preconditioner using Arc<Mutex<T>> for safe parallelism

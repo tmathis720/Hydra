@@ -9,7 +9,7 @@ pub use ksp::KSP;
 pub use cg::ConjugateGradient;
 
 
-// Trait defining essential matrix operations (abstract over dense, sparse)
+/* // Trait defining essential matrix operations (abstract over dense, sparse)
 // Define that any type implementing Matrix must be Send and Sync
 pub trait Matrix: Send + Sync {
     type Scalar: Copy + Send + Sync;
@@ -104,3 +104,4 @@ impl Vector for Vec<f64> {
         &self
     }
 }
+ */

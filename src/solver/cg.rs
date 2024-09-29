@@ -1,6 +1,6 @@
 use crate::solver::ksp::{KSP, SolverResult};
 use crate::solver::preconditioner::Preconditioner;
-use crate::solver::{Matrix, Vector};
+use crate::linalg::{Matrix, Vector};
 
 pub struct ConjugateGradient {
     pub max_iter: usize,
@@ -163,7 +163,7 @@ mod tests {
     use super::*;
     use crate::solver::ksp::KSP;
     use crate::solver::preconditioner::Jacobi;
-    use crate::solver::{Matrix, Vector};
+    use crate::linalg::{Matrix, Vector};
     use faer::mat;
     use faer::Mat;
 

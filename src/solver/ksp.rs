@@ -1,7 +1,7 @@
 use faer::{Mat, MatMut};
 use crate::solver::cg::ConjugateGradient;
 use crate::solver::preconditioner::{Jacobi, LU};
-use crate::solver::{Matrix, Vector};
+use crate::linalg::{Matrix, Vector};
 
 #[derive(Debug)]
 pub struct SolverResult {

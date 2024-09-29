@@ -4,7 +4,7 @@ pub mod lu;
 pub use jacobi::Jacobi;
 pub use lu::LU;
 
-use crate::solver::{Matrix, Vector};
+use crate::linalg::{Matrix, Vector};
 
 // Preconditioner trait
 pub trait Preconditioner {

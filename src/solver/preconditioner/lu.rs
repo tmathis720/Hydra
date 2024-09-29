@@ -1,6 +1,6 @@
 use faer::{linalg::solvers::PartialPivLu, mat::Mat, mat::MatMut, Parallelism};
 use faer::linalg::solvers::SpSolver;  // Import the trait for solve_in_place
-use crate::solver::{Matrix, Vector};
+use crate::linalg::{Matrix, Vector};
 use crate::solver::preconditioner::Preconditioner;
 
 pub struct LU {
