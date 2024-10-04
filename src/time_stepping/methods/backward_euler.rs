@@ -11,12 +11,12 @@ impl<P: TimeDependentProblem> TimeStepper<P> for BackwardEuler {
         dt: P::Time,
         state: &mut P::State,
     ) -> Result<(), TimeSteppingError> {
-        // Placeholder linear solver setup for implicit method
-        let mut matrix = problem.get_matrix().ok_or(TimeSteppingError::MatrixUnavailable)?;
+        // Use Box to store the dynamically sized Matrix on the heap
+        let mut matrix = problem.get_matrix();  // No need for Box::new here
         let mut rhs = problem.initial_state();
 
         problem.compute_rhs(time, state, &mut rhs)?;
-        problem.solve_linear_system(&mut matrix, state, &rhs)?;
+        problem.solve_linear_system(&mut *matrix, state, &rhs)?;
 
         Ok(())
     }

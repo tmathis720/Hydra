@@ -1,7 +1,6 @@
 use crate::linalg::Matrix;
-use crate::time_stepping::TimeStepper;
-use crate::time_stepping::TimeSteppingError;
-use crate::time_stepping::TimeDependentProblem;
+use crate::linalg::Vector;
+use crate::time_stepping::{TimeStepper, TimeSteppingError, TimeDependentProblem};
 
 pub struct ForwardEuler;
 
@@ -13,10 +12,15 @@ impl<P: TimeDependentProblem> TimeStepper<P> for ForwardEuler {
         dt: P::Time,
         state: &mut P::State,
     ) -> Result<(), TimeSteppingError> {
-        let mut rhs = problem.initial_condition();
+        let mut rhs = problem.initial_state();
 
         problem.compute_rhs(time, state, &mut rhs)?;
-        problem.axpy(dt, &rhs, state)?;
+
+        // Convert dt (time) to the scalar type used by the vector.
+        let scalar_dt = problem.time_to_scalar(dt);
+
+        // Now call axpy with the scalar converted from dt.
+        state.axpy(scalar_dt, &rhs);
 
         Ok(())
     }
@@ -28,4 +32,15 @@ impl<P: TimeDependentProblem> TimeStepper<P> for ForwardEuler {
     fn set_time_step(&mut self, _dt: P::Time) {
         // Implement setting time step if needed
     }
+
+    fn adaptive_step(
+        &mut self,
+        problem: &P,
+        time: P::Time,
+        state: &mut P::State,
+    ) -> Result<(), TimeSteppingError> {
+        // Adaptive step logic implementation
+        Ok(())
+    }
 }
+

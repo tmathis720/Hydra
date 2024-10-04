@@ -1,6 +1,7 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 use crate::domain::mesh_entity::MeshEntity;  // Assuming MeshEntity is defined in mesh_entity.rs
 
+#[derive(Clone)]
 pub struct Sieve {
     pub adjacency: FxHashMap<MeshEntity, FxHashSet<MeshEntity>>, // Incidence relations (arrows)
 }

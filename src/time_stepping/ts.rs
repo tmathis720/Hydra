@@ -19,10 +19,11 @@ pub struct TimeSteppingError;
 /// and solver for implicit time-stepping schemes.
 ///
 /// # Associated Types:
-/// - `State`: The type representing the state of the system (e.g., a vector of values).
+/// - `State`: The type representing the state of the system, which must implement `Vector`.
 /// - `Time`: The type representing time (typically `f64` for real-valued time).
 pub trait TimeDependentProblem {
-    type State;
+    // Ensure that `State` implements `Vector`.
+    type State: Vector;  // `State` must implement the `Vector` trait.
     type Time;
 
     /// Computes the right-hand side (RHS) of the system at a given time.
@@ -42,6 +43,11 @@ pub trait TimeDependentProblem {
     /// - `State`: The initial state of the system.
     fn initial_state(&self) -> Self::State;
 
+    /// Converts time to the scalar type of the vector.
+    ///
+    /// This allows for using time values in vector operations like axpy.
+    fn time_to_scalar(&self, time: Self::Time) -> <Self::State as Vector>::Scalar;
+
     /// Returns a matrix representation of the system if applicable.
     ///
     /// This function is used in implicit time-stepping methods to retrieve the matrix
@@ -49,7 +55,7 @@ pub trait TimeDependentProblem {
     ///
     /// # Returns
     /// - `Option<dyn Matrix<Scalar = f64>>`: Some matrix if available, or None if not applicable.
-    fn get_matrix(&self) -> Option<dyn Matrix<Scalar = f64>>;
+    fn get_matrix(&self) -> Box<dyn Matrix<Scalar = f64>>;
 
     /// Solves the linear system `A * x = b` for implicit time-stepping methods.
     ///

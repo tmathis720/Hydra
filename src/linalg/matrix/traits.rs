@@ -20,4 +20,10 @@ pub trait Matrix: Send + Sync {
     /// Computes the Frobenius norm of the matrix.
     /// The Frobenius norm is defined as the square root of the sum of the absolute squares of its elements.
     fn frobenius_norm(&self) -> Self::Scalar;
+
+    /// Converts the matrix to a slice of its underlying data in row-major order.
+    ///
+    /// # Returns
+    /// A slice containing the matrix elements in row-major order.
+    fn as_slice(&self) -> Box<[Self::Scalar]>;
 }

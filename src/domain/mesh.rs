@@ -3,6 +3,7 @@ use crate::domain::mesh_entity::MeshEntity;
 use crate::domain::sieve::Sieve;
 use crate::geometry::{Geometry, CellShape, FaceShape};  // Import geometry module
 
+#[derive(Clone)]
 pub struct Mesh {
     pub sieve: Sieve,                         // Sieve to handle hierarchical relationships
     pub entities: FxHashSet<MeshEntity>,        // Set of all entities in the mesh

@@ -7,6 +7,7 @@ mod tests {
     use super::*;
     use faer::Mat;
     use std::sync::Arc;
+    use crate::linalg::matrix::mat_impl;
 
     /// Helper function to create a faer::Mat<f64> from a 2D Vec.
     fn create_faer_matrix(data: Vec<Vec<f64>>) -> Mat<f64> {
@@ -512,4 +513,23 @@ mod tests {
             computed_fro_norm_rect
         );
     }
+
+    #[test]
+    fn test_matrix_as_slice() {
+        let mut matrix = Mat::<f64>::with_capacity(2, 2);
+        matrix.write(0, 0, 1.0);
+        matrix.write(0, 1, 2.0);
+        matrix.write(1, 0, 3.0);
+        matrix.write(1, 1, 4.0);
+
+        // Expected slice in row-major order: [1.0, 2.0, 3.0, 4.0]
+        let expected_slice: Box<[f64]> = Box::new([1.0, 2.0, 3.0, 4.0]);
+
+        // Test the as_slice method
+        let slice = Matrix::as_slice(&matrix);
+
+        // Check that the slice contains the expected values
+        assert_eq!(slice, expected_slice);
+    }
 }
+

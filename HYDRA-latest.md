@@ -2204,7 +2204,5 @@ TEST*/
 
 ### Instructions for Today
 
-1. Review the attached files, which represent the current status.
-2. Compare the current capabilities of HYDRA with the functionality we see being utilized to accomplish a similar task using PETSc.
-3. Generate an organized list, categorized by the modules of HYDRA they would be associated with, of the functions you notice might still need to be implemented in the HYDRA framework in order to accomplish what this PETSc program does.
-4. For any functions that seem to not fit in the modules we current have in HYDRA, provide recommendations for how these additional functions could be integrated into new modules.
+Write an integration test based on Example 7.2.1 from Computational Fluid Dynamics, Second Edition by T.J. Chung (2010). See the reference PDF in your knowledge base (vdoc.pub_computational-fluid-dynamics.pdf), and Markdown (computational_fluid_dynamics.md) and use other resources provided in your knowledge base as primary sources before referring to other sources. Use the example from PETSc example ex11.c to help determine if additional features or functions are required for Hydra to solve the example problem, and to provide a template for how we might want to develop integration tests in the future.
+

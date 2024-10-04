@@ -1,5 +1,5 @@
 pub mod matrix;
 pub mod vector;
 
-pub use matrix::Matrix;
-pub use vector::Vector;
+pub use matrix::traits::Matrix;
+pub use vector::traits::Vector;

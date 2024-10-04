@@ -52,4 +52,16 @@ impl Matrix for Mat<f64> {
         }
         sum_sq.sqrt()
     }
+
+    // Implement the as_slice method by copying data to a Vec
+    // Updated `as_slice` to return a `Box<[f64]>`
+    fn as_slice(&self) -> Box<[Self::Scalar]> {
+        let mut data = Vec::with_capacity(self.nrows() * self.ncols());
+        for i in 0..self.nrows() {
+            for j in 0..self.ncols() {
+                data.push(self.read(i, j));
+            }
+        }
+        data.into_boxed_slice()  // Return the boxed slice directly
+    }
 }
