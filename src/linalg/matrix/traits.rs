@@ -2,6 +2,7 @@
 
 use crate::linalg::Vector;
 use faer::Mat;
+use std::ops::{Deref, DerefMut};
 
 // Trait defining essential matrix operations (abstract over dense, sparse)
 // Define that any type implementing Matrix must be Send and Sync
@@ -26,4 +27,6 @@ pub trait Matrix: Send + Sync {
     /// # Returns
     /// A slice containing the matrix elements in row-major order.
     fn as_slice(&self) -> Box<[Self::Scalar]>;
+
+    fn as_slice_mut(&mut self) -> Box<[Self::Scalar]>;
 }

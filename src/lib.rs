@@ -4,7 +4,7 @@ pub mod boundary;
 pub mod solver;
 pub mod time_stepping;
 pub mod linalg;
-//pub mod tests;
+pub mod tests;
 
 pub use geometry::{Geometry, CellShape, FaceShape};
 pub use linalg::{Vector, Matrix};

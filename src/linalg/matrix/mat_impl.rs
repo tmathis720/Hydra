@@ -55,13 +55,27 @@ impl Matrix for Mat<f64> {
 
     // Implement the as_slice method by copying data to a Vec
     // Updated `as_slice` to return a `Box<[f64]>`
-    fn as_slice(&self) -> Box<[Self::Scalar]> {
-        let mut data = Vec::with_capacity(self.nrows() * self.ncols());
-        for i in 0..self.nrows() {
-            for j in 0..self.ncols() {
-                data.push(self.read(i, j));
+    fn as_slice(&self) -> Box<[f64]> {
+        let mut data = Vec::new();
+        let nrows = self.nrows();
+        let ncols = self.ncols();
+        for i in 0..nrows {
+            for j in 0..ncols {
+                data.push(self.as_ref()[(i, j)]);
             }
         }
-        data.into_boxed_slice()  // Return the boxed slice directly
+        data.into_boxed_slice()
+    }
+
+    fn as_slice_mut(&mut self) -> Box<[f64]> {
+        let mut data = Vec::new();
+        let nrows = self.nrows();
+        let ncols = self.ncols();
+        for i in 0..nrows {
+            for j in 0..ncols {
+                data.push(self.as_mut()[(i, j)]);
+            }
+        }
+        data.into_boxed_slice()
     }
 }

@@ -516,18 +516,21 @@ mod tests {
 
     #[test]
     fn test_matrix_as_slice() {
-        let mut matrix = Mat::<f64>::with_capacity(2, 2);
-        matrix.write(0, 0, 1.0);
-        matrix.write(0, 1, 2.0);
+        // Properly initialize the 2x2 matrix with zero values
+        let mut matrix = Mat::<f64>::zeros(2, 2);
+    
+        // Write values safely into the matrix
+        matrix.write(0, 0, 1.0);  // Ensure proper error handling with unwrap
+        matrix.write(0, 1, 2.0);  // Each write must be checked
         matrix.write(1, 0, 3.0);
         matrix.write(1, 1, 4.0);
-
+    
         // Expected slice in row-major order: [1.0, 2.0, 3.0, 4.0]
         let expected_slice: Box<[f64]> = Box::new([1.0, 2.0, 3.0, 4.0]);
-
-        // Test the as_slice method
-        let slice = Matrix::as_slice(&matrix);
-
+    
+        // Explicitly call the `as_slice` method from the Matrix trait
+        let slice = crate::linalg::matrix::traits::Matrix::as_slice(&matrix);
+    
         // Check that the slice contains the expected values
         assert_eq!(slice, expected_slice);
     }

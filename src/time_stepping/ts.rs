@@ -7,6 +7,7 @@
 
 use crate::linalg::Matrix;
 use crate::linalg::Vector;  // Import the Vector trait
+use faer::Mat;
 
 /// Error type for time-stepping operations.
 #[derive(Debug)]
@@ -66,7 +67,12 @@ pub trait TimeDependentProblem {
     ///
     /// # Returns
     /// - `Result<(), TimeSteppingError>`: Ok if the system was solved successfully, otherwise an error.
-    fn solve_linear_system(&self, matrix: &mut dyn Matrix<Scalar = f64>, state: &mut Self::State, rhs: &Self::State) -> Result<(), TimeSteppingError>;
+    fn solve_linear_system(
+        &self,
+        matrix: &mut dyn Matrix<Scalar = f64>,  // Change this to use the trait
+        state: &mut Self::State,
+        rhs: &Self::State,
+    ) -> Result<(), TimeSteppingError>;
 }
 
 /// Trait for time-stepping methods.
