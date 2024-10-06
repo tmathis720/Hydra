@@ -43,20 +43,23 @@ impl TimeDependentProblem for DiffusionTestProblem {
     }
     
     fn time_to_scalar(&self, time: Self::Time) -> <Self::State as crate::Vector>::Scalar {
-        todo!()
+        time as f64
     }
     
     fn get_matrix(&self) -> Box<dyn crate::Matrix<Scalar = f64>> {
+        // Implement to return matrix corresponding to the discretized system
         todo!()
     }
     
     fn solve_linear_system(
         &self,
-        matrix: &mut dyn crate::Matrix<Scalar = f64>,  // Change this to use the trait
+        matrix: &mut dyn crate::Matrix<Scalar = f64>,  // Use the Matrix trait
         state: &mut Self::State,
         rhs: &Self::State,
     ) -> Result<(), crate::time_stepping::TimeSteppingError> {
-        todo!()
+        let mut solver = KSP::new(); // Solves the linear system
+        solver.solve(matrix, rhs, state).expect("Solver failed");
+        Ok(())
     }
 }
 
@@ -67,7 +70,7 @@ fn compute_gradient(state: &Vec<f64>, cell: usize, neighbor: usize) -> f64 {
 #[test]
 fn test_diffusion_solver() {
     // 1. Create mesh
-    let mesh = Mesh::structured_2d(10, 10); // 10x10 grid
+    let mesh = Mesh::structured_2d(10, 10); // Use the appropriate method for a structured grid
 
     // 2. Set up diffusion coefficient
     let mut diffusion_section = Section::new();
@@ -75,7 +78,8 @@ fn test_diffusion_solver() {
 
     // 3. Set up boundary conditions
     let mut boundary_conditions = DirichletBC::new();
-    boundary_conditions.set_bc("boundary", 100.0);
+    let boundary_fn = Box::new(|coords: &[f64]| -> f64 { 100.0 }); // Example Dirichlet function
+    boundary_conditions.set_bc("boundary", boundary_fn);
 
     // 4. Define problem
     let problem = DiffusionTestProblem {
