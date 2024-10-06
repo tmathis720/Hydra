@@ -166,4 +166,17 @@ impl Mesh {
         }
         vertices
     }
+
+    /// Count the number of MeshEntities of a specific type
+    pub fn count_entities(&self, entity_type: &MeshEntity) -> usize {
+        self.entities.iter()
+            .filter(|e| match (e, entity_type) {
+                (MeshEntity::Vertex(_), MeshEntity::Vertex(_)) => true,
+                (MeshEntity::Cell(_), MeshEntity::Cell(_)) => true,
+                (MeshEntity::Edge(_), MeshEntity::Edge(_)) => true,
+                (MeshEntity::Face(_), MeshEntity::Face(_)) => true,
+                _ => false,
+            })
+            .count()
+    }
 }
