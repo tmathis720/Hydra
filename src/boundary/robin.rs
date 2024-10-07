@@ -23,7 +23,7 @@ impl RobinBC {
     }
 
     // Apply the Robin boundary condition during the system matrix assembly
-    pub fn apply_bc(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
+    pub fn apply_bc(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, _time: f64) {
         for (entity, &offset) in self.conditions.offsets.iter() {
             if let Some(&index) = entity_to_index.get(entity) {
                 let condition = &self.conditions.data[offset];  // Access the condition using the offset
@@ -58,7 +58,7 @@ impl BoundaryConditionApply for RobinBC {
 mod tests {
     use super::*;
     use rustc_hash::FxHashMap;
-    use faer::{Mat, MatMut};
+    use faer::Mat;
     use crate::domain::mesh_entity::MeshEntity;
 
     fn create_test_matrix_and_rhs() -> (Mat<f64>, Mat<f64>) {

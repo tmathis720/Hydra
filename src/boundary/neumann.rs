@@ -64,9 +64,8 @@ impl BoundaryConditionApply for NeumannBC {
 mod tests {
     use super::*;
     use rustc_hash::FxHashMap;
-    use faer::{Mat, MatMut};
+    use faer::Mat;
     use crate::domain::mesh_entity::MeshEntity;
-    use crate::boundary::bc_handler::BoundaryConditionFn;
 
     fn create_test_matrix_and_rhs() -> (Mat<f64>, Mat<f64>) {
         // Create a 3x3 test matrix initialized to identity matrix (though unused for NeumannBC)
