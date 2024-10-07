@@ -9,7 +9,7 @@ impl Geometry {
     /// # Returns
     /// * `[f64; 3]` - The 3D coordinates of the pyramid centroid.
     pub fn compute_pyramid_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
-        let mut total_volume = 0.0;
+        let mut _total_volume = 0.0;
         let mut weighted_centroid = [0.0, 0.0, 0.0];
 
         let num_vertices = cell_vertices.len();
@@ -36,12 +36,12 @@ impl Geometry {
             let centroid2 = self.compute_tetrahedron_centroid(&tetra2);
 
             // Total volume of pyramid is sum of tetrahedron volumes
-            total_volume = volume1 + volume2;
+            _total_volume = volume1 + volume2;
 
             // Weighted centroid: combining centroids of both tetrahedrons
-            weighted_centroid[0] = (centroid1[0] * volume1 + centroid2[0] * volume2) / total_volume;
-            weighted_centroid[1] = (centroid1[1] * volume1 + centroid2[1] * volume2) / total_volume;
-            weighted_centroid[2] = (centroid1[2] * volume1 + centroid2[2] * volume2) / total_volume;
+            weighted_centroid[0] = (centroid1[0] * volume1 + centroid2[0] * volume2) / _total_volume;
+            weighted_centroid[1] = (centroid1[1] * volume1 + centroid2[1] * volume2) / _total_volume;
+            weighted_centroid[2] = (centroid1[2] * volume1 + centroid2[2] * volume2) / _total_volume;
             
             // NOTE: Do not reapply the base-apex averaging rule here as weighted centroids are already applied.
         } else {
@@ -50,7 +50,7 @@ impl Geometry {
             let volume = self.compute_tetrahedron_volume(&tetra);
             let centroid = self.compute_tetrahedron_centroid(&tetra);
 
-            total_volume = volume;
+            _total_volume = volume;
             weighted_centroid = centroid;
         }
 
@@ -79,14 +79,14 @@ impl Geometry {
     /// # Returns
     /// * `f64` - The volume of the pyramid.
     pub fn compute_pyramid_volume(&self, cell_vertices: &Vec<[f64; 3]>) -> f64 {
-        let mut total_volume = 0.0;
+        let mut _total_volume = 0.0;
 
         let num_vertices = cell_vertices.len();
         assert!(num_vertices == 4 || num_vertices == 5, "Pyramid must have 4 (triangular) or 5 (square) vertices");
 
         // Define the apex and base vertices
         let apex = if num_vertices == 4 { cell_vertices[3] } else { cell_vertices[4] };
-        let base_vertices = if num_vertices == 4 {
+        let _base_vertices = if num_vertices == 4 {
             vec![cell_vertices[0], cell_vertices[1], cell_vertices[2]] // Triangular base
         } else {
             vec![cell_vertices[0], cell_vertices[1], cell_vertices[2], cell_vertices[3]] // Square base
@@ -101,15 +101,15 @@ impl Geometry {
             let volume1 = self.compute_tetrahedron_volume_local(&tetra1);
             let volume2 = self.compute_tetrahedron_volume_local(&tetra2);
 
-            total_volume = volume1 + volume2;
+            _total_volume = volume1 + volume2;
         } else {
             // Single tetrahedron for triangular base pyramid
             let tetra = vec![cell_vertices[0], cell_vertices[1], cell_vertices[2], apex];
-            total_volume = self.compute_tetrahedron_volume_local(&tetra);
+            _total_volume = self.compute_tetrahedron_volume_local(&tetra);
         }
 
-        println!("Total volume: {:?}", total_volume);
-        total_volume
+        println!("Total volume: {:?}", _total_volume);
+        _total_volume
     }
 
     /// Computes the volume of a tetrahedron
@@ -137,7 +137,7 @@ impl Geometry {
     }
 
     /// Computes the centroid of a tetrahedron
-    fn compute_tetrahedron_centroid_local(&self, vertices: &Vec<[f64; 3]>) -> [f64; 3] {
+    fn _compute_tetrahedron_centroid_local(&self, vertices: &Vec<[f64; 3]>) -> [f64; 3] {
         assert!(vertices.len() == 4, "Tetrahedron must have 4 vertices");
 
         let mut centroid = [0.0, 0.0, 0.0];

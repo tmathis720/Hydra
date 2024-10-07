@@ -1,5 +1,4 @@
 use crate::domain::{Mesh, MeshEntity};
-use crate::geometry::Geometry;
 
 pub struct MeshGenerator;
 
@@ -171,7 +170,7 @@ impl MeshGenerator {
     }
 
     /// Generate faces for a 3D rectangular mesh
-    fn generate_faces_3d(mesh: &mut Mesh, nx: usize, ny: usize, nz: usize) {
+    fn _generate_faces_3d(mesh: &mut Mesh, nx: usize, ny: usize, nz: usize) {
         for k in 0..nz {
             for j in 0..ny {
                 for i in 0..nx {
@@ -181,9 +180,9 @@ impl MeshGenerator {
                     let n3 = n1 + (nx + 1);
                     let n4 = n3 + 1;
                     let n5 = n1 + (ny + 1) * (nx + 1);
-                    let n6 = n5 + 1;
+                    let _n6 = n5 + 1;
                     let n7 = n5 + (nx + 1);
-                    let n8 = n7 + 1;
+                    let _n8 = n7 + 1;
 
                     // Define the faces and add them as MeshEntities
                     let front_face = MeshEntity::Face(mesh.entities.len());

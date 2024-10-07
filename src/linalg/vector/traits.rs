@@ -1,6 +1,5 @@
 // src/vector/traits.rs
 
-use faer::Mat;
 
 /// Trait defining a set of common operations for vectors.
 /// It abstracts over different vector types, enabling flexible implementations

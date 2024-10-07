@@ -1,4 +1,4 @@
-use crate::linalg::Matrix;
+
 use crate::linalg::Vector;
 use crate::time_stepping::{TimeStepper, TimeSteppingError, TimeDependentProblem};
 
@@ -35,9 +35,9 @@ impl<P: TimeDependentProblem> TimeStepper<P> for ForwardEuler {
 
     fn adaptive_step(
         &mut self,
-        problem: &P,
-        time: P::Time,
-        state: &mut P::State,
+        _problem: &P,
+        _time: P::Time,
+        _state: &mut P::State,
     ) -> Result<(), TimeSteppingError> {
         // Adaptive step logic implementation
         Ok(())

@@ -1,4 +1,4 @@
-pub mod mesh_io;
+pub mod gmsh_parser;
 pub mod mesh_generation;
 
 #[cfg(test)]

@@ -11,8 +11,8 @@ impl GmshParser {
         let reader = BufReader::new(file);
 
         let mut mesh = Mesh::new();
-        let mut sieve = Sieve::new();
-        let mut node_coords = Vec::<f64>::new();
+        let mut _sieve = Sieve::new();
+        let mut _node_coords = Vec::<f64>::new();
 
         let mut in_nodes_section = false;
         let mut in_elements_section = false;
@@ -127,9 +127,8 @@ impl GmshParser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::input_output::mesh_io::GmshParser;
-    use crate::domain::Mesh;
+
+    use crate::input_output::gmsh_parser::GmshParser;
 
     #[test]
     fn test_parse_node() {

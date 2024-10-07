@@ -1,13 +1,11 @@
 use super::traits::Matrix;
 use crate::linalg::Vector;
-use faer::Mat;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use faer::Mat;
     use std::sync::Arc;
-    use crate::linalg::matrix::mat_impl;
 
     /// Helper function to create a faer::Mat<f64> from a 2D Vec.
     fn create_faer_matrix(data: Vec<Vec<f64>>) -> Mat<f64> {

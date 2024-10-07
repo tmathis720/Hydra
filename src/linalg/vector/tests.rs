@@ -1,8 +1,6 @@
 // src/vector/tests.rs
 
 use super::traits::Vector;
-use super::vec_impl::*;
-use super::mat_impl::*;
 use faer::Mat;
 
 /// Helper function to create a simple vector for testing.

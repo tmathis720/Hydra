@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     use crate::input_output::mesh_generation::MeshGenerator;
-    use crate::input_output::mesh_io::GmshParser;
-    use crate::domain::{Mesh, MeshEntity};
+    use crate::input_output::gmsh_parser::GmshParser;
+    use crate::domain::MeshEntity;
 
     #[test]
     fn test_circle_mesh_import() {

@@ -1,4 +1,4 @@
-use crate::linalg::Matrix;
+
 use crate::time_stepping::{TimeStepper, TimeSteppingError, TimeDependentProblem};
 
 pub struct BackwardEuler;
@@ -8,7 +8,7 @@ impl<P: TimeDependentProblem> TimeStepper<P> for BackwardEuler {
         &mut self,
         problem: &P,
         time: P::Time,
-        dt: P::Time,
+        _dt: P::Time,
         state: &mut P::State,
     ) -> Result<(), TimeSteppingError> {
         // Use Box to store the dynamically sized Matrix on the heap
@@ -23,9 +23,9 @@ impl<P: TimeDependentProblem> TimeStepper<P> for BackwardEuler {
 
     fn adaptive_step(
         &mut self,
-        problem: &P,
-        time: P::Time,
-        state: &mut P::State,
+        _problem: &P,
+        _time: P::Time,
+        _state: &mut P::State,
     ) -> Result<(), TimeSteppingError> {
         // Adaptive step logic implementation
         Ok(())
@@ -43,7 +43,8 @@ impl<P: TimeDependentProblem> TimeStepper<P> for BackwardEuler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use faer::{Mat, MatRef}; // Import matrix types from faer
+    use faer::Mat; // Import matrix types from faer
+    use crate::linalg::Matrix;
     use crate::time_stepping::{TimeStepper, TimeSteppingError, TimeDependentProblem};
 
     // Mock struct to represent a simple linear system for testing
@@ -82,7 +83,7 @@ mod tests {
         // Correct type for the matrix parameter
         fn solve_linear_system(
             &self,
-            matrix: &mut dyn Matrix<Scalar = f64>,  // Use concrete Mat type
+            _matrix: &mut dyn Matrix<Scalar = f64>,  // Use concrete Mat type
             state: &mut Self::State,
             rhs: &Self::State,
         ) -> Result<(), TimeSteppingError> {

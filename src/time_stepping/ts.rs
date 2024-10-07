@@ -7,7 +7,6 @@
 
 use crate::linalg::Matrix;
 use crate::linalg::Vector;  // Import the Vector trait
-use faer::Mat;
 
 /// Error type for time-stepping operations.
 #[derive(Debug)]

@@ -1,8 +1,6 @@
 // src/linalg/matrix/trait.rs
 
 use crate::linalg::Vector;
-use faer::Mat;
-use std::ops::{Deref, DerefMut};
 
 // Trait defining essential matrix operations (abstract over dense, sparse)
 // Define that any type implementing Matrix must be Send and Sync

@@ -1,107 +1,135 @@
-use crate::domain::MeshEntity;
+// src/boundary/neumann.rs
+
+use crate::domain::mesh_entity::MeshEntity;
 use rustc_hash::FxHashMap;
+use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
+use crate::domain::section::Section;
 use faer::MatMut;
 
 pub struct NeumannBC {
-    pub fluxes: FxHashMap<MeshEntity, f64>,  // Map boundary entities to their flux values
+    conditions: Section<BoundaryCondition>,  // Section to hold Neumann conditions
 }
 
 impl NeumannBC {
-    /// Creates a new NeumannBC structure
     pub fn new() -> Self {
-        NeumannBC {
-            fluxes: FxHashMap::default(),
+        Self {
+            conditions: Section::new(),
         }
     }
 
-    /// Set a Neumann boundary condition (flux) for a given mesh entity
-    pub fn set_bc(&mut self, entity: MeshEntity, flux: f64) {
-        self.fluxes.insert(entity, flux);
+    // Set a Neumann boundary condition for a specific entity
+    pub fn set_bc(&mut self, entity: MeshEntity, condition: BoundaryCondition) {
+        self.conditions.set_data(entity, condition);
     }
 
-    /// Check if a mesh entity has a Neumann boundary condition
-    pub fn is_bc(&self, entity: &MeshEntity) -> bool {
-        self.fluxes.contains_key(entity)
-    }
-
-    /// Get the Neumann flux value for a mesh entity
-    pub fn get_flux(&self, entity: &MeshEntity) -> f64 {
-        *self.fluxes.get(entity).expect(&format!(
-            "Neumann BC not set for entity {:?}",
-            entity
-        ))
-    }
-
-    /// Apply the Neumann boundary condition to the RHS vector
-    ///
-    /// `rhs`: The right-hand side vector (faer::Mat)
-    /// `face_to_cell_index`: Mapping from MeshEntity to vector index
-    /// `face_areas`: Map from face IDs to face areas
-    pub fn apply_bc(
-        &self,
-        rhs: &mut MatMut<f64>,  // Mutable access to the RHS vector
-        face_to_cell_index: &FxHashMap<MeshEntity, usize>,
-        face_areas: &FxHashMap<usize, f64>,
-    ) {
-        for (face_entity, &flux) in &self.fluxes {
-            if let Some(&cell_index) = face_to_cell_index.get(face_entity) {
-                if let MeshEntity::Face(face_id) = face_entity {
-                    let area = face_areas.get(face_id).expect(&format!(
-                        "Area not found for face {}",
-                        face_id
-                    ));
-                    // Update RHS: Add the flux * area to the current value in the RHS
-                    let updated_value = rhs.read(cell_index, 0) + flux * area;  // Access the RHS
-                    rhs.write(cell_index, 0, updated_value);  // Write updated value in RHS
-                } else {
-                    panic!("Neumann BC should be applied to Face entities, got {:?}", face_entity);
+    // Apply the Neumann boundary condition during the system matrix assembly
+    pub fn apply_bc(&self, _matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
+        for (entity, &offset) in self.conditions.offsets.iter() {
+            if let Some(&index) = entity_to_index.get(entity) {
+                let condition = &self.conditions.data[offset];  // Access the condition using the offset
+                match condition {  // Dereference the condition
+                    BoundaryCondition::Neumann(value) => {
+                        self.apply_constant_neumann(rhs, index, *value);
+                    }
+                    BoundaryCondition::NeumannFn(fn_bc) => {
+                        let coords = self.get_coordinates(entity);  // Placeholder for actual method
+                        let value = fn_bc(time, &coords);
+                        self.apply_constant_neumann(rhs, index, value);
+                    }
+                    _ => {}
                 }
-            } else {
-                panic!("Face entity {:?} not found in face_to_cell_index mapping", face_entity);
             }
         }
     }
+
+    pub fn apply_constant_neumann(&self, rhs: &mut MatMut<f64>, index: usize, value: f64) {
+        // Add the Neumann flux value to the corresponding RHS entry
+        rhs.write(index, 0, rhs.read(index, 0) + value);
+    }
+
+    fn get_coordinates(&self, _entity: &MeshEntity) -> [f64; 3] {
+        // Placeholder: Implement logic to retrieve the coordinates of the mesh entity.
+        // This method would retrieve the spatial coordinates associated with a vertex or entity.
+        [0.0, 0.0, 0.0]  // Example placeholder return value
+    }
 }
 
+impl BoundaryConditionApply for NeumannBC {
+    fn apply(&self, _entity: &MeshEntity, rhs: &mut MatMut<f64>, _matrix: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
+        // Neumann-specific logic
+        self.apply_bc(_matrix, rhs, entity_to_index, time);
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::mesh_entity::MeshEntity;
     use rustc_hash::FxHashMap;
-    use faer::Mat;
+    use faer::{Mat, MatMut};
+    use crate::domain::mesh_entity::MeshEntity;
+    use crate::boundary::bc_handler::BoundaryConditionFn;
+
+    fn create_test_matrix_and_rhs() -> (Mat<f64>, Mat<f64>) {
+        // Create a 3x3 test matrix initialized to identity matrix (though unused for NeumannBC)
+        let matrix = Mat::from_fn(3, 3, |i, j| if i == j { 1.0 } else { 0.0 });
+        
+        // Create a 3x1 test RHS vector initialized to zero
+        let rhs = Mat::zeros(3, 1);
+        
+        (matrix, rhs)
+    }
 
     #[test]
-    fn test_neumann_bc() {
-        // Create a mock RHS vector (faer::Mat)
-        let mut rhs = Mat::<f64>::zeros(5, 1);  // Single-column matrix (equivalent to DVector)
-
-        // Create the NeumannBC structure
+    fn test_set_bc() {
         let mut neumann_bc = NeumannBC::new();
+        let entity = MeshEntity::Vertex(1);
+        
+        // Set a Neumann boundary condition
+        neumann_bc.set_bc(entity, BoundaryCondition::Neumann(10.0));
+        
+        // Verify that the condition was set correctly
+        let condition = neumann_bc.conditions.restrict(&entity);
+        assert!(matches!(condition, Some(BoundaryCondition::Neumann(10.0))));
+    }
 
-        // Define a couple of boundary faces
-        let boundary_face_1 = MeshEntity::Face(1);
-        let boundary_face_2 = MeshEntity::Face(3);
+    #[test]
+    fn test_apply_constant_neumann() {
+        let mut neumann_bc = NeumannBC::new();
+        let entity = MeshEntity::Vertex(1);
+        let mut entity_to_index = FxHashMap::default();
+        entity_to_index.insert(entity, 1);
 
-        // Set Neumann boundary conditions (fluxes) for those faces
-        neumann_bc.set_bc(boundary_face_1, 10.0);
-        neumann_bc.set_bc(boundary_face_2, -5.0);
+        // Set a Neumann boundary condition
+        neumann_bc.set_bc(entity, BoundaryCondition::Neumann(5.0));
+        
+        // Create a test matrix and RHS vector
+        let (mut matrix, mut rhs) = create_test_matrix_and_rhs();
+        let mut rhs_mut = rhs.as_mut();
 
-        // Create face-to-cell index mapping
-        let mut face_to_cell_index = FxHashMap::default();
-        face_to_cell_index.insert(boundary_face_1, 1);  // Face 1 maps to cell index 1
-        face_to_cell_index.insert(boundary_face_2, 3);  // Face 3 maps to cell index 3
+        // Apply the Neumann condition
+        neumann_bc.apply_bc(&mut matrix.as_mut(), &mut rhs_mut, &entity_to_index, 0.0);
 
-        // Create face areas mapping
-        let mut face_areas = FxHashMap::default();
-        face_areas.insert(1, 2.0);  // Area of face 1
-        face_areas.insert(3, 1.5);  // Area of face 3
+        // Check that the RHS has been updated with the Neumann flux
+        assert_eq!(rhs_mut[(1, 0)], 5.0);
+    }
 
-        // Apply the boundary conditions to the RHS vector
-        let mut rhs_mut = rhs.as_mut();  // Get mutable access to the RHS
-        neumann_bc.apply_bc(&mut rhs_mut, &face_to_cell_index, &face_areas);
+    #[test]
+    fn test_apply_function_based_neumann() {
+        let mut neumann_bc = NeumannBC::new();
+        let entity = MeshEntity::Vertex(2);
+        let mut entity_to_index = FxHashMap::default();
+        entity_to_index.insert(entity, 2);
 
-        // Check that the RHS vector was modified correctly
-        assert_eq!(rhs.read(1, 0), 10.0 * 2.0);  // 10.0 flux multiplied by area 2.0
-        assert_eq!(rhs.read(3, 0), -5.0 * 1.5);  // -5.0 flux multiplied by area 1.5
+        // Set a function-based Neumann boundary condition
+        neumann_bc.set_bc(entity, BoundaryCondition::NeumannFn(Box::new(|_time: f64, _coords: &[f64]| 7.0)));
+
+        // Create a test matrix and RHS vector
+        let (mut matrix, mut rhs) = create_test_matrix_and_rhs();
+        let mut rhs_mut = rhs.as_mut();
+
+        // Apply the function-based Neumann condition
+        neumann_bc.apply_bc(&mut matrix.as_mut(), &mut rhs_mut, &entity_to_index, 1.0);
+
+        // Check that the RHS has been updated with the value from the function
+        assert_eq!(rhs_mut[(2, 0)], 7.0);
     }
 }
