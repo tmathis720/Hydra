@@ -37,22 +37,21 @@ mod integration_test {
 
     /// Apply boundary conditions by associating values with mesh entities.
     fn apply_boundary_conditions(mesh: &Mesh, section: &mut Section<f64>) {
-        // Loop over the mesh entities and apply Dirichlet boundary conditions
+        // Loop over all vertices
         for entity in mesh.entities.iter() {
-            match entity {
-                MeshEntity::Vertex(id) => {
-                    let coords = mesh.get_vertex_coordinates(*id).unwrap();
-                    let x = coords[0];
-                    let y = coords[1];
+            if let MeshEntity::Vertex(id) = entity {
+                let coords = mesh.get_vertex_coordinates(*id).unwrap();
+                let x = coords[0];
+                let y = coords[1];
     
-                    // Check if the vertex is on the boundary
-                    if x == 0.0 || x == 1.0 || y == 0.0 || y == 1.0 {
-                        // Calculate the boundary value from the exact solution
-                        let u = 2.0 * x.powi(2) * y.powi(2);
-                        section.set_data(*entity, u);
-                    }
+                // Check if the vertex is on the boundary
+                if x == 0.0 || x == 1.0 || y == 0.0 || y == 1.0 {
+                    // Calculate the boundary value from the exact solution
+                    let u = 2.0 * x.powi(2) * y.powi(2);
+    
+                    // Set data for boundary vertices
+                    section.set_data(*entity, u);
                 }
-                _ => {}
             }
         }
     }
@@ -161,15 +160,23 @@ mod integration_test {
     }
 
     /// Assemble the system matrix and RHS vector using the Section and mesh.
-    fn assemble_system(section: &Section<f64>, mesh: &Mesh) -> (Mat<f64>, Vec<f64>) {
-        use std::collections::HashMap;
-        let num_entities = section.entities().len();
+    fn assemble_system(section: &Section<f64>, mesh: &Mesh) -> (Mat<f64>, Vec<f64>, Vec<MeshEntity>) {
+    
+        // Get all vertices in the mesh and sort them by node ID
+        let mut vertices: Vec<MeshEntity> = mesh.entities.iter()
+            .filter(|e| matches!(e, MeshEntity::Vertex(_)))
+            .cloned()
+            .collect();
+
+        // Sort vertices by node ID
+        vertices.sort_by_key(|e| e.id());
+
+        let num_entities = vertices.len();
         let mut a = Mat::<f64>::zeros(num_entities, num_entities);  // System matrix
         let mut b = vec![0.0; num_entities];  // Right-hand side vector
-    
+
         // Map MeshEntity to index
-        let entity_indices: HashMap<MeshEntity, usize> = section.entities()
-            .iter()
+        let entity_indices: FxHashMap<MeshEntity, usize> = vertices.iter()
             .enumerate()
             .map(|(i, e)| (*e, i))
             .collect();
@@ -178,39 +185,35 @@ mod integration_test {
         let s_coeffs = compute_s_coefficients(mesh);
     
         // For each node (vertex)
-        for entity in section.entities() {
+        for entity in &vertices {
             if let MeshEntity::Vertex(node_id) = entity {
                 let i = entity_indices[&entity];
     
-                // Check if the node is on the boundary
-                let coords = mesh.get_vertex_coordinates(node_id).unwrap();
-                let x = coords[0];
-                let y = coords[1];
-    
-                if x == 0.0 || x == 1.0 || y == 0.0 || y == 1.0 {
+                // Check if the node has a prescribed value (boundary node)
+                if let Some(&u) = section.restrict(&entity) {
                     // Boundary node, Dirichlet condition
                     a.write(i, i, 1.0);
-                    b[i] = *section.restrict(&entity).unwrap();
+                    b[i] = u;
                 } else {
                     // Interior node
                     // Sum over neighboring nodes
                     let mut sum_s = 0.0;
-
+    
                     // Get neighboring vertices
                     let neighbors = mesh.get_neighboring_vertices(&entity);
-
+    
                     if neighbors.is_empty() {
                         panic!("No neighboring nodes found for entity {:?}", entity);
                     }
-
+    
                     for neighbor in &neighbors {
                         let j = entity_indices[neighbor];
-                        let s_ij = *s_coeffs.get(&(node_id, neighbor.id())).unwrap_or(&0.0);
+                        let s_ij = *s_coeffs.get(&(*node_id, neighbor.id())).unwrap_or(&0.0);
                         sum_s += s_ij;
-
+    
                         a.write(i, j, -s_ij);
                     }
-
+    
                     // Diagonal term
                     a.write(i, i, sum_s);
     
@@ -218,6 +221,7 @@ mod integration_test {
                     let a_i = compute_control_volume_area(mesh, &entity);
     
                     // Source term f_i (from exact solution)
+                    let coords = mesh.get_vertex_coordinates(*node_id).unwrap();
                     let f_i = compute_source_term(coords);
     
                     // Right-hand side
@@ -226,7 +230,7 @@ mod integration_test {
             }
         }
     
-        (a, b)
+        (a, b, vertices)
     }
 
     fn run_poisson_equation_simulation() -> Result<(), Box<dyn Error>> {
@@ -240,7 +244,7 @@ mod integration_test {
         apply_boundary_conditions(&mesh, &mut solution_section);
     
         // Step 4: Assemble the system matrix (A) and the right-hand side vector (b)
-        let (a, b) = assemble_system(&solution_section, &mesh);
+        let (a, b, vertices) = assemble_system(&solution_section, &mesh);
     
         // Initialize a solution vector
         let mut x = vec![0.0; b.len()];  // Initial guess for the solution
@@ -253,10 +257,8 @@ mod integration_test {
     
         // Check if the solver converged
         if result.converged {
-            // Successfully solved the system
             println!("Solver converged in {} iterations with a residual norm of {}.", result.iterations, result.residual_norm);
         } else {
-            // Handle solver failure
             println!("Solver failed to converge after {} iterations with a residual norm of {}.", result.iterations, result.residual_norm);
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -267,24 +269,68 @@ mod integration_test {
             )));
         }
     
-        // Update the solution section with new solution values
+        // Update the solution section with new solution values using sorted vertices
         println!("Updating solution section with new solution values.");
-        for (entity, &value) in solution_section.entities().iter().zip(x.iter()) {
-            solution_section.update_data(entity, value).expect("Failed to update solution");
+        for (entity, &value) in vertices.iter().zip(x.iter()) {
+            solution_section.update_data(entity, value);
             println!("Updated entity {:?} with value {}", entity, value);
         }
     
         // Optional: Compare the numerical solution with the exact solution
-        for entity in solution_section.entities() {
-            let numerical = *solution_section.restrict(&entity).unwrap();
+        let mut max_error = 0.0;
+        for (entity, &numerical) in vertices.iter().zip(x.iter()) {
             if let MeshEntity::Vertex(node_id) = entity {
-                let coords = mesh.get_vertex_coordinates(node_id).unwrap();
-                let x = coords[0];
+                let coords = mesh.get_vertex_coordinates(*node_id).unwrap();
+                let x_coord = coords[0];
                 let y = coords[1];
-                let exact = 2.0 * x.powi(2) * y.powi(2);
-                println!("Node {:?}: Numerical = {}, Exact = {}, Error = {}", node_id, numerical, exact, (numerical - exact).abs());
+    
+                // Compute the exact solution at the node
+                let exact = 2.0 * x_coord.powi(2) * y.powi(2);
+    
+                // Calculate the error
+                let error = (numerical - exact).abs();
+                if error > max_error {
+                    max_error = error;
+                }
+    
+                println!("Node {}: Numerical = {}, Exact = {}, Error = {}", node_id, numerical, exact, error);
             }
         }
+    
+        // Build entity_indices mapping again (optional)
+        let entity_indices: FxHashMap<MeshEntity, usize> = vertices.iter()
+            .enumerate()
+            .map(|(i, e)| (*e, i))
+            .collect();
+    
+        // Assert that the numerical solution matches the exact solution at nodes 5 and 9
+        let i_u5 = entity_indices[&MeshEntity::Vertex(5)];
+        let i_u9 = entity_indices[&MeshEntity::Vertex(9)];
+    
+        let numerical_u5 = x[i_u5];
+        let numerical_u9 = x[i_u9];
+    
+        // Expected exact values from Chung's example
+        let exact_u5 = 2.0;
+        let exact_u9 = 8.0;
+    
+        // Define an acceptable tolerance
+        let tolerance = 1e-6;
+    
+        // Assert that the numerical solutions are within the tolerance of the exact solutions
+        assert!(
+            (numerical_u5 - exact_u5).abs() < tolerance,
+            "Numerical solution at node 5 (ID 5) does not match the exact solution: numerical = {}, exact = {}",
+            numerical_u5, exact_u5
+        );
+    
+        assert!(
+            (numerical_u9 - exact_u9).abs() < tolerance,
+            "Numerical solution at node 9 (ID 9) does not match the exact solution: numerical = {}, exact = {}",
+            numerical_u9, exact_u9
+        );
+    
+        println!("Maximum error across all nodes: {}", max_error);
     
         Ok(())
     }

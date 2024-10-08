@@ -25,9 +25,8 @@ impl DirichletBC {
 
     // Apply the Dirichlet boundary condition during the system matrix assembly
     pub fn apply_bc(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
-        for (entity, &offset) in self.conditions.offsets.iter() {
+        for (entity, condition) in self.conditions.data.iter() {
             if let Some(&index) = entity_to_index.get(entity) {
-                let condition = &self.conditions.data[offset];  // Access the condition using the offset
                 match condition {  // Dereference the condition
                     BoundaryCondition::Dirichlet(value) => {
                         self.apply_constant_dirichlet(matrix, rhs, index, *value);

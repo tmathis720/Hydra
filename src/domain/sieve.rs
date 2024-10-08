@@ -56,21 +56,27 @@ impl Sieve {
     pub fn star(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
         let mut result = FxHashSet::default();
         let mut stack = vec![point.clone()];  // Start with the point itself
-
+    
         while let Some(p) = stack.pop() {
             if result.insert(p.clone()) {
-                
-                // Get all points that this point supports
-                let support = self.support(&p);
-                
-                for q in support {
+                // Get all points that this point supports (cone)
+                if let Some(cones) = self.cone(&p) {
+                    for q in cones {
+                        if !result.contains(q) {
+                            stack.push(q.clone());  // Add to stack if not already in the result set
+                        }
+                    }
+                }
+                // Get all points that support this point (support)
+                let supports = self.support(&p);
+                for q in supports {
                     if !result.contains(&q) {
-                        stack.push(q.clone());  // Add to stack if not already in the result set
+                        stack.push(q.clone());
                     }
                 }
             }
         }
-
+    
         println!("Star result for {:?}: {:?}", point, result);
         result
     }

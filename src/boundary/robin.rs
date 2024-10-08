@@ -24,9 +24,8 @@ impl RobinBC {
 
     // Apply the Robin boundary condition during the system matrix assembly
     pub fn apply_bc(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, _time: f64) {
-        for (entity, &offset) in self.conditions.offsets.iter() {
+        for (entity, condition) in self.conditions.data.iter() {
             if let Some(&index) = entity_to_index.get(entity) {
-                let condition = &self.conditions.data[offset];  // Access the condition using the offset
                 match condition {
                     BoundaryCondition::Robin { alpha, beta } => {
                         self.apply_robin(matrix, rhs, index, *alpha, *beta);
