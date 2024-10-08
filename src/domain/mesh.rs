@@ -179,4 +179,27 @@ impl Mesh {
             })
             .count()
     }
+
+    pub fn get_neighboring_vertices(&self, vertex: &MeshEntity) -> Vec<MeshEntity> {
+        let mut neighbors = FxHashSet::default();
+    
+        // Get cells connected to the vertex
+        let connected_cells = self.sieve.support(vertex);
+    
+        for cell in &connected_cells {
+            // Get vertices connected to the cell
+            if let Some(cell_vertices) = self.sieve.cone(cell) {
+                for v in cell_vertices {
+                    if v != vertex && matches!(v, MeshEntity::Vertex(_)) {
+                        neighbors.insert(*v); // *v is MeshEntity
+                    }
+                }
+            } else {
+                // Handle the case where cell has no connected vertices
+                panic!("Cell {:?} has no connected vertices", cell);
+            }
+        }
+    
+        neighbors.into_iter().collect()
+    }
 }

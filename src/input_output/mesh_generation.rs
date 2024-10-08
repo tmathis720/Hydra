@@ -6,16 +6,17 @@ impl MeshGenerator {
     /// Generates a 2D rectangular mesh with a specified width, height, and resolution (nx, ny).
     pub fn generate_rectangle_2d(width: f64, height: f64, nx: usize, ny: usize) -> Mesh {
         let mut mesh = Mesh::new();
-        
+
         // Generate vertices
         let nodes = Self::generate_grid_nodes_2d(width, height, nx, ny);
         for (id, position) in nodes.into_iter().enumerate() {
             mesh.set_vertex_coordinates(id, position);
+            // Note: `set_vertex_coordinates` already adds the vertex entity to `mesh.entities`
         }
-    
+
         // Generate quadrilateral cells and add them to the mesh
         Self::generate_quadrilateral_cells(&mut mesh, nx, ny);
-    
+
         mesh
     }
 
@@ -99,6 +100,8 @@ impl MeshGenerator {
 
     /// Generate quadrilateral cells for a 2D rectangular mesh
     fn generate_quadrilateral_cells(mesh: &mut Mesh, nx: usize, ny: usize) {
+        let mut cell_id = 0; // Use a separate counter for cell IDs
+
         for j in 0..ny {
             for i in 0..nx {
                 // Get vertex indices for the quadrilateral
@@ -107,8 +110,9 @@ impl MeshGenerator {
                 let n3 = n1 + (nx + 1) + 1;
                 let n4 = n1 + (nx + 1);
 
-                // Create a cell entity
-                let cell = MeshEntity::Cell(mesh.entities.len());
+                // Create a cell entity with a unique cell ID
+                let cell = MeshEntity::Cell(cell_id);
+                cell_id += 1; // Increment cell ID for the next cell
                 mesh.add_entity(cell.clone());
 
                 // Add relationships between the cell and its vertices
@@ -122,6 +126,8 @@ impl MeshGenerator {
 
     /// Generate hexahedral cells for a 3D rectangular mesh
     fn generate_hexahedral_cells(mesh: &mut Mesh, nx: usize, ny: usize, nz: usize) {
+        let mut cell_id = 0; // Use a separate counter for cell IDs
+
         for k in 0..nz {
             for j in 0..ny {
                 for i in 0..nx {
@@ -135,8 +141,9 @@ impl MeshGenerator {
                     let n7 = n5 + (nx + 1);
                     let n8 = n7 + 1;
 
-                    // Create a cell entity
-                    let cell = MeshEntity::Cell(mesh.entities.len());
+                    // Create a cell entity with a unique cell ID
+                    let cell = MeshEntity::Cell(cell_id);
+                    cell_id += 1; // Increment cell ID for the next cell
                     mesh.add_entity(cell.clone());
 
                     // Add relationships between the cell and its vertices
@@ -155,11 +162,14 @@ impl MeshGenerator {
 
     /// Generate triangular cells for a circular mesh
     fn generate_triangular_cells(mesh: &mut Mesh, num_divisions: usize) {
+        let mut cell_id = 0; // Use a separate counter for cell IDs
+
         for i in 0..num_divisions {
             let next = (i + 1) % num_divisions;
 
-            // Create a cell entity
-            let cell = MeshEntity::Cell(mesh.entities.len());
+            // Create a cell entity with a unique cell ID
+            let cell = MeshEntity::Cell(cell_id);
+            cell_id += 1; // Increment cell ID for the next cell
             mesh.add_entity(cell.clone());
 
             // Add relationships between the cell and its vertices

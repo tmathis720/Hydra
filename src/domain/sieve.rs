@@ -17,10 +17,7 @@ impl Sieve {
     // Adds an incidence (arrow) from one entity to another
     pub fn add_arrow(&mut self, from: MeshEntity, to: MeshEntity) {
         // Add the direct incidence relation
-        self.adjacency.entry(from.clone()).or_insert_with(|| FxHashSet::default()).insert(to.clone());
-        
-        // Also add the reverse relation to indicate that `to` is supported by `from`
-        self.adjacency.entry(to).or_insert_with(|| FxHashSet::default()).insert(from);
+        self.adjacency.entry(from).or_insert_with(|| FxHashSet::default()).insert(to);
     }
 
     // Cone operation: Find points covering a given point
