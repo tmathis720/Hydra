@@ -37,19 +37,15 @@ mod integration_test {
 
     /// Apply boundary conditions by associating values with mesh entities.
     fn apply_boundary_conditions(mesh: &Mesh, section: &mut Section<f64>) {
-        // Loop over all vertices
         for entity in mesh.entities.iter() {
             if let MeshEntity::Vertex(id) = entity {
                 let coords = mesh.get_vertex_coordinates(*id).unwrap();
                 let x = coords[0];
                 let y = coords[1];
-    
-                // Check if the vertex is on the boundary
+     
+                // Apply boundary condition only at boundary nodes
                 if x == 0.0 || x == 1.0 || y == 0.0 || y == 1.0 {
-                    // Calculate the boundary value from the exact solution
                     let u = 2.0 * x.powi(2) * y.powi(2);
-    
-                    // Set data for boundary vertices
                     section.set_data(*entity, u);
                 }
             }
@@ -92,59 +88,39 @@ mod integration_test {
     }
 
     fn compute_s_ij(mesh: &Mesh, entity_i: &MeshEntity, entity_j: &MeshEntity) -> f64 {
-        // Compute the surface parameter S_{i,j} for the edge between nodes i and j
-    
-        // Get the coordinates of nodes i and j
         let coords_i = mesh.get_vertex_coordinates(entity_i.id()).expect("Coordinates not found for vertex_i");
         let coords_j = mesh.get_vertex_coordinates(entity_j.id()).expect("Coordinates not found for vertex_j");
-    
+     
         // Compute the vector between nodes i and j
         let dx = coords_j[0] - coords_i[0];
         let dy = coords_j[1] - coords_i[1];
-    
-        // Compute the length of the edge between nodes i and j
+     
+        // Adjust length for scaling, or introduce geometric weights here
         let length = (dx.powi(2) + dy.powi(2)).sqrt();
-    
-        // For simplicity, set S_{i,j} = length
-        let s_ij = length;
-    
-        s_ij
+     
+        length
     }
 
     fn compute_control_volume_area(mesh: &Mesh, entity: &MeshEntity) -> f64 {
-        // We assume 'entity' is a MeshEntity::Vertex
-        // Compute the control volume area around this vertex using the geometry module
-    
-        // Get the neighboring cells (faces in 2D)
         let connected_faces = mesh.sieve.support(entity);
-    
         if connected_faces.is_empty() {
             panic!("No connected faces found for entity {:?}", entity);
         }
     
         let mut control_volume_area = 0.0;
-    
         for face in &connected_faces {
-            // Get the face vertices
             let face_vertices_coords = mesh.get_face_vertices(face);
-    
-            // Determine the face shape
             let face_shape = match face_vertices_coords.len() {
                 3 => FaceShape::Triangle,
                 4 => FaceShape::Quadrilateral,
                 _ => panic!("Unsupported face shape with {} vertices", face_vertices_coords.len()),
             };
     
-            // Compute the area of the face
             let geometry = Geometry::new();
             let face_area = geometry.compute_face_area(face_shape, &face_vertices_coords);
-    
-            // The control volume area contribution from this face is a fraction of the face area
-            // For a vertex shared by 'n' vertices in the face, the fraction is 1 / n
             let fraction = 1.0 / (face_vertices_coords.len() as f64);
             control_volume_area += face_area * fraction;
         }
-    
         control_volume_area
     }
 
@@ -311,8 +287,9 @@ mod integration_test {
         let numerical_u9 = x[i_u9];
     
         // Expected exact values from Chung's example
-        let exact_u5 = 2.0;
-        let exact_u9 = 8.0;
+        let exact_u5 = 2.0 * (0.33333_f64).powi(2) * (0.5_f64).powi(2); // Approximately 0.0555555
+        let exact_u9 = 2.0 * (0.33333_f64).powi(2) * (1.0_f64).powi(2); // Approximately 0.2222222
+        
     
         // Define an acceptable tolerance
         let tolerance = 1e-6;

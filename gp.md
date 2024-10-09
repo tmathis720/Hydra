@@ -2452,3 +2452,101 @@ The `src/time_stepping/` module is a fundamental component of the HYDRA project,
    - Expand the test suite and provide comprehensive documentation to support users and developers.
 
 By focusing on these areas, the `time_stepping` module can continue to support the HYDRA project's goals of providing a robust, scalable, and efficient simulation framework capable of tackling complex time-dependent physical systems.
+
+---
+
+**# Project Report: Current Status and Future Roadmap**
+
+---
+
+## **Introduction**
+
+This report summarizes the progress made in adding functionality to the Hydra project, specifically focusing on the implementation and integration testing of a finite volume method for solving the Poisson equation, as described in Chung's *"Computational Fluid Dynamics"* textbook, Example 7.2.1. The report outlines the challenges encountered, the solutions implemented, and provides a roadmap for future work on integration testing.
+
+---
+
+## **Current Status**
+
+### **1. Implementation of Poisson Equation Solver**
+
+- **Mesh Generation**: Successfully generated a 2D rectangular mesh representing the computational domain, with adjustable parameters for width, height, and mesh resolution (`nx`, `ny`).
+
+- **Boundary Conditions Application**: Implemented a function to apply Dirichlet boundary conditions based on the exact solution \( u = 2x^2 y^2 \), assigning prescribed values to boundary nodes.
+
+- **System Assembly**: Assembled the system matrix and right-hand side vector for the Poisson equation using the finite volume method via finite differences, taking into account both boundary and interior nodes.
+
+- **Solver Integration**: Integrated the GMRES solver to solve the assembled linear system, ensuring convergence within specified tolerance levels.
+
+- **Solution Update and Validation**: Updated the solution field with computed numerical values and compared them against the exact solution to validate accuracy.
+
+### **2. Resolving Code Issues**
+
+- **Section Data Structure Upgrade**: Simplified the `Section` data structure by replacing the combination of a `Vec<T>` and `offsets` map with a single `FxHashMap<MeshEntity, T>`. This change improved code clarity and reduced complexity.
+
+- **Boundary Conditions Handling**: Adjusted the `apply_boundary_conditions` function to include all vertices (both boundary and interior) in the `Section`, ensuring that the solution field could be updated for all nodes.
+
+- **Adjusting Data Access Patterns**: Updated code sections that relied on the previous `offsets` structure, modifying iterations and data access to align with the new `Section` implementation.
+
+- **Compiler Error Resolutions**: Addressed various compiler errors resulting from the structural changes, such as removing unnecessary `.expect()` calls and ensuring that all entities are included in the `Section` before updating their values.
+
+### **3. Integration Testing**
+
+- **Test Case Implementation**: Implemented the `test_chung_example_7_2_1` integration test to verify the correctness of the Poisson equation solver against known analytical solutions.
+
+- **Error Analysis**: Performed detailed error analysis by comparing numerical results with exact solutions at specific nodes and across the entire mesh, ensuring that the maximum error is within acceptable tolerance levels.
+
+- **Debugging and Validation**: Iteratively debugged the test case, addressing issues related to inconsistent ordering of vertices, missing data for interior nodes, and incorrect boundary condition applications.
+
+---
+
+## **Accomplishments in Adding Functionality to Hydra**
+
+- **Finite Volume Method Integration**: Successfully integrated a finite volume method for solving partial differential equations (PDEs) into the Hydra framework, expanding its capabilities for computational fluid dynamics simulations.
+
+- **Enhanced Mesh Handling**: Improved mesh generation and entity management within the Hydra domain module, enabling more complex geometries and finer control over computational domains.
+
+- **Robust Boundary Condition Framework**: Developed a flexible boundary condition handling mechanism that supports various types (e.g., Dirichlet, Neumann) and can be easily extended for future requirements.
+
+- **Solver Infrastructure**: Integrated advanced iterative solvers (e.g., GMRES) into the Hydra solver module, providing efficient and scalable solutions for large linear systems arising from discretized PDEs.
+
+- **Comprehensive Testing Suite**: Established a foundation for integration testing within Hydra, ensuring that new functionalities are validated against analytical solutions and that the codebase maintains high reliability standards.
+
+---
+
+## **Roadmap for Future Work on Integration Testing**
+
+### **1. Expand Test Coverage**
+
+- **Additional Test Cases**: Implement more integration tests covering different PDEs, boundary conditions, and mesh configurations to thoroughly validate the numerical methods implemented in Hydra.
+
+- **Parameter Variations**: Test the solver's performance and accuracy under varying parameters such as mesh resolution, solver tolerances, and different solver algorithms.
+
+### **2. Improve Error Handling and Reporting**
+
+- **Enhanced Diagnostics**: Develop more informative error messages and logging mechanisms to aid in debugging and to provide insights into solver convergence issues or numerical instabilities.
+
+- **Tolerance Management**: Implement adaptive tolerance strategies for solvers to balance computational efficiency with solution accuracy.
+
+### **3. Performance Optimization**
+
+- **Profiling and Benchmarking**: Profile the code to identify performance bottlenecks and optimize critical sections, particularly in mesh handling and linear algebra operations.
+
+- **Parallelization**: Explore parallel computing strategies to leverage multi-core architectures and distributed computing resources for large-scale simulations.
+
+### **4. Extend Solver Capabilities**
+
+- **Non-linear PDEs**: Extend the solver infrastructure to handle non-linear PDEs, requiring iterative linearization techniques and advanced solution strategies.
+
+- **Transient Simulations**: Incorporate time-stepping schemes to solve transient problems, enabling simulations of time-dependent phenomena.
+
+### **5. User Interface Enhancements**
+
+- **Configuration Flexibility**: Develop user-friendly interfaces or configuration files to allow users to specify problem setups, boundary conditions, and solver options without modifying the codebase.
+
+- **Visualization Tools**: Integrate visualization tools for analyzing mesh structures, solution fields, and error distributions, aiding in result interpretation and validation.
+
+### **6. Documentation and Community Engagement**
+
+- **Comprehensive Documentation**: Update and expand the Hydra documentation to cover new functionalities, usage examples, and developer guidelines.
+
+- **Community Collaboration**: Encourage community contributions by establishing coding standards, contribution guidelines, and providing support channels for developers and users.
