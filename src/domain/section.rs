@@ -19,12 +19,11 @@ impl<T> Section<T> {
         data.insert(entity, value);
     }
 
-    pub fn restrict(&self, entity: &MeshEntity) -> Option<T> 
+    pub fn restrict(&self, entity: &MeshEntity) -> Option<T>
     where
         T: Clone,
     {
-        let data = self.data.read().unwrap();
-        data.get(entity).cloned()
+        self.data.read().unwrap().get(entity).cloned()
     }
 
     pub fn parallel_update<F>(&self, update_fn: F)
@@ -156,5 +155,14 @@ mod tests {
         assert_eq!(all_data.len(), 2);
         assert!(all_data.contains(&&10));
         assert!(all_data.contains(&&20));
+    }
+
+    #[test]
+    fn test_parallel_update() {
+        let section = Section::new();
+        let vertex = MeshEntity::Vertex(1);
+        section.set_data(vertex, 10);
+        section.parallel_update(|v| *v += 5);
+        assert_eq!(section.restrict(&vertex), Some(15));
     }
 }

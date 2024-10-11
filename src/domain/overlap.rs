@@ -16,13 +16,11 @@ impl Overlap {
     }
 
     pub fn add_local_entity(&self, entity: MeshEntity) {
-        let mut local = self.local_entities.write().unwrap();
-        local.insert(entity);
+        self.local_entities.write().unwrap().insert(entity);
     }
 
     pub fn add_ghost_entity(&self, entity: MeshEntity) {
-        let mut ghost = self.ghost_entities.write().unwrap();
-        ghost.insert(entity);
+        self.ghost_entities.write().unwrap().insert(entity);
     }
 
     pub fn is_local(&self, entity: &MeshEntity) -> bool {
@@ -170,6 +168,14 @@ mod tests {
 
         assert_eq!(delta.get_data(&vertex), Some(42));
         assert!(delta.has_data(&vertex));
+    }
+
+    #[test]
+    fn test_overlap_entities() {
+        let overlap = Overlap::new();
+        let vertex = MeshEntity::Vertex(1);
+        overlap.add_local_entity(vertex);
+        assert!(overlap.local_entities.read().unwrap().contains(&vertex));
     }
 
     #[test]

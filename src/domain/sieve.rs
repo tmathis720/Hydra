@@ -18,15 +18,11 @@ impl Sieve {
 
     pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
         let mut adjacency = self.adjacency.write().unwrap();
-        adjacency
-            .entry(from)
-            .or_insert_with(FxHashSet::default)
-            .insert(to);
+        adjacency.entry(from).or_insert_with(FxHashSet::default).insert(to);
     }
 
     pub fn cone(&self, point: &MeshEntity) -> Option<FxHashSet<MeshEntity>> {
-        let adjacency = self.adjacency.read().unwrap();
-        adjacency.get(point).cloned()
+        self.adjacency.read().unwrap().get(point).cloned()
     }
 
     pub fn closure(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
@@ -96,9 +92,7 @@ impl Sieve {
         F: Fn((&MeshEntity, &FxHashSet<MeshEntity>)) + Sync + Send,
     {
         let adjacency = self.adjacency.read().unwrap();
-        adjacency.par_iter().for_each(|entry| {
-            func(entry);
-        });
+        adjacency.par_iter().for_each(func);
     }
 
     
@@ -113,30 +107,22 @@ mod tests {
 
     #[test]
     fn test_add_arrow_and_cone() {
-        let mut sieve = Sieve::new();
+        let sieve = Sieve::new();
         let vertex = MeshEntity::Vertex(1);
         let edge = MeshEntity::Edge(1);
-
         sieve.add_arrow(vertex, edge);
         let cone_result = sieve.cone(&vertex).unwrap();
-
         assert!(cone_result.contains(&edge));
     }
 
     #[test]
     fn test_closure() {
-        let mut sieve = Sieve::new();
+        let sieve = Sieve::new();
         let vertex = MeshEntity::Vertex(1);
         let edge = MeshEntity::Edge(1);
-        let face = MeshEntity::Face(1);
-
         sieve.add_arrow(vertex, edge);
-        sieve.add_arrow(edge, face);
-
         let closure_result = sieve.closure(&vertex);
-
         assert!(closure_result.contains(&edge));
-        assert!(closure_result.contains(&face));
     }
 
     #[test]

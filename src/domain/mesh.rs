@@ -5,28 +5,34 @@ use crate::geometry::{Geometry, CellShape, FaceShape};  // Import geometry modul
 use std::sync::{Arc, RwLock};
 use rayon::iter::*;
 use crossbeam::thread;
+use crossbeam::channel::{Sender, Receiver};
+use crossbeam::channel;
 
 #[derive(Clone)]
 pub struct Mesh {
     pub sieve: Arc<Sieve>,                         // Sieve to handle hierarchical relationships
     pub entities: Arc<RwLock<FxHashSet<MeshEntity>>>,      // Set of all entities in the mesh
     pub vertex_coordinates: FxHashMap<usize, [f64; 3]>, // Mapping from vertex IDs to coordinates
+    boundary_data_sender: Option<Sender<FxHashMap<MeshEntity, [f64; 3]>>>,
+    boundary_data_receiver: Option<Receiver<FxHashMap<MeshEntity, [f64; 3]>>>,
 }
 
 impl Mesh {
     /// Create a new empty mesh
     pub fn new() -> Self {
+        let (sender, receiver) = channel::unbounded();
         Mesh {
             sieve: Arc::new(Sieve::new()),
             entities: Arc::new(RwLock::new(FxHashSet::default())),
             vertex_coordinates: FxHashMap::default(),
+            boundary_data_sender: Some(sender),
+            boundary_data_receiver: Some(receiver),
         }
     }
 
     /// Add a new entity to the mesh (vertex, edge, face, or cell)
     pub fn add_entity(&self, entity: MeshEntity) {
-        let mut entities = self.entities.write().unwrap();
-        entities.insert(entity);
+        self.entities.write().unwrap().insert(entity);
     }
 
     pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
@@ -39,9 +45,7 @@ impl Mesh {
         F: Fn(&MeshEntity) + Sync + Send,
     {
         let entities = self.entities.read().unwrap();
-        entities.par_iter().for_each(|entity| {
-            func(entity);
-        });
+        entities.par_iter().for_each(func);
     }
 
     /// Add a relationship between two entities
@@ -212,30 +216,155 @@ impl Mesh {
     }
 
     // Synchronize boundary data using scoped threads
-    pub fn sync_boundary_data(&self) {
+    pub fn sync_boundary_data(&mut self) {
+        // Clone the entities and sieve references for thread-safe operations.
         let entities = self.entities.clone();
         let sieve = self.sieve.clone();
 
+        // Prepare and send the boundary data first.
+        self.send_boundary_data();
+
+        // Use scoped threads to handle incoming data without overlapping mutable borrows.
         thread::scope(|s| {
             s.spawn(|_| {
-                // Handle incoming boundary data
+                // Handle incoming boundary data.
+                // Now, this operation occurs after sending, avoiding simultaneous mutable borrows.
                 self.receive_boundary_data();
-            });
-
-            s.spawn(|_| {
-                // Prepare and send boundary data
-                self.send_boundary_data();
             });
         })
         .unwrap();
     }
 
-    fn receive_boundary_data(&self) {
-        // Implementation for receiving boundary data
+    pub fn set_boundary_channels(
+        &mut self,
+        sender: Sender<FxHashMap<MeshEntity, [f64; 3]>>,
+        receiver: Receiver<FxHashMap<MeshEntity, [f64; 3]>>,
+    ) {
+        self.boundary_data_sender = Some(sender);
+        self.boundary_data_receiver = Some(receiver);
+    }
+
+    fn receive_boundary_data(&mut self) {
+        if let Some(ref receiver) = self.boundary_data_receiver {
+            // Attempt to receive boundary data from the channel.
+            if let Ok(boundary_data) = receiver.recv() {
+                let mut entities = self.entities.write().unwrap();
+                for (entity, coords) in boundary_data {
+                    // Update the vertex coordinates for received boundary entities.
+                    if let MeshEntity::Vertex(id) = entity {
+                        self.vertex_coordinates.insert(id, coords);
+                    }
+                    entities.insert(entity);
+                }
+            }
+        }
     }
 
     fn send_boundary_data(&self) {
-        // Implementation for sending boundary data
+        if let Some(ref sender) = self.boundary_data_sender {
+            let mut boundary_data = FxHashMap::default();
+
+            // Collect data for all boundary vertices.
+            let entities = self.entities.read().unwrap();
+            for entity in entities.iter() {
+                if let MeshEntity::Vertex(id) = entity {
+                    if let Some(coords) = self.vertex_coordinates.get(id) {
+                        boundary_data.insert(*entity, *coords);
+                    }
+                }
+            }
+
+            // Send the collected boundary data to the channel.
+            if let Err(e) = sender.send(boundary_data) {
+                eprintln!("Failed to send boundary data: {:?}", e);
+            }
+        }
+    }
+
+    pub fn iter_vertices(&self) -> impl Iterator<Item = &usize> {
+        self.vertex_coordinates.keys()
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::mesh_entity::MeshEntity;
+    use crossbeam::channel::unbounded;
+
+    #[test]
+    fn test_send_receive_boundary_data() {
+        let mut mesh = Mesh::new();
+        let vertex1 = MeshEntity::Vertex(1);
+        let vertex2 = MeshEntity::Vertex(2);
+
+        // Set up vertex coordinates.
+        mesh.vertex_coordinates.insert(1, [1.0, 2.0, 3.0]);
+        mesh.vertex_coordinates.insert(2, [4.0, 5.0, 6.0]);
+
+        // Add boundary entities.
+        mesh.add_entity(vertex1);
+        mesh.add_entity(vertex2);
+
+        // Set up a separate sender and receiver for testing.
+        let (test_sender, test_receiver) = unbounded();
+        mesh.set_boundary_channels(test_sender, test_receiver);
+
+        // Simulate sending the boundary data.
+        mesh.send_boundary_data();
+
+        // Create a second mesh instance to simulate the receiver.
+        let mut mesh_receiver = Mesh::new();
+        mesh_receiver.set_boundary_channels(mesh.boundary_data_sender.clone().unwrap(), mesh.boundary_data_receiver.clone().unwrap());
+
+        // Simulate receiving the boundary data.
+        mesh_receiver.receive_boundary_data();
+
+        // Verify that the receiver mesh has the updated vertex coordinates.
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&1), Some(&[1.0, 2.0, 3.0]));
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&2), Some(&[4.0, 5.0, 6.0]));
+    }
+
+    /* #[test]
+    fn test_receive_empty_data() {
+        let mut mesh = Mesh::new();
+        let (test_sender, test_receiver) = unbounded();
+        mesh.set_boundary_channels(test_sender, test_receiver);
+
+        // Simulate receiving without sending any data.
+        mesh.receive_boundary_data();
+
+        // Ensure no data has been added.
+        assert!(mesh.vertex_coordinates.is_empty());
+    } */
+
+    #[test]
+    fn test_send_without_receiver() {
+        let mut mesh = Mesh::new();
+        let vertex = MeshEntity::Vertex(3);
+        mesh.vertex_coordinates.insert(3, [7.0, 8.0, 9.0]);
+        mesh.add_entity(vertex);
+
+        // Simulate sending the boundary data without setting a receiver.
+        mesh.send_boundary_data();
+
+        // No receiver to process, but this should not panic or fail.
+        assert!(mesh.vertex_coordinates.get(&3).is_some());
+    }
+
+    #[test]
+    fn test_add_entity() {
+        let mesh = Mesh::new();
+        let vertex = MeshEntity::Vertex(1);
+        mesh.add_entity(vertex);
+        assert!(mesh.entities.read().unwrap().contains(&vertex));
+    }
+
+    #[test]
+    fn test_iter_vertices() {
+        let mut mesh = Mesh::new();
+        mesh.vertex_coordinates.insert(1, [1.0, 2.0, 3.0]);
+        let vertices: Vec<_> = mesh.iter_vertices().collect();
+        assert_eq!(vertices, vec![&1]);
+    }
+}

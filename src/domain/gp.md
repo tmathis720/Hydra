@@ -1,204 +1,178 @@
-Here is some general information, followed by recommendations for enhancements of the source code included at the bottom of this prompt. In a systematic matter, apply critical thinking and problem solving to upgrade the components of the Hydra `domain` module based on the recommendations. Provide complete revised code in your response only.
+Below, find some feedback regarding the Hydra domain module that we'd like to integrate into the framework. After the description of the changes, the current source code of the main components of `src/domain/` are enumerated. Apply the changes and update the test modules of each component according to the recommended changes. Only provide the complete corrected code.
 
-#### Phase 1: Foundation of Parallel Communication and Data Layout
+### Enhanced Recommendation: Implementing Improved Data Layout with Rust Iterators
 
-1. **Enhanced Parallel Communication with Rust Concurrency Primitives**:
-   - **Instructions**:
-     - Use `Arc` (Atomic Reference Counting) and `Mutex` or `RwLock` to manage shared access to mesh data across multiple threads. This ensures safe concurrent reads and writes during parallel operations.
-     - Implement asynchronous communication using Rust’s `mpsc` (multi-producer, single-consumer) channels to manage data exchanges between different mesh partitions. Use channels to simulate behaviors similar to those of PETSc’s `PetscSF` for shared data handling.
-     - Integrate the `crossbeam` crate for scoped threads and advanced synchronization, enabling safer handling of overlap regions and boundary data exchanges.
-     - Apply `Rayon` for parallel iterations over elements, especially in tasks such as assembling matrices or updating boundary conditions.
-   - **Resources**:
-     - `std::sync` module documentation for `Arc`, `Mutex`, and `RwLock`.
-     - `crossbeam` crate documentation for advanced synchronization techniques.
-     - `Rayon` crate documentation for parallel iterators.
-     - [Enhanced Parallel Communication Reference](file-7Z86yChuYAxn3wTrmrwlMfQO) .
-   - **Dependencies**: None.
+Drawing from insights provided by the two recent papers—on scalable finite element assembly and the divide-and-conquer approach for parallel computations—this updated recommendation aims to incorporate methods for optimizing data layout using Rust iterators. By leveraging Rust's iterators, we can achieve improved memory access patterns, effective parallelization, and scalability for handling complex 3D unstructured meshes, while ensuring that operations such as finite element assembly are performed with optimal cache utilization and minimal synchronization overhead.
 
----
-
-### Deep Dive into Enhanced Parallel Communication with Rust Concurrency Primitives
-
-Effective parallel communication is crucial for managing distributed mesh computations, especially in scenarios involving complex simulations of partial differential equations (PDEs) over unstructured meshes. The parallelization strategy must ensure data consistency across mesh partitions and efficiently handle data exchange between neighboring elements. Below, I provide a detailed plan for implementing enhanced parallel communication in Rust, using its concurrency primitives to address the needs discussed in the related papers.
-
-#### 1. **Core Concept: Safe Data Sharing with `Arc` and `Mutex`**
-   - **Objective**: Ensure safe shared access to mesh data that spans across partitions while preventing data races.
-   - **Approach**: Use `Arc` (Atomic Reference Counting) with `Mutex` or `RwLock` to enable controlled access to shared data, ensuring thread safety during concurrent read and write operations.
+#### 1. **Core Concept: Using Iterators for Structured Data Access**
+   - **Objective**: Improve the layout and access patterns of mesh data using Rust’s iterator traits (`Iterator`, `IntoIterator`) to access and manipulate elements, edges, and faces in the mesh, thus aligning data processing with optimal memory hierarchies.
+   - **Approach**: Design iterators that allow efficient traversal over mesh elements, focusing on improving cache locality and reducing memory access times. This is inspired by the use of divide-and-conquer (D&C) approaches that focus on enhancing memory locality and reducing synchronization points.
 
 ##### Example Structure
 ```rust
-use std::sync::{Arc, Mutex};
-
 struct Mesh<T> {
-    data: Arc<Mutex<Vec<T>>>, // Shared mesh data protected by a Mutex.
+    vertices: Vec<T>,
+    edges: Vec<(usize, usize)>, // Each edge connects two vertices.
+    faces: Vec<Vec<usize>>,     // Each face is defined by a list of vertex indices.
 }
 
 impl<T> Mesh<T> {
-    // Create a new mesh with shared data.
-    fn new(data: Vec<T>) -> Self {
-        Mesh {
-            data: Arc::new(Mutex::new(data)),
-        }
+    // Iterate over all vertices.
+    fn iter_vertices(&self) -> impl Iterator<Item = &T> {
+        self.vertices.iter()
     }
 
-    // Access the mesh data with thread-safe locks.
-    fn update_data<F>(&self, update_fn: F)
-    where
-        F: Fn(&mut Vec<T>),
-    {
-        if let Ok(mut data) = self.data.lock() {
-            update_fn(&mut *data); // Apply updates safely within the lock.
-        }
-    }
-}
-```
-   - **Explanation**: 
-     - `Arc<Mutex<Vec<T>>>` allows multiple threads to share access to the mesh data while ensuring that only one thread can modify the data at a time.
-     - The `update_data` method allows for applying updates to the mesh data in a thread-safe manner, suitable for operations like refining or coarsening elements based on distributed calculations.
-
-   - **Integration with Existing Module**:
-     - This pattern could be integrated with the data handling in `section.rs` or `mesh_entity.rs` to manage synchronization of shared mesh data, particularly when overlapping regions are being updated by multiple threads.
-
-#### 2. **Efficient One-Sided Communication with Channels**
-   - **Objective**: Facilitate communication between different partitions of a distributed mesh by using channels for asynchronous data exchange, mimicking the behavior of PETSc’s `PetscSF` for managing shared data.
-   - **Approach**: Use Rust’s `std::sync::mpsc` module to implement channels for sending and receiving data between threads, ensuring non-blocking communication when possible.
-
-##### Example Usage of Channels
-```rust
-use std::sync::mpsc;
-use std::thread;
-
-struct MeshPartition<T> {
-    local_data: Vec<T>,
-}
-
-impl<T: Send + 'static> MeshPartition<T> {
-    fn communicate_with_neighbors(&self, neighbor_data: Vec<T>) -> Vec<T> {
-        let (tx, rx) = mpsc::channel(); // Create a channel for communication.
-
-        // Simulate sending data to a neighboring partition in a separate thread.
-        thread::spawn(move || {
-            tx.send(neighbor_data).unwrap(); // Send data to the neighbor.
-        });
-
-        // Receive data from the neighboring partition.
-        match rx.recv() {
-            Ok(data) => data,
-            Err(_) => vec![], // Handle communication failure.
-        }
-    }
-}
-```
-
-   - **Explanation**: 
-     - The `mpsc::channel` allows a mesh partition to send and receive data asynchronously with its neighbors, simulating data exchange in distributed systems.
-     - This pattern is particularly useful for boundary exchanges, where data from overlapping regions needs to be sent to adjacent partitions for consistency checks and updates.
-
-   - **Integration**:
-     - This pattern can be applied in `overlap.rs` to handle data exchanges between overlapping mesh regions. Channels could be used to transfer boundary values or constraints between partitions during the iterative solution process.
-     - It also allows for handling dynamic mesh repartitioning, where new communication patterns need to be established as the mesh evolves.
-
-#### 3. **Scalable Data Aggregation with `Rayon` and Parallel Iterators**
-   - **Objective**: Use parallel iteration to perform operations like data aggregation or matrix assembly across different mesh partitions in a concurrent manner, similar to distributed assembly routines in DMPlex.
-   - **Approach**: Use the `Rayon` crate, which provides parallel iterators, to apply functions across collections of mesh elements concurrently.
-
-##### Example Using `Rayon` for Parallel Aggregation
-```rust
-use rayon::prelude::*;
-use std::sync::{Arc, RwLock};
-
-struct Mesh<T> {
-    data: Arc<RwLock<Vec<T>>>, // Use RwLock for concurrent read access.
-}
-
-impl<T: Send + Sync + 'static + Default> Mesh<T> {
-    // Apply a parallel function across mesh elements.
-    fn parallel_aggregate<F>(&self, aggregation_fn: F)
-    where
-        F: Fn(&T) -> T + Sync,
-    {
-        let mut data = self.data.write().unwrap();
-        let result: Vec<T> = data
-            .par_iter()
-            .map(|element| aggregation_fn(element))
-            .collect();
-
-        // Update data with the aggregated result.
-        *data = result;
-    }
-}
-```
-
-   - **Explanation**: 
-     - `Rayon`’s parallel iterators allow for concurrent execution of the `aggregation_fn` across all elements in the `data` vector, making it ideal for large-scale parallel operations.
-     - Using `RwLock` allows concurrent reads while still enabling exclusive write access when needed, balancing performance and safety.
-     - This approach can replace traditional for-loops for operations like assembling matrices or computing boundary contributions across distributed partitions.
-
-   - **Integration**:
-     - Parallel iterators can be used in `reordering.rs` to reorder mesh elements concurrently, improving the efficiency of sorting operations during pre-processing.
-     - This can also be applied during the assembly process in `section.rs`, where multiple threads can concurrently process different parts of the mesh to assemble global matrices for FEM.
-
-#### 4. **Managing Overlap and Halo Regions with `Crossbeam`**
-   - **Objective**: Handle communication patterns that require multiple threads to share and update boundary data, such as when dealing with halo regions in parallel mesh computations.
-   - **Approach**: Use the `crossbeam` crate, which provides scoped threads and more advanced synchronization primitives, to coordinate data exchanges and ensure that threads complete their tasks before proceeding.
-
-##### Example Using `Crossbeam` for Scoped Threads
-```rust
-use crossbeam::thread;
-
-struct Mesh<T> {
-    boundary_data: Vec<T>,
-}
-
-impl<T: Send + Sync> Mesh<T> {
-    fn sync_boundary_data(&mut self, neighbor_data: Vec<T>) {
-        crossbeam::thread::scope(|s| {
-            s.spawn(|_| {
-                // Thread for handling incoming boundary data.
-                self.process_incoming_data(neighbor_data);
-            });
-
-            s.spawn(|_| {
-                // Thread for preparing data to send to neighbors.
-                self.prepare_outgoing_data();
-            });
+    // Iterate over all edges as pairs of vertices.
+    fn iter_edges(&self) -> impl Iterator<Item = (&T, &T)> {
+        self.edges.iter().map(move |&(v1, v2)| {
+            (&self.vertices[v1], &self.vertices[v2])
         })
-        .unwrap();
     }
 
-    fn process_incoming_data(&mut self, data: Vec<T>) {
-        // Logic for processing incoming boundary data.
-    }
-
-    fn prepare_outgoing_data(&self) {
-        // Logic for preparing boundary data to send to neighbors.
+    // Iterate over all faces as a list of vertices.
+    fn iter_faces(&self) -> impl Iterator<Item = Vec<&T>> {
+        self.faces.iter().map(move |face| {
+            face.iter().map(|&v| &self.vertices[v]).collect()
+        })
     }
 }
 ```
 
    - **Explanation**: 
-     - `crossbeam::thread::scope` allows for spawning threads with guaranteed lifetimes, ensuring that all threads complete before exiting the scope, thus preventing dangling data references.
-     - Using this pattern for managing boundary data ensures that the mesh's communication processes are synchronized correctly, preventing inconsistencies.
+     - `iter_vertices` provides a way to access vertex data sequentially, improving cache access patterns when processing all vertices.
+     - `iter_edges` maps each edge to its associated vertices, allowing seamless access during edge-based operations like gradient calculations.
+     - `iter_faces` simplifies accessing vertices that form a face, crucial for element-wise calculations like stiffness matrix assembly.
+     - These iterators abstract data access, promoting better memory alignment and making it easier to implement cache-friendly algorithms such as the D&C approach for local computations.
 
-   - **Integration**:
-     - This approach is suitable for `overlap.rs`, where multiple threads need to handle overlapping regions between partitions. It ensures that all boundary data updates are completed before advancing to the next computation step.
-     - `crossbeam` can also be used to coordinate complex data migration tasks during dynamic repartitioning of the mesh, ensuring consistency during transitions.
+   - **Integration**: 
+     - These iterator methods can be used in `mesh.rs` for tasks that involve traversing vertices, edges, or faces, particularly in scenarios where maintaining data locality is key to performance.
 
-### Summary of Enhancements
-1. **Safe shared access** using `Arc` and `Mutex` ensures that mesh data can be safely updated across multiple threads without risking data races.
-2. **Efficient asynchronous communication** with channels facilitates non-blocking exchanges between mesh partitions, supporting dynamic parallel communication patterns.
-3. **Scalable parallel iteration** with `Rayon` enables high-performance aggregation and assembly operations, making the module suitable for large-scale simulations.
-4. **Controlled synchronization** with `crossbeam` ensures that data exchanges and synchronization points are managed efficiently, crucial for maintaining consistency across distributed domains.
+#### 2. **Optimizing Data Access for Matrix Assembly with Divide-and-Conquer**
+   - **Objective**: Use iterators to traverse mesh entities during the assembly of global matrices, ensuring that data is accessed in a cache-friendly manner while reducing synchronization overhead.
+   - **Approach**: Apply divide-and-conquer-inspired iteration patterns to organize work in a way that enhances cache coherence during matrix assembly. This involves breaking down the assembly into smaller tasks, each of which processes a portion of the mesh data locally.
 
-By integrating these concurrency mechanisms, the Rust-based domain module can better handle the parallel communication needs of complex scientific simulations, offering a safer, more efficient, and scalable solution for managing distributed mesh computations.
-
----
-
-### Current Source Code
-
-src/domain/mesh_entity.rs:
+##### Example Iterator for Element Assembly
 ```rust
-// src/domain/mesh_entity.rs
+impl<T> Mesh<T> {
+    // Iterate over elements in a cache-friendly order using D&C.
+    fn iter_elements_in_order(&self, element_order: &[usize]) -> impl Iterator<Item = &Vec<usize>> {
+        element_order.iter().map(move |&index| &self.faces[index])
+    }
+
+    // Assemble a global stiffness matrix using the iterator and D&C strategy.
+    fn assemble_stiffness_matrix<F>(&self, element_order: &[usize], compute_element_matrix: F) -> SparseMatrix
+    where
+        F: Fn(&Vec<usize>) -> Vec<Vec<f64>>, // Function to compute element stiffness.
+    {
+        let mut matrix = SparseMatrix::new(self.vertices.len());
+
+        // Iterate over elements in the specified order and assemble their contributions.
+        for face in self.iter_elements_in_order(element_order) {
+            let element_matrix = compute_element_matrix(face);
+            matrix.add_contribution(face, element_matrix);
+        }
+
+        matrix
+    }
+}
+```
+
+   - **Explanation**: 
+     - `iter_elements_in_order` ensures that elements are processed in a sequence that preserves memory locality, reducing cache misses during computations.
+     - Using a D&C approach, tasks are divided into smaller segments that operate locally on cache-sized chunks of data, and results are later combined to form the global matrix.
+     - This pattern aligns with insights from the divide-and-conquer method discussed in the recent paper, focusing on reducing memory latency through better data access patterns.
+
+   - **Integration**: 
+     - This iterator can be directly integrated into the matrix assembly functions in `section.rs`, ensuring that each element's contribution to the global stiffness matrix is computed with minimal cache inefficiencies.
+
+#### 3. **Parallel Iterators with Divide-and-Conquer for Boundary Data**
+   - **Objective**: Handle boundary conditions and overlap regions using parallel iterators, inspired by the D&C approach to minimize data movement and synchronization overhead during boundary data processing.
+   - **Approach**: Use `Rayon` for parallelizing boundary data traversal, combining the benefits of D&C (local computations) with Rust's parallel iterator patterns to handle boundaries efficiently.
+
+##### Example Iterator for Boundary Conditions
+```rust
+impl<T> Mesh<T> {
+    // Parallel iterator for boundary edges, reducing synchronization overhead.
+    fn par_iter_boundary_edges(&self, is_boundary: impl Fn(usize) -> bool + Sync) -> impl ParallelIterator<Item = (&T, &T)> {
+        self.edges.par_iter()
+            .filter(move |&&(v1, v2)| is_boundary(v1) || is_boundary(v2))
+            .map(move |&(v1, v2)| (&self.vertices[v1], &self.vertices[v2]))
+    }
+}
+
+// Example: Apply boundary condition using the parallel iterator.
+fn apply_dirichlet_boundary_conditions(mesh: &Mesh<f64>, is_boundary: impl Fn(usize) -> bool + Sync, boundary_value: f64) -> Vec<f64> {
+    let mut boundary_data = vec![0.0; mesh.vertices.len()];
+
+    mesh.par_iter_boundary_edges(is_boundary).for_each(|(&v1, &v2)| {
+        boundary_data[v1] = boundary_value;
+        boundary_data[v2] = boundary_value;
+    });
+
+    boundary_data
+}
+```
+
+   - **Explanation**: 
+     - `par_iter_boundary_edges` enables parallel processing of boundary edges, allowing simultaneous application of conditions to multiple edges, thus reducing the time required for handling boundary data.
+     - This approach is aligned with the divide-and-conquer strategy, focusing on local processing of boundary elements while minimizing synchronization overhead by leveraging parallel execution.
+
+   - **Integration**: 
+     - This can be used in `overlap.rs` to synchronize boundary data between partitions more efficiently, supporting the exchange of boundary values in parallel.
+
+#### 4. **Improved Vectorization with Iterators and D&C Techniques**
+   - **Objective**: Use iterators for structured traversal to facilitate vectorization, ensuring that memory access patterns are optimized for modern many-core processors.
+   - **Approach**: Implement iterators that access data in a vectorization-friendly manner, using the D&C approach to create small blocks that align with vector registers.
+
+##### Example for Vectorization with Iterators
+```rust
+impl<T: Copy> Mesh<T> {
+    // Iterate over elements and apply a vectorized operation.
+    fn iter_vectorized_elements(&self, chunk_size: usize) -> impl Iterator<Item = &[T]> {
+        self.vertices.chunks(chunk_size)
+    }
+
+    // Example: Apply a vectorized transformation to all vertices.
+    fn apply_vectorized_transformation<F>(&mut self, transform: F, chunk_size: usize)
+    where
+        F: Fn(&[T]) -> [T; 4] + Sync, // Function to apply vectorized operation.
+    {
+        self.iter_vectorized_elements(chunk_size).for_each(|chunk| {
+            let transformed = transform(chunk);
+            for (i, &value) in transformed.iter().enumerate() {
+                self.vertices[i] = value; // Update vertices with transformed values.
+            }
+        });
+    }
+}
+```
+
+   - **Explanation**: 
+     - `iter_vectorized_elements` provides an iterator that divides vertex data into chunks that align with the processor’s vector length, making it suitable for SIMD (Single Instruction, Multiple Data) operations.
+     - The D&C-inspired chunking allows for each chunk to be processed independently in a manner that aligns with cache line sizes and vector registers, leading to better performance on many-core architectures.
+
+   - **Integration**: 
+     - This approach can be applied in `mesh_entity.rs` and `section.rs` during element-wise operations like computing matrix contributions or applying initial conditions, ensuring that computations are optimized for vector units.
+
+### Summary of Enhanced Recommendations
+1. **Iterators for structured and cache-friendly traversal**: Simplifies data access while aligning with memory hierarchies to reduce latency.
+2. **Divide-and-Conquer-based parallel iterators**: Achieves better memory locality and reduces synchronization points, improving parallel scalability.
+3. **Parallelized boundary condition handling**: Reduces overhead through parallel processing of boundaries, leveraging insights from scalable parallel methods.
+4. **Vectorization-friendly iterators**: Supports efficient computation on modern processors, improving performance for element-based operations.
+
+By integrating these iterator-based improvements with a focus on D&C and parallelization techniques, the Rust-based module can
+
+ achieve enhanced performance, making it more capable of handling complex simulations on modern HPC systems. This approach aligns with the best practices for achieving scalability and efficiency in finite element computations, as detailed in the papers.
+
+ ---
+
+ ### Source Code for Domain components
+
+ 1. `src/domain/mesh_entity.rs`
+
+ ```rust
+
+ // src/domain/mesh_entity.rs
 
 #[derive(Debug, Hash, Eq, PartialEq, PartialOrd, Clone, Copy)]
 pub enum MeshEntity {
@@ -298,38 +272,44 @@ mod tests {
         assert_eq!(added_entity.entity_type(), "Vertex");
     }
 }
+
 ```
 
-/src/domain/sieve.rs:
+2. `src/domain/sieve.rs`
+
 ```rust
+
 use rustc_hash::{FxHashMap, FxHashSet};
-use crate::domain::mesh_entity::MeshEntity;  // Assuming MeshEntity is defined in mesh_entity.rs
+use std::sync::{Arc, RwLock};
+use rayon::prelude::*;
+use crate::domain::mesh_entity::MeshEntity;
+use crossbeam::thread;
 
 #[derive(Clone)]
 pub struct Sieve {
-    pub adjacency: FxHashMap<MeshEntity, FxHashSet<MeshEntity>>, // Incidence relations (arrows)
+    pub adjacency: Arc<RwLock<FxHashMap<MeshEntity, FxHashSet<MeshEntity>>>>,
 }
 
 impl Sieve {
-    // Constructor to initialize an empty Sieve
     pub fn new() -> Self {
         Sieve {
-            adjacency: FxHashMap::default(),
+            adjacency: Arc::new(RwLock::new(FxHashMap::default())),
         }
     }
 
-    // Adds an incidence (arrow) from one entity to another
-    pub fn add_arrow(&mut self, from: MeshEntity, to: MeshEntity) {
-        // Add the direct incidence relation
-        self.adjacency.entry(from).or_insert_with(|| FxHashSet::default()).insert(to);
+    pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
+        let mut adjacency = self.adjacency.write().unwrap();
+        adjacency
+            .entry(from)
+            .or_insert_with(FxHashSet::default)
+            .insert(to);
     }
 
-    // Cone operation: Find points covering a given point
-    pub fn cone(&self, point: &MeshEntity) -> Option<&FxHashSet<MeshEntity>> {
-        self.adjacency.get(point)
+    pub fn cone(&self, point: &MeshEntity) -> Option<FxHashSet<MeshEntity>> {
+        let adjacency = self.adjacency.read().unwrap();
+        adjacency.get(point).cloned()
     }
 
-    // Closure operation: Transitive closure of cone
     pub fn closure(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
         let mut result = FxHashSet::default();
         let mut stack = vec![point.clone()];
@@ -345,44 +325,32 @@ impl Sieve {
         result
     }
 
-    // Support operation: Find all points supported by a given point
-    pub fn support(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
+    pub fn star(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
         let mut result = FxHashSet::default();
-        for (from, to_set) in &self.adjacency {
-            if to_set.contains(point) {
-                result.insert(from.clone());
+        let mut stack = vec![point.clone()];
+
+        while let Some(p) = stack.pop() {
+            if result.insert(p.clone()) {
+                if let Some(cones) = self.cone(&p) {
+                    for q in cones {
+                        stack.push(q.clone());
+                    }
+                }
+                let supports = self.support(&p);
+                for q in supports {
+                    stack.push(q.clone());
+                }
             }
         }
         result
     }
 
-    // Star operation: Transitive closure of support
-    pub fn star(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
-        let mut result = FxHashSet::default();
-        let mut stack = vec![point.clone()];  // Start with the point itself
-    
-        while let Some(p) = stack.pop() {
-            if result.insert(p.clone()) {
-                // Get all points that this point supports (cone)
-                if let Some(cones) = self.cone(&p) {
-                    for q in cones {
-                        if !result.contains(q) {
-                            stack.push(q.clone());  // Add to stack if not already in the result set
-                        }
-                    }
-                }
-                // Get all points that support this point (support)
-                let supports = self.support(&p);
-                for q in supports {
-                    if !result.contains(&q) {
-                        stack.push(q.clone());
-                    }
-                }
-            }
-        }
-    
-        println!("Star result for {:?}: {:?}", point, result);
-        result
+    pub fn support(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
+        let adjacency = self.adjacency.read().unwrap();
+        adjacency
+            .iter()
+            .filter_map(|(from, to_set)| if to_set.contains(point) { Some(from.clone()) } else { None })
+            .collect()
     }
 
     // Meet operation: Minimal separator of closure(p) and closure(q)
@@ -402,6 +370,19 @@ impl Sieve {
         let join_result: FxHashSet<MeshEntity> = star_p.union(&star_q).cloned().collect();
         join_result
     }
+
+    // Parallel iteration over adjacency entries
+    pub fn par_for_each_adjacent<F>(&self, func: F)
+    where
+        F: Fn((&MeshEntity, &FxHashSet<MeshEntity>)) + Sync + Send,
+    {
+        let adjacency = self.adjacency.read().unwrap();
+        adjacency.par_iter().for_each(|entry| {
+            func(entry);
+        });
+    }
+
+    
 }
 
 // Unit tests for the Sieve structure and its operations
@@ -504,65 +485,94 @@ mod tests {
         assert!(join_result.contains(&face), "Join result should contain the face");
     }
 }
+
 ```
 
-src/domain/section.rs:
+3. `src/domain/section.rs`
 
 ```rust
 use rustc_hash::FxHashMap;
-use crate::domain::mesh_entity::MeshEntity;  // Assuming MeshEntity is defined in mesh_entity.rs
+use std::sync::{Arc, RwLock};
+use rayon::prelude::*;
+use crate::domain::mesh_entity::MeshEntity;
 
-/// Section structure for associating data with mesh entities
 pub struct Section<T> {
-    pub data: FxHashMap<MeshEntity, T>,  // Map from entity to associated data
+    pub data: Arc<RwLock<FxHashMap<MeshEntity, T>>>,
 }
 
 impl<T> Section<T> {
-    /// Creates a new, empty Section
     pub fn new() -> Self {
         Section {
-            data: FxHashMap::default(),
+            data: Arc::new(RwLock::new(FxHashMap::default())),
         }
     }
 
-    /// Associate data with a mesh entity
-    pub fn set_data(&mut self, entity: MeshEntity, value: T) {
-        self.data.insert(entity, value);  // Insert or update the data
+    pub fn set_data(&self, entity: MeshEntity, value: T) {
+        let mut data = self.data.write().unwrap();
+        data.insert(entity, value);
     }
 
-    /// Restrict data to a given mesh entity (immutable access)
-    pub fn restrict(&self, entity: &MeshEntity) -> Option<&T> {
-        self.data.get(entity)
+    pub fn restrict(&self, entity: &MeshEntity) -> Option<T> 
+    where
+        T: Clone,
+    {
+        let data = self.data.read().unwrap();
+        data.get(entity).cloned()
     }
+
+    pub fn parallel_update<F>(&self, update_fn: F)
+    where
+        F: Fn(&mut T) + Sync + Send,
+        T: Send + Sync,
+    {
+        let mut data = self.data.write().unwrap();
+        data.par_iter_mut().for_each(|(_, v)| update_fn(v));
+    }
+
 
     /// Restrict data to a given mesh entity (mutable access)
-    pub fn restrict_mut(&mut self, entity: &MeshEntity) -> Option<&mut T> {
-        self.data.get_mut(entity)
+    pub fn restrict_mut(&self, entity: &MeshEntity) -> Option<T>
+    where
+        T: Clone,
+    {
+        let mut data = self.data.write().unwrap();
+        data.get(entity).cloned()
     }
 
     /// Update the data for a given mesh entity
-    pub fn update_data(&mut self, entity: &MeshEntity, new_value: T) {
-        self.data.insert(*entity, new_value);
+    pub fn update_data(&self, entity: &MeshEntity, new_value: T) {
+        let mut data = self.data.write().unwrap();
+        data.insert(*entity, new_value);
     }
 
     /// Clear all data in the section
-    pub fn clear(&mut self) {
-        self.data.clear();
+    pub fn clear(&self) {
+        let mut data = self.data.write().unwrap();
+        data.clear();
     }
 
     /// Get all mesh entities associated with this section
     pub fn entities(&self) -> Vec<MeshEntity> {
-        self.data.keys().cloned().collect()
+        let data = self.data.read().unwrap();
+        data.keys().cloned().collect()
     }
 
     /// Get all data stored in this section (immutable references)
-    pub fn all_data(&self) -> Vec<&T> {
-        self.data.values().collect()
+    pub fn all_data(&self) -> Vec<T>
+    where
+        T: Clone,
+    {
+        let data = self.data.read().unwrap();
+        data.values().cloned().collect()
     }
 
     /// Get mutable access to all data stored in this section
-    pub fn all_data_mut(&mut self) -> Vec<&mut T> {
-        self.data.values_mut().collect()
+    pub fn all_data_mut(&self) -> Vec<T>
+    where
+        T: Clone,
+    {
+        let mut data = self.data.write().unwrap();
+        data.values().cloned().collect()
     }
 }
 
@@ -574,15 +584,10 @@ mod tests {
 
     #[test]
     fn test_set_and_restrict_data() {
-        let mut section = Section::new();
+        let section = Section::new();
         let vertex = MeshEntity::Vertex(1);
-        let edge = MeshEntity::Edge(1);
-
-        section.set_data(vertex, 10);
-        section.set_data(edge, 20);
-
-        assert_eq!(section.restrict(&vertex), Some(&10));
-        assert_eq!(section.restrict(&edge), Some(&20));
+        section.set_data(vertex, 42);
+        assert_eq!(section.restrict(&vertex), Some(42));
     }
 
     #[test]
@@ -591,28 +596,29 @@ mod tests {
         let vertex = MeshEntity::Vertex(1);
 
         section.set_data(vertex, 10);
-        assert_eq!(section.restrict(&vertex), Some(&10));
+        assert_eq!(section.restrict(&vertex), Some(10));
 
         // Update the data
         section.update_data(&vertex, 15);
-        assert_eq!(section.restrict(&vertex), Some(&15));
+        assert_eq!(section.restrict(&vertex), Some(15));
 
         // Try updating data for a non-existent entity (should insert it)
         let non_existent_entity = MeshEntity::Vertex(2);
         section.update_data(&non_existent_entity, 30);
-        assert_eq!(section.restrict(&non_existent_entity), Some(&30));
+        assert_eq!(section.restrict(&non_existent_entity), Some(30));
     }
 
     #[test]
     fn test_restrict_mut() {
-        let mut section = Section::new();
+        let section = Section::new();
         let vertex = MeshEntity::Vertex(1);
 
         section.set_data(vertex, 5);
-        if let Some(value) = section.restrict_mut(&vertex) {
-            *value = 50;
+        if let Some(mut value) = section.restrict_mut(&vertex) {
+            value = 50;
+            section.set_data(vertex, value);
         }
-        assert_eq!(section.restrict(&vertex), Some(&50));
+        assert_eq!(section.restrict(&vertex), Some(50));
     }
 
     #[test]
@@ -645,97 +651,359 @@ mod tests {
         assert!(all_data.contains(&&20));
     }
 }
+
 ```
 
-src/domain/overlap.rs:
+4. `src/domain/mesh.rs`
 
 ```rust
 use rustc_hash::{FxHashMap, FxHashSet};
 use crate::domain::mesh_entity::MeshEntity;
+use crate::domain::sieve::Sieve;
+use crate::geometry::{Geometry, CellShape, FaceShape};  // Import geometry module
+use std::sync::{Arc, RwLock};
+use rayon::iter::*;
+use crossbeam::thread;
 
-/// Overlap structure to handle relationships between local and ghost entities
-pub struct Overlap {
-    pub local_entities: FxHashSet<MeshEntity>,  // Local mesh entities
-    pub ghost_entities: FxHashSet<MeshEntity>,  // Entities shared with other processes
+#[derive(Clone)]
+pub struct Mesh {
+    pub sieve: Arc<Sieve>,                         // Sieve to handle hierarchical relationships
+    pub entities: Arc<RwLock<FxHashSet<MeshEntity>>>,      // Set of all entities in the mesh
+    pub vertex_coordinates: FxHashMap<usize, [f64; 3]>, // Mapping from vertex IDs to coordinates
 }
 
-impl Overlap {
-    /// Creates a new, empty Overlap
+impl Mesh {
+    /// Create a new empty mesh
     pub fn new() -> Self {
-        Overlap {
-            local_entities: FxHashSet::default(),
-            ghost_entities: FxHashSet::default(),
+        Mesh {
+            sieve: Arc::new(Sieve::new()),
+            entities: Arc::new(RwLock::new(FxHashSet::default())),
+            vertex_coordinates: FxHashMap::default(),
         }
     }
 
-    /// Add a local entity to the overlap
-    pub fn add_local_entity(&mut self, entity: MeshEntity) {
-        self.local_entities.insert(entity);
+    /// Add a new entity to the mesh (vertex, edge, face, or cell)
+    pub fn add_entity(&self, entity: MeshEntity) {
+        let mut entities = self.entities.write().unwrap();
+        entities.insert(entity);
     }
 
-    /// Add a ghost entity to the overlap (shared with other processes)
-    pub fn add_ghost_entity(&mut self, entity: MeshEntity) {
-        self.ghost_entities.insert(entity);
+    pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
+        self.sieve.add_arrow(from, to);
     }
 
-    /// Check if an entity is local
+    // Apply a function to all entities in parallel
+    pub fn par_for_each_entity<F>(&self, func: F)
+    where
+        F: Fn(&MeshEntity) + Sync + Send,
+    {
+        let entities = self.entities.read().unwrap();
+        entities.par_iter().for_each(|entity| {
+            func(entity);
+        });
+    }
+
+    /// Add a relationship between two entities
+    pub fn add_relationship(&mut self, from: MeshEntity, to: MeshEntity) {
+        self.sieve.add_arrow(from, to);
+    }
+
+    /// Set coordinates for a vertex
+    pub fn set_vertex_coordinates(&mut self, vertex_id: usize, coords: [f64; 3]) {
+        self.vertex_coordinates.insert(vertex_id, coords);
+        self.add_entity(MeshEntity::Vertex(vertex_id));
+    }
+
+    /// Get coordinates of a vertex
+    pub fn get_vertex_coordinates(&self, vertex_id: usize) -> Option<[f64; 3]> {
+        self.vertex_coordinates.get(&vertex_id).cloned()
+    }
+
+    /// Get all cells in the mesh
+    pub fn get_cells(&self) -> Vec<MeshEntity> {
+        let entities = self.entities.read().unwrap();
+        entities.iter()
+            .filter(|e| matches!(e, MeshEntity::Cell(_)))
+            .cloned()
+            .collect()
+    }
+
+    /// Get all faces in the mesh
+    pub fn get_faces(&self) -> Vec<MeshEntity> {
+        let entities = self.entities.read().unwrap();
+        entities.iter()
+            .filter(|e| matches!(e, MeshEntity::Face(_)))
+            .cloned()
+            .collect()
+    }
+
+    /// Get faces of a cell
+    pub fn get_faces_of_cell(&self, cell: &MeshEntity) -> Option<FxHashSet<MeshEntity>> {
+        self.sieve.cone(cell).map(|set| set.clone())
+    }
+
+    /// Get cells sharing a face
+    pub fn get_cells_sharing_face(&self, face: &MeshEntity) -> FxHashSet<MeshEntity> {
+        self.sieve.support(face)
+    }
+
+    /// Get face area (requires geometric data)
+    pub fn get_face_area(&self, face: &MeshEntity) -> f64 {
+        let face_vertices = self.get_face_vertices(face);
+        let face_shape = match face_vertices.len() {
+            3 => FaceShape::Triangle,
+            4 => FaceShape::Quadrilateral,
+            _ => panic!("Unsupported face shape with {} vertices", face_vertices.len()),
+        };
+        let geometry = Geometry::new();
+        geometry.compute_face_area(face_shape, &face_vertices)
+    }
+
+    /// Get distance between cell centers (requires geometric data)
+    pub fn get_distance_between_cells(&self, cell_i: &MeshEntity, cell_j: &MeshEntity) -> f64 {
+        let centroid_i = self.get_cell_centroid(cell_i);
+        let centroid_j = self.get_cell_centroid(cell_j);
+        Geometry::compute_distance(&centroid_i, &centroid_j)
+    }
+
+    /// Get distance from cell center to boundary face
+    pub fn get_distance_to_boundary(&self, cell: &MeshEntity, face: &MeshEntity) -> f64 {
+        let centroid = self.get_cell_centroid(cell);
+        let face_vertices = self.get_face_vertices(face);
+        let face_shape = match face_vertices.len() {
+            3 => FaceShape::Triangle,
+            4 => FaceShape::Quadrilateral,
+            _ => panic!("Unsupported face shape with {} vertices", face_vertices.len()),
+        };
+        let geometry = Geometry::new();
+        let face_centroid = geometry.compute_face_centroid(face_shape, &face_vertices);
+        Geometry::compute_distance(&centroid, &face_centroid)
+    }
+
+    /// Get cell centroid
+    pub fn get_cell_centroid(&self, cell: &MeshEntity) -> [f64; 3] {
+        let cell_vertices = self.get_cell_vertices(cell);
+        let cell_shape = match cell_vertices.len() {
+            4 => CellShape::Tetrahedron,
+            5 => CellShape::Pyramid,
+            6 => CellShape::Prism,
+            8 => CellShape::Hexahedron,
+            _ => panic!("Unsupported cell shape with {} vertices", cell_vertices.len()),
+        };
+        let geometry = Geometry::new();
+        geometry.compute_cell_centroid(cell_shape, &cell_vertices)
+    }
+
+    /// Get cell vertices
+    pub fn get_cell_vertices(&self, cell: &MeshEntity) -> Vec<[f64; 3]> {
+        let mut vertices = Vec::new();
+        if let Some(connected_faces) = self.sieve.cone(cell) {
+            for face in connected_faces {
+                let face_vertices = self.get_face_vertices(&face);
+                vertices.extend(face_vertices);
+            }
+            vertices.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            vertices.dedup();
+        }
+        vertices
+    }
+
+    /// Get face vertices
+    pub fn get_face_vertices(&self, face: &MeshEntity) -> Vec<[f64; 3]> {
+        let mut vertices = Vec::new();
+        if let Some(connected_vertices) = self.sieve.cone(face) {
+            for vertex in connected_vertices {
+                if let MeshEntity::Vertex(vertex_id) = vertex {
+                    if let Some(coords) = self.get_vertex_coordinates(vertex_id) {
+                        vertices.push(coords);
+                    } else {
+                        panic!("Coordinates for vertex {} not found", vertex_id);
+                    }
+                }
+            }
+        }
+        vertices
+    }
+
+    /// Count the number of MeshEntities of a specific type
+    pub fn count_entities(&self, entity_type: &MeshEntity) -> usize {
+        let entities = self.entities.read().unwrap();
+        entities.iter()
+            .filter(|e| match (e, entity_type) {
+                (MeshEntity::Vertex(_), MeshEntity::Vertex(_)) => true,
+                (MeshEntity::Cell(_), MeshEntity::Cell(_)) => true,
+                (MeshEntity::Edge(_), MeshEntity::Edge(_)) => true,
+                (MeshEntity::Face(_), MeshEntity::Face(_)) => true,
+                _ => false,
+            })
+            .count()
+    }
+
+    pub fn get_neighboring_vertices(&self, vertex: &MeshEntity) -> Vec<MeshEntity> {
+        let mut neighbors = FxHashSet::default();
+        let connected_cells = self.sieve.support(vertex);
+
+        for cell in &connected_cells {
+            if let Some(cell_vertices) = self.sieve.cone(cell).as_ref() {
+                for v in cell_vertices {
+                    if v != vertex && matches!(v, MeshEntity::Vertex(_)) {
+                        neighbors.insert(*v);
+                    }
+                }
+            } else {
+                panic!("Cell {:?} has no connected vertices", cell);
+            }
+        }
+        neighbors.into_iter().collect()
+    }
+
+    // Example method to compute some property for each entity in parallel
+    pub fn compute_properties<F, PropertyType>(&self, compute_fn: F) -> FxHashMap<MeshEntity, PropertyType>
+    where
+        F: Fn(&MeshEntity) -> PropertyType + Sync + Send,
+        PropertyType: Send,
+    {
+        let entities = self.entities.read().unwrap();
+        entities
+            .par_iter()
+            .map(|entity| (*entity, compute_fn(entity)))
+            .collect()
+    }
+
+    // Synchronize boundary data using scoped threads
+    pub fn sync_boundary_data(&self) {
+        let entities = self.entities.clone();
+        let sieve = self.sieve.clone();
+
+        thread::scope(|s| {
+            s.spawn(|_| {
+                // Handle incoming boundary data
+                self.receive_boundary_data();
+            });
+
+            s.spawn(|_| {
+                // Prepare and send boundary data
+                self.send_boundary_data();
+            });
+        })
+        .unwrap();
+    }
+
+    fn receive_boundary_data(&self) {
+        // Implementation for receiving boundary data
+    }
+
+    fn send_boundary_data(&self) {
+        // Implementation for sending boundary data
+    }
+}
+
+
+```
+
+5. `src/domain/overlap.rs`
+
+```rust
+
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::sync::{Arc, RwLock};
+use crate::domain::mesh_entity::MeshEntity;
+
+pub struct Overlap {
+    pub local_entities: Arc<RwLock<FxHashSet<MeshEntity>>>,
+    pub ghost_entities: Arc<RwLock<FxHashSet<MeshEntity>>>,
+}
+
+impl Overlap {
+    pub fn new() -> Self {
+        Overlap {
+            local_entities: Arc::new(RwLock::new(FxHashSet::default())),
+            ghost_entities: Arc::new(RwLock::new(FxHashSet::default())),
+        }
+    }
+
+    pub fn add_local_entity(&self, entity: MeshEntity) {
+        let mut local = self.local_entities.write().unwrap();
+        local.insert(entity);
+    }
+
+    pub fn add_ghost_entity(&self, entity: MeshEntity) {
+        let mut ghost = self.ghost_entities.write().unwrap();
+        ghost.insert(entity);
+    }
+
     pub fn is_local(&self, entity: &MeshEntity) -> bool {
-        self.local_entities.contains(entity)
+        let local = self.local_entities.read().unwrap();
+        local.contains(entity)
     }
 
-    /// Check if an entity is a ghost entity (shared with other processes)
     pub fn is_ghost(&self, entity: &MeshEntity) -> bool {
-        self.ghost_entities.contains(entity)
+        let ghost = self.ghost_entities.read().unwrap();
+        ghost.contains(entity)
     }
 
-    /// Get all local entities
-    pub fn local_entities(&self) -> &FxHashSet<MeshEntity> {
-        &self.local_entities
+    /// Get a clone of all local entities
+    pub fn local_entities(&self) -> FxHashSet<MeshEntity> {
+        let local = self.local_entities.read().unwrap();
+        local.clone()
     }
 
-    /// Get all ghost entities
-    pub fn ghost_entities(&self) -> &FxHashSet<MeshEntity> {
-        &self.ghost_entities
+    /// Get a clone of all ghost entities
+    pub fn ghost_entities(&self) -> FxHashSet<MeshEntity> {
+        let ghost = self.ghost_entities.read().unwrap();
+        ghost.clone()
     }
 
     /// Merge another overlap into this one (used when communicating between partitions)
-    pub fn merge(&mut self, other: &Overlap) {
-        self.local_entities.extend(&other.local_entities);
-        self.ghost_entities.extend(&other.ghost_entities);
+    pub fn merge(&self, other: &Overlap) {
+        let mut local = self.local_entities.write().unwrap();
+        let other_local = other.local_entities.read().unwrap();
+        local.extend(other_local.iter().cloned());
+
+        let mut ghost = self.ghost_entities.write().unwrap();
+        let other_ghost = other.ghost_entities.read().unwrap();
+        ghost.extend(other_ghost.iter().cloned());
     }
 }
 
 /// Delta structure to manage transformation and data consistency across overlaps
 pub struct Delta<T> {
-    pub data: FxHashMap<MeshEntity, T>,  // Transformation data over overlapping regions
+    pub data: Arc<RwLock<FxHashMap<MeshEntity, T>>>,  // Transformation data over overlapping regions
 }
 
 impl<T> Delta<T> {
     /// Creates a new, empty Delta
     pub fn new() -> Self {
         Delta {
-            data: FxHashMap::default(),
+            data: Arc::new(RwLock::new(FxHashMap::default())),
         }
     }
 
     /// Set transformation data for a specific mesh entity
-    pub fn set_data(&mut self, entity: MeshEntity, value: T) {
-        self.data.insert(entity, value);
+    pub fn set_data(&self, entity: MeshEntity, value: T) {
+        let mut data = self.data.write().unwrap();
+        data.insert(entity, value);
     }
 
     /// Get transformation data for a specific entity
-    pub fn get_data(&self, entity: &MeshEntity) -> Option<&T> {
-        self.data.get(entity)
+    pub fn get_data(&self, entity: &MeshEntity) -> Option<T>
+    where
+        T: Clone,
+    {
+        let data = self.data.read().unwrap();
+        data.get(entity).cloned()
     }
 
     /// Remove the data associated with a mesh entity
-    pub fn remove_data(&mut self, entity: &MeshEntity) -> Option<T> {
-        self.data.remove(entity)
+    pub fn remove_data(&self, entity: &MeshEntity) -> Option<T> {
+        let mut data = self.data.write().unwrap();
+        data.remove(entity)
     }
 
     /// Check if there is transformation data for a specific entity
     pub fn has_data(&self, entity: &MeshEntity) -> bool {
-        self.data.contains_key(entity)
+        let data = self.data.read().unwrap();
+        data.contains_key(entity)
     }
 
     /// Apply a function to all entities in the delta
@@ -743,18 +1011,21 @@ impl<T> Delta<T> {
     where
         F: FnMut(&MeshEntity, &T),
     {
-        for (entity, value) in &self.data {
+        let data = self.data.read().unwrap();
+        for (entity, value) in data.iter() {
             func(entity, value);
         }
     }
 
     /// Merge another delta into this one (used to combine data from different partitions)
-    pub fn merge(&mut self, other: &Delta<T>)
+    pub fn merge(&self, other: &Delta<T>)
     where
         T: Clone,
     {
-        for (entity, value) in &other.data {
-            self.data.insert(entity.clone(), value.clone());
+        let mut data = self.data.write().unwrap();
+        let other_data = other.data.read().unwrap();
+        for (entity, value) in other_data.iter() {
+            data.insert(entity.clone(), value.clone());
         }
     }
 }
@@ -767,24 +1038,19 @@ mod tests {
 
     #[test]
     fn test_overlap_local_and_ghost_entities() {
-        let mut overlap = Overlap::new();
+        let overlap = Overlap::new();
         let vertex_local = MeshEntity::Vertex(1);
         let vertex_ghost = MeshEntity::Vertex(2);
-
         overlap.add_local_entity(vertex_local);
         overlap.add_ghost_entity(vertex_ghost);
-
         assert!(overlap.is_local(&vertex_local));
         assert!(overlap.is_ghost(&vertex_ghost));
-
-        assert_eq!(overlap.local_entities().len(), 1);
-        assert_eq!(overlap.ghost_entities().len(), 1);
     }
 
     #[test]
     fn test_overlap_merge() {
-        let mut overlap1 = Overlap::new();
-        let mut overlap2 = Overlap::new();
+        let overlap1 = Overlap::new();
+        let overlap2 = Overlap::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
         let vertex3 = MeshEntity::Vertex(3);
@@ -804,18 +1070,18 @@ mod tests {
 
     #[test]
     fn test_delta_set_and_get_data() {
-        let mut delta = Delta::new();
+        let delta = Delta::new();
         let vertex = MeshEntity::Vertex(1);
 
         delta.set_data(vertex, 42);
 
-        assert_eq!(delta.get_data(&vertex), Some(&42));
+        assert_eq!(delta.get_data(&vertex), Some(42));
         assert!(delta.has_data(&vertex));
     }
 
     #[test]
     fn test_delta_remove_data() {
-        let mut delta = Delta::new();
+        let delta = Delta::new();
         let vertex = MeshEntity::Vertex(1);
 
         delta.set_data(vertex, 100);
@@ -825,8 +1091,8 @@ mod tests {
 
     #[test]
     fn test_delta_merge() {
-        let mut delta1 = Delta::new();
-        let mut delta2 = Delta::new();
+        let delta1 = Delta::new();
+        let delta2 = Delta::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
 
@@ -835,57 +1101,9 @@ mod tests {
 
         delta1.merge(&delta2);
 
-        assert_eq!(delta1.get_data(&vertex1), Some(&10));
-        assert_eq!(delta1.get_data(&vertex2), Some(&20));
+        assert_eq!(delta1.get_data(&vertex1), Some(10));
+        assert_eq!(delta1.get_data(&vertex2), Some(20));
     }
 }
-```
 
-src/domain/reordering.rs:
-```rust
-use std::collections::VecDeque;
-use rustc_hash::{FxHashMap, FxHashSet};
-use crate::domain::mesh_entity::MeshEntity;
-
-/// Reorders mesh entities using the Cuthill-McKee algorithm.
-/// This improves memory locality and is useful for solver optimization.
-pub fn cuthill_mckee(entities: &[MeshEntity], adjacency: &FxHashMap<MeshEntity, Vec<MeshEntity>>) -> Vec<MeshEntity> {
-    let mut visited: FxHashSet<MeshEntity> = FxHashSet::default();
-    let mut queue: VecDeque<MeshEntity> = VecDeque::new();
-    let mut ordered: Vec<MeshEntity> = Vec::new();
-
-    // Start by adding the lowest degree vertex
-    if let Some((start, _)) = entities.iter()
-        .map(|entity| (entity, adjacency.get(entity).map_or(0, |neighbors| neighbors.len())))
-        .min_by_key(|&(_, degree)| degree)
-    {
-        queue.push_back(*start);  // Dereference start to get the MeshEntity value
-        visited.insert(*start);   // Insert into the visited set
-    }
-
-    // Breadth-first search for reordering
-    while let Some(entity) = queue.pop_front() {
-        ordered.push(entity);
-
-        // Get the neighbors of the current entity
-        if let Some(neighbors) = adjacency.get(&entity) {
-            // Filter out neighbors that have already been visited
-            let mut sorted_neighbors: Vec<_> = neighbors.iter()
-                .filter(|&&n| !visited.contains(&n))  // Double dereference to handle &MeshEntity correctly
-                .cloned()  // Clone to avoid borrowing issues
-                .collect();
-
-            // Sort neighbors by their degree (number of adjacent entities)
-            sorted_neighbors.sort_by_key(|n| adjacency.get(n).map_or(0, |neighbors| neighbors.len()));
-
-            // Add the sorted neighbors to the queue and mark them as visited
-            for neighbor in sorted_neighbors {
-                queue.push_back(neighbor);
-                visited.insert(neighbor);
-            }
-        }
-    }
-
-    ordered
-}
 ```
