@@ -7,7 +7,7 @@ use crate::domain::section::Section;
 use faer::MatMut;
 
 pub struct NeumannBC {
-    conditions: Section<BoundaryCondition>,  // Section to hold Neumann conditions
+    conditions: Section<BoundaryCondition>,
 }
 
 impl NeumannBC {
@@ -17,21 +17,26 @@ impl NeumannBC {
         }
     }
 
-    // Set a Neumann boundary condition for a specific entity
-    pub fn set_bc(&mut self, entity: MeshEntity, condition: BoundaryCondition) {
+    pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
         self.conditions.set_data(entity, condition);
     }
 
-    // Apply the Neumann boundary condition during the system matrix assembly
-    pub fn apply_bc(&self, _matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
-        for (entity, condition) in self.conditions.data.iter() {
+    pub fn apply_bc(
+        &self,
+        _matrix: &mut MatMut<f64>,
+        rhs: &mut MatMut<f64>,
+        entity_to_index: &FxHashMap<MeshEntity, usize>,
+        time: f64,
+    ) {
+        let data = self.conditions.data.read().unwrap();
+        for (entity, condition) in data.iter() {
             if let Some(&index) = entity_to_index.get(entity) {
-                match condition {  // Dereference the condition
+                match condition {
                     BoundaryCondition::Neumann(value) => {
                         self.apply_constant_neumann(rhs, index, *value);
                     }
                     BoundaryCondition::NeumannFn(fn_bc) => {
-                        let coords = self.get_coordinates(entity);  // Placeholder for actual method
+                        let coords = self.get_coordinates(entity);
                         let value = fn_bc(time, &coords);
                         self.apply_constant_neumann(rhs, index, value);
                     }
@@ -42,16 +47,14 @@ impl NeumannBC {
     }
 
     pub fn apply_constant_neumann(&self, rhs: &mut MatMut<f64>, index: usize, value: f64) {
-        // Add the Neumann flux value to the corresponding RHS entry
         rhs.write(index, 0, rhs.read(index, 0) + value);
     }
 
     fn get_coordinates(&self, _entity: &MeshEntity) -> [f64; 3] {
-        // Placeholder: Implement logic to retrieve the coordinates of the mesh entity.
-        // This method would retrieve the spatial coordinates associated with a vertex or entity.
-        [0.0, 0.0, 0.0]  // Example placeholder return value
+        [0.0, 0.0, 0.0]
     }
 }
+
 
 impl BoundaryConditionApply for NeumannBC {
     fn apply(&self, _entity: &MeshEntity, rhs: &mut MatMut<f64>, _matrix: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
@@ -65,6 +68,7 @@ mod tests {
     use rustc_hash::FxHashMap;
     use faer::Mat;
     use crate::domain::mesh_entity::MeshEntity;
+    use std::sync::Arc;
 
     fn create_test_matrix_and_rhs() -> (Mat<f64>, Mat<f64>) {
         // Create a 3x3 test matrix initialized to identity matrix (though unused for NeumannBC)
@@ -112,22 +116,21 @@ mod tests {
 
     #[test]
     fn test_apply_function_based_neumann() {
-        let mut neumann_bc = NeumannBC::new();
+        let neumann_bc = NeumannBC::new();
         let entity = MeshEntity::Vertex(2);
         let mut entity_to_index = FxHashMap::default();
         entity_to_index.insert(entity, 2);
 
-        // Set a function-based Neumann boundary condition
-        neumann_bc.set_bc(entity, BoundaryCondition::NeumannFn(Box::new(|_time: f64, _coords: &[f64]| 7.0)));
+        neumann_bc.set_bc(
+            entity,
+            BoundaryCondition::NeumannFn(Arc::new(|_time: f64, _coords: &[f64]| 7.0)),
+        );
 
-        // Create a test matrix and RHS vector
         let (mut matrix, mut rhs) = create_test_matrix_and_rhs();
         let mut rhs_mut = rhs.as_mut();
 
-        // Apply the function-based Neumann condition
         neumann_bc.apply_bc(&mut matrix.as_mut(), &mut rhs_mut, &entity_to_index, 1.0);
 
-        // Check that the RHS has been updated with the value from the function
         assert_eq!(rhs_mut[(2, 0)], 7.0);
     }
 }

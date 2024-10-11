@@ -7,7 +7,12 @@ use rustc_hash::FxHashMap;
 impl Sieve {
     pub fn stratify(&self) -> FxHashMap<usize, Vec<MeshEntity>> {
         let mut strata: FxHashMap<usize, Vec<MeshEntity>> = FxHashMap::default();
-        for (entity, _) in &self.adjacency {
+        
+        // Acquire a read lock to access the adjacency data.
+        let adjacency = self.adjacency.read().unwrap();
+        
+        // Iterate over the adjacency map.
+        for (entity, _) in adjacency.iter() {
             let dimension = match entity {
                 MeshEntity::Vertex(_) => 0,
                 MeshEntity::Edge(_) => 1,

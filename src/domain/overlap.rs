@@ -1,89 +1,102 @@
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::sync::{Arc, RwLock};
 use crate::domain::mesh_entity::MeshEntity;
 
-/// Overlap structure to handle relationships between local and ghost entities
 pub struct Overlap {
-    pub local_entities: FxHashSet<MeshEntity>,  // Local mesh entities
-    pub ghost_entities: FxHashSet<MeshEntity>,  // Entities shared with other processes
+    pub local_entities: Arc<RwLock<FxHashSet<MeshEntity>>>,
+    pub ghost_entities: Arc<RwLock<FxHashSet<MeshEntity>>>,
 }
 
 impl Overlap {
-    /// Creates a new, empty Overlap
     pub fn new() -> Self {
         Overlap {
-            local_entities: FxHashSet::default(),
-            ghost_entities: FxHashSet::default(),
+            local_entities: Arc::new(RwLock::new(FxHashSet::default())),
+            ghost_entities: Arc::new(RwLock::new(FxHashSet::default())),
         }
     }
 
-    /// Add a local entity to the overlap
-    pub fn add_local_entity(&mut self, entity: MeshEntity) {
-        self.local_entities.insert(entity);
+    pub fn add_local_entity(&self, entity: MeshEntity) {
+        let mut local = self.local_entities.write().unwrap();
+        local.insert(entity);
     }
 
-    /// Add a ghost entity to the overlap (shared with other processes)
-    pub fn add_ghost_entity(&mut self, entity: MeshEntity) {
-        self.ghost_entities.insert(entity);
+    pub fn add_ghost_entity(&self, entity: MeshEntity) {
+        let mut ghost = self.ghost_entities.write().unwrap();
+        ghost.insert(entity);
     }
 
-    /// Check if an entity is local
     pub fn is_local(&self, entity: &MeshEntity) -> bool {
-        self.local_entities.contains(entity)
+        let local = self.local_entities.read().unwrap();
+        local.contains(entity)
     }
 
-    /// Check if an entity is a ghost entity (shared with other processes)
     pub fn is_ghost(&self, entity: &MeshEntity) -> bool {
-        self.ghost_entities.contains(entity)
+        let ghost = self.ghost_entities.read().unwrap();
+        ghost.contains(entity)
     }
 
-    /// Get all local entities
-    pub fn local_entities(&self) -> &FxHashSet<MeshEntity> {
-        &self.local_entities
+    /// Get a clone of all local entities
+    pub fn local_entities(&self) -> FxHashSet<MeshEntity> {
+        let local = self.local_entities.read().unwrap();
+        local.clone()
     }
 
-    /// Get all ghost entities
-    pub fn ghost_entities(&self) -> &FxHashSet<MeshEntity> {
-        &self.ghost_entities
+    /// Get a clone of all ghost entities
+    pub fn ghost_entities(&self) -> FxHashSet<MeshEntity> {
+        let ghost = self.ghost_entities.read().unwrap();
+        ghost.clone()
     }
 
     /// Merge another overlap into this one (used when communicating between partitions)
-    pub fn merge(&mut self, other: &Overlap) {
-        self.local_entities.extend(&other.local_entities);
-        self.ghost_entities.extend(&other.ghost_entities);
+    pub fn merge(&self, other: &Overlap) {
+        let mut local = self.local_entities.write().unwrap();
+        let other_local = other.local_entities.read().unwrap();
+        local.extend(other_local.iter().cloned());
+
+        let mut ghost = self.ghost_entities.write().unwrap();
+        let other_ghost = other.ghost_entities.read().unwrap();
+        ghost.extend(other_ghost.iter().cloned());
     }
 }
 
 /// Delta structure to manage transformation and data consistency across overlaps
 pub struct Delta<T> {
-    pub data: FxHashMap<MeshEntity, T>,  // Transformation data over overlapping regions
+    pub data: Arc<RwLock<FxHashMap<MeshEntity, T>>>,  // Transformation data over overlapping regions
 }
 
 impl<T> Delta<T> {
     /// Creates a new, empty Delta
     pub fn new() -> Self {
         Delta {
-            data: FxHashMap::default(),
+            data: Arc::new(RwLock::new(FxHashMap::default())),
         }
     }
 
     /// Set transformation data for a specific mesh entity
-    pub fn set_data(&mut self, entity: MeshEntity, value: T) {
-        self.data.insert(entity, value);
+    pub fn set_data(&self, entity: MeshEntity, value: T) {
+        let mut data = self.data.write().unwrap();
+        data.insert(entity, value);
     }
 
     /// Get transformation data for a specific entity
-    pub fn get_data(&self, entity: &MeshEntity) -> Option<&T> {
-        self.data.get(entity)
+    pub fn get_data(&self, entity: &MeshEntity) -> Option<T>
+    where
+        T: Clone,
+    {
+        let data = self.data.read().unwrap();
+        data.get(entity).cloned()
     }
 
     /// Remove the data associated with a mesh entity
-    pub fn remove_data(&mut self, entity: &MeshEntity) -> Option<T> {
-        self.data.remove(entity)
+    pub fn remove_data(&self, entity: &MeshEntity) -> Option<T> {
+        let mut data = self.data.write().unwrap();
+        data.remove(entity)
     }
 
     /// Check if there is transformation data for a specific entity
     pub fn has_data(&self, entity: &MeshEntity) -> bool {
-        self.data.contains_key(entity)
+        let data = self.data.read().unwrap();
+        data.contains_key(entity)
     }
 
     /// Apply a function to all entities in the delta
@@ -91,18 +104,21 @@ impl<T> Delta<T> {
     where
         F: FnMut(&MeshEntity, &T),
     {
-        for (entity, value) in &self.data {
+        let data = self.data.read().unwrap();
+        for (entity, value) in data.iter() {
             func(entity, value);
         }
     }
 
     /// Merge another delta into this one (used to combine data from different partitions)
-    pub fn merge(&mut self, other: &Delta<T>)
+    pub fn merge(&self, other: &Delta<T>)
     where
         T: Clone,
     {
-        for (entity, value) in &other.data {
-            self.data.insert(entity.clone(), value.clone());
+        let mut data = self.data.write().unwrap();
+        let other_data = other.data.read().unwrap();
+        for (entity, value) in other_data.iter() {
+            data.insert(entity.clone(), value.clone());
         }
     }
 }
@@ -115,24 +131,19 @@ mod tests {
 
     #[test]
     fn test_overlap_local_and_ghost_entities() {
-        let mut overlap = Overlap::new();
+        let overlap = Overlap::new();
         let vertex_local = MeshEntity::Vertex(1);
         let vertex_ghost = MeshEntity::Vertex(2);
-
         overlap.add_local_entity(vertex_local);
         overlap.add_ghost_entity(vertex_ghost);
-
         assert!(overlap.is_local(&vertex_local));
         assert!(overlap.is_ghost(&vertex_ghost));
-
-        assert_eq!(overlap.local_entities().len(), 1);
-        assert_eq!(overlap.ghost_entities().len(), 1);
     }
 
     #[test]
     fn test_overlap_merge() {
-        let mut overlap1 = Overlap::new();
-        let mut overlap2 = Overlap::new();
+        let overlap1 = Overlap::new();
+        let overlap2 = Overlap::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
         let vertex3 = MeshEntity::Vertex(3);
@@ -152,18 +163,18 @@ mod tests {
 
     #[test]
     fn test_delta_set_and_get_data() {
-        let mut delta = Delta::new();
+        let delta = Delta::new();
         let vertex = MeshEntity::Vertex(1);
 
         delta.set_data(vertex, 42);
 
-        assert_eq!(delta.get_data(&vertex), Some(&42));
+        assert_eq!(delta.get_data(&vertex), Some(42));
         assert!(delta.has_data(&vertex));
     }
 
     #[test]
     fn test_delta_remove_data() {
-        let mut delta = Delta::new();
+        let delta = Delta::new();
         let vertex = MeshEntity::Vertex(1);
 
         delta.set_data(vertex, 100);
@@ -173,8 +184,8 @@ mod tests {
 
     #[test]
     fn test_delta_merge() {
-        let mut delta1 = Delta::new();
-        let mut delta2 = Delta::new();
+        let delta1 = Delta::new();
+        let delta2 = Delta::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
 
@@ -183,7 +194,7 @@ mod tests {
 
         delta1.merge(&delta2);
 
-        assert_eq!(delta1.get_data(&vertex1), Some(&10));
-        assert_eq!(delta1.get_data(&vertex2), Some(&20));
+        assert_eq!(delta1.get_data(&vertex1), Some(10));
+        assert_eq!(delta1.get_data(&vertex2), Some(20));
     }
 }

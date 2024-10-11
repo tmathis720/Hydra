@@ -11,6 +11,7 @@ path = "src/lib.rs"
 rustc-hash = "2.0.0"
 faer = { version = "0.19", features = ["rayon"] }
 rayon = "1.5"
+crossbeam = "0.8.4"
 
 [dev-dependencies]
 criterion = "0.4"

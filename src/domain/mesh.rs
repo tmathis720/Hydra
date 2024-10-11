@@ -2,11 +2,14 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::domain::mesh_entity::MeshEntity;
 use crate::domain::sieve::Sieve;
 use crate::geometry::{Geometry, CellShape, FaceShape};  // Import geometry module
+use std::sync::{Arc, RwLock};
+use rayon::iter::*;
+use crossbeam::thread;
 
 #[derive(Clone)]
 pub struct Mesh {
-    pub sieve: Sieve,                         // Sieve to handle hierarchical relationships
-    pub entities: FxHashSet<MeshEntity>,        // Set of all entities in the mesh
+    pub sieve: Arc<Sieve>,                         // Sieve to handle hierarchical relationships
+    pub entities: Arc<RwLock<FxHashSet<MeshEntity>>>,      // Set of all entities in the mesh
     pub vertex_coordinates: FxHashMap<usize, [f64; 3]>, // Mapping from vertex IDs to coordinates
 }
 
@@ -14,15 +17,31 @@ impl Mesh {
     /// Create a new empty mesh
     pub fn new() -> Self {
         Mesh {
-            sieve: Sieve::new(),
-            entities: FxHashSet::default(),
+            sieve: Arc::new(Sieve::new()),
+            entities: Arc::new(RwLock::new(FxHashSet::default())),
             vertex_coordinates: FxHashMap::default(),
         }
     }
 
     /// Add a new entity to the mesh (vertex, edge, face, or cell)
-    pub fn add_entity(&mut self, entity: MeshEntity) {
-        self.entities.insert(entity);
+    pub fn add_entity(&self, entity: MeshEntity) {
+        let mut entities = self.entities.write().unwrap();
+        entities.insert(entity);
+    }
+
+    pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
+        self.sieve.add_arrow(from, to);
+    }
+
+    // Apply a function to all entities in parallel
+    pub fn par_for_each_entity<F>(&self, func: F)
+    where
+        F: Fn(&MeshEntity) + Sync + Send,
+    {
+        let entities = self.entities.read().unwrap();
+        entities.par_iter().for_each(|entity| {
+            func(entity);
+        });
     }
 
     /// Add a relationship between two entities
@@ -41,65 +60,56 @@ impl Mesh {
         self.vertex_coordinates.get(&vertex_id).cloned()
     }
 
-    // Get all cells in the mesh
+    /// Get all cells in the mesh
     pub fn get_cells(&self) -> Vec<MeshEntity> {
-        self.entities.iter()
+        let entities = self.entities.read().unwrap();
+        entities.iter()
             .filter(|e| matches!(e, MeshEntity::Cell(_)))
             .cloned()
             .collect()
     }
 
-    // Get all faces in the mesh
+    /// Get all faces in the mesh
     pub fn get_faces(&self) -> Vec<MeshEntity> {
-        self.entities.iter()
+        let entities = self.entities.read().unwrap();
+        entities.iter()
             .filter(|e| matches!(e, MeshEntity::Face(_)))
             .cloned()
             .collect()
     }
 
-    // Get faces of a cell
-    pub fn get_faces_of_cell(&self, cell: &MeshEntity) -> Option<&FxHashSet<MeshEntity>> {
-        self.sieve.cone(cell)
+    /// Get faces of a cell
+    pub fn get_faces_of_cell(&self, cell: &MeshEntity) -> Option<FxHashSet<MeshEntity>> {
+        self.sieve.cone(cell).map(|set| set.clone())
     }
 
-    // Get cells sharing a face
+    /// Get cells sharing a face
     pub fn get_cells_sharing_face(&self, face: &MeshEntity) -> FxHashSet<MeshEntity> {
         self.sieve.support(face)
     }
 
     /// Get face area (requires geometric data)
     pub fn get_face_area(&self, face: &MeshEntity) -> f64 {
-        // Retrieve face vertices
         let face_vertices = self.get_face_vertices(face);
-
-        // Determine face shape based on the number of vertices
         let face_shape = match face_vertices.len() {
             3 => FaceShape::Triangle,
             4 => FaceShape::Quadrilateral,
             _ => panic!("Unsupported face shape with {} vertices", face_vertices.len()),
         };
-
-        // Compute face area using the geometry module
         let geometry = Geometry::new();
         geometry.compute_face_area(face_shape, &face_vertices)
     }
 
     /// Get distance between cell centers (requires geometric data)
     pub fn get_distance_between_cells(&self, cell_i: &MeshEntity, cell_j: &MeshEntity) -> f64 {
-        // Get cell centroids
         let centroid_i = self.get_cell_centroid(cell_i);
         let centroid_j = self.get_cell_centroid(cell_j);
-
-        // Compute distance using geometry module
         Geometry::compute_distance(&centroid_i, &centroid_j)
     }
 
     /// Get distance from cell center to boundary face
     pub fn get_distance_to_boundary(&self, cell: &MeshEntity, face: &MeshEntity) -> f64 {
-        // Get cell centroid
         let centroid = self.get_cell_centroid(cell);
-
-        // Get face centroid
         let face_vertices = self.get_face_vertices(face);
         let face_shape = match face_vertices.len() {
             3 => FaceShape::Triangle,
@@ -108,17 +118,12 @@ impl Mesh {
         };
         let geometry = Geometry::new();
         let face_centroid = geometry.compute_face_centroid(face_shape, &face_vertices);
-
-        // Compute distance
         Geometry::compute_distance(&centroid, &face_centroid)
     }
 
     /// Get cell centroid
     pub fn get_cell_centroid(&self, cell: &MeshEntity) -> [f64; 3] {
-        // Get cell vertices
         let cell_vertices = self.get_cell_vertices(cell);
-
-        // Determine cell shape based on number of vertices
         let cell_shape = match cell_vertices.len() {
             4 => CellShape::Tetrahedron,
             5 => CellShape::Pyramid,
@@ -126,23 +131,18 @@ impl Mesh {
             8 => CellShape::Hexahedron,
             _ => panic!("Unsupported cell shape with {} vertices", cell_vertices.len()),
         };
-
-        // Compute cell centroid
         let geometry = Geometry::new();
         geometry.compute_cell_centroid(cell_shape, &cell_vertices)
     }
 
     /// Get cell vertices
     pub fn get_cell_vertices(&self, cell: &MeshEntity) -> Vec<[f64; 3]> {
-        // Retrieve faces connected to the cell
         let mut vertices = Vec::new();
         if let Some(connected_faces) = self.sieve.cone(cell) {
             for face in connected_faces {
-                // Get vertices of the face
-                let face_vertices = self.get_face_vertices(face);
+                let face_vertices = self.get_face_vertices(&face);
                 vertices.extend(face_vertices);
             }
-            // Remove duplicate vertices
             vertices.sort_by(|a, b| a.partial_cmp(b).unwrap());
             vertices.dedup();
         }
@@ -151,12 +151,11 @@ impl Mesh {
 
     /// Get face vertices
     pub fn get_face_vertices(&self, face: &MeshEntity) -> Vec<[f64; 3]> {
-        // Retrieve vertices connected to the face
         let mut vertices = Vec::new();
         if let Some(connected_vertices) = self.sieve.cone(face) {
             for vertex in connected_vertices {
                 if let MeshEntity::Vertex(vertex_id) = vertex {
-                    if let Some(coords) = self.get_vertex_coordinates(*vertex_id) {
+                    if let Some(coords) = self.get_vertex_coordinates(vertex_id) {
                         vertices.push(coords);
                     } else {
                         panic!("Coordinates for vertex {} not found", vertex_id);
@@ -169,7 +168,8 @@ impl Mesh {
 
     /// Count the number of MeshEntities of a specific type
     pub fn count_entities(&self, entity_type: &MeshEntity) -> usize {
-        self.entities.iter()
+        let entities = self.entities.read().unwrap();
+        entities.iter()
             .filter(|e| match (e, entity_type) {
                 (MeshEntity::Vertex(_), MeshEntity::Vertex(_)) => true,
                 (MeshEntity::Cell(_), MeshEntity::Cell(_)) => true,
@@ -182,24 +182,60 @@ impl Mesh {
 
     pub fn get_neighboring_vertices(&self, vertex: &MeshEntity) -> Vec<MeshEntity> {
         let mut neighbors = FxHashSet::default();
-    
-        // Get cells connected to the vertex
         let connected_cells = self.sieve.support(vertex);
-    
+
         for cell in &connected_cells {
-            // Get vertices connected to the cell
-            if let Some(cell_vertices) = self.sieve.cone(cell) {
+            if let Some(cell_vertices) = self.sieve.cone(cell).as_ref() {
                 for v in cell_vertices {
                     if v != vertex && matches!(v, MeshEntity::Vertex(_)) {
-                        neighbors.insert(*v); // *v is MeshEntity
+                        neighbors.insert(*v);
                     }
                 }
             } else {
-                // Handle the case where cell has no connected vertices
                 panic!("Cell {:?} has no connected vertices", cell);
             }
         }
-    
         neighbors.into_iter().collect()
     }
+
+    // Example method to compute some property for each entity in parallel
+    pub fn compute_properties<F, PropertyType>(&self, compute_fn: F) -> FxHashMap<MeshEntity, PropertyType>
+    where
+        F: Fn(&MeshEntity) -> PropertyType + Sync + Send,
+        PropertyType: Send,
+    {
+        let entities = self.entities.read().unwrap();
+        entities
+            .par_iter()
+            .map(|entity| (*entity, compute_fn(entity)))
+            .collect()
+    }
+
+    // Synchronize boundary data using scoped threads
+    pub fn sync_boundary_data(&self) {
+        let entities = self.entities.clone();
+        let sieve = self.sieve.clone();
+
+        thread::scope(|s| {
+            s.spawn(|_| {
+                // Handle incoming boundary data
+                self.receive_boundary_data();
+            });
+
+            s.spawn(|_| {
+                // Prepare and send boundary data
+                self.send_boundary_data();
+            });
+        })
+        .unwrap();
+    }
+
+    fn receive_boundary_data(&self) {
+        // Implementation for receiving boundary data
+    }
+
+    fn send_boundary_data(&self) {
+        // Implementation for sending boundary data
+    }
 }
+

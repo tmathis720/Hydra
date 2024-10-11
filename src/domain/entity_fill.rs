@@ -5,11 +5,14 @@ use rustc_hash::FxHashSet;
 impl Sieve {
     /// Given cells and vertices, infer and add edges (in 2D) or faces (in 3D).
     /// For 2D: Cells will generate edges, and edges will connect vertices.
-    pub fn fill_missing_entities(&mut self) {
+    pub fn fill_missing_entities(&self) {
         let mut edge_set: FxHashSet<(MeshEntity, MeshEntity)> = FxHashSet::default();
 
+        // Acquire a read lock to access the adjacency data.
+        let adjacency = self.adjacency.read().unwrap();
+
         // Loop through each cell and infer its edges (for 2D meshes)
-        for (cell, vertices) in &self.adjacency {
+        for (cell, vertices) in adjacency.iter() {
             if let MeshEntity::Cell(_) = cell {
                 let vertices: Vec<_> = vertices.iter().collect();
                 for i in 0..vertices.len() {
@@ -22,8 +25,9 @@ impl Sieve {
         }
 
         // Add the deduced edges to the sieve
+        let mut adjacency = self.adjacency.write().unwrap();
         for (v1, v2) in edge_set {
-            let edge = MeshEntity::Edge(self.adjacency.len());  // Generate unique ID for new edge
+            let edge = MeshEntity::Edge(adjacency.len());  // Generate unique ID for new edge
             self.add_arrow(v1, edge);
             self.add_arrow(v2, edge);
         }

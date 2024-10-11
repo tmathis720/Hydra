@@ -1,31 +1,34 @@
 use rustc_hash::{FxHashMap, FxHashSet};
-use crate::domain::mesh_entity::MeshEntity;  // Assuming MeshEntity is defined in mesh_entity.rs
+use std::sync::{Arc, RwLock};
+use rayon::prelude::*;
+use crate::domain::mesh_entity::MeshEntity;
+use crossbeam::thread;
 
 #[derive(Clone)]
 pub struct Sieve {
-    pub adjacency: FxHashMap<MeshEntity, FxHashSet<MeshEntity>>, // Incidence relations (arrows)
+    pub adjacency: Arc<RwLock<FxHashMap<MeshEntity, FxHashSet<MeshEntity>>>>,
 }
 
 impl Sieve {
-    // Constructor to initialize an empty Sieve
     pub fn new() -> Self {
         Sieve {
-            adjacency: FxHashMap::default(),
+            adjacency: Arc::new(RwLock::new(FxHashMap::default())),
         }
     }
 
-    // Adds an incidence (arrow) from one entity to another
-    pub fn add_arrow(&mut self, from: MeshEntity, to: MeshEntity) {
-        // Add the direct incidence relation
-        self.adjacency.entry(from).or_insert_with(|| FxHashSet::default()).insert(to);
+    pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
+        let mut adjacency = self.adjacency.write().unwrap();
+        adjacency
+            .entry(from)
+            .or_insert_with(FxHashSet::default)
+            .insert(to);
     }
 
-    // Cone operation: Find points covering a given point
-    pub fn cone(&self, point: &MeshEntity) -> Option<&FxHashSet<MeshEntity>> {
-        self.adjacency.get(point)
+    pub fn cone(&self, point: &MeshEntity) -> Option<FxHashSet<MeshEntity>> {
+        let adjacency = self.adjacency.read().unwrap();
+        adjacency.get(point).cloned()
     }
 
-    // Closure operation: Transitive closure of cone
     pub fn closure(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
         let mut result = FxHashSet::default();
         let mut stack = vec![point.clone()];
@@ -41,44 +44,32 @@ impl Sieve {
         result
     }
 
-    // Support operation: Find all points supported by a given point
-    pub fn support(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
+    pub fn star(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
         let mut result = FxHashSet::default();
-        for (from, to_set) in &self.adjacency {
-            if to_set.contains(point) {
-                result.insert(from.clone());
+        let mut stack = vec![point.clone()];
+
+        while let Some(p) = stack.pop() {
+            if result.insert(p.clone()) {
+                if let Some(cones) = self.cone(&p) {
+                    for q in cones {
+                        stack.push(q.clone());
+                    }
+                }
+                let supports = self.support(&p);
+                for q in supports {
+                    stack.push(q.clone());
+                }
             }
         }
         result
     }
 
-    // Star operation: Transitive closure of support
-    pub fn star(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
-        let mut result = FxHashSet::default();
-        let mut stack = vec![point.clone()];  // Start with the point itself
-    
-        while let Some(p) = stack.pop() {
-            if result.insert(p.clone()) {
-                // Get all points that this point supports (cone)
-                if let Some(cones) = self.cone(&p) {
-                    for q in cones {
-                        if !result.contains(q) {
-                            stack.push(q.clone());  // Add to stack if not already in the result set
-                        }
-                    }
-                }
-                // Get all points that support this point (support)
-                let supports = self.support(&p);
-                for q in supports {
-                    if !result.contains(&q) {
-                        stack.push(q.clone());
-                    }
-                }
-            }
-        }
-    
-        println!("Star result for {:?}: {:?}", point, result);
-        result
+    pub fn support(&self, point: &MeshEntity) -> FxHashSet<MeshEntity> {
+        let adjacency = self.adjacency.read().unwrap();
+        adjacency
+            .iter()
+            .filter_map(|(from, to_set)| if to_set.contains(point) { Some(from.clone()) } else { None })
+            .collect()
     }
 
     // Meet operation: Minimal separator of closure(p) and closure(q)
@@ -98,6 +89,19 @@ impl Sieve {
         let join_result: FxHashSet<MeshEntity> = star_p.union(&star_q).cloned().collect();
         join_result
     }
+
+    // Parallel iteration over adjacency entries
+    pub fn par_for_each_adjacent<F>(&self, func: F)
+    where
+        F: Fn((&MeshEntity, &FxHashSet<MeshEntity>)) + Sync + Send,
+    {
+        let adjacency = self.adjacency.read().unwrap();
+        adjacency.par_iter().for_each(|entry| {
+            func(entry);
+        });
+    }
+
+    
 }
 
 // Unit tests for the Sieve structure and its operations

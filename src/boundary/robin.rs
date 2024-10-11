@@ -7,7 +7,7 @@ use crate::domain::section::Section;
 use faer::MatMut;
 
 pub struct RobinBC {
-    conditions: Section<BoundaryCondition>,  // Section to hold Robin conditions
+    conditions: Section<BoundaryCondition>,
 }
 
 impl RobinBC {
@@ -17,14 +17,19 @@ impl RobinBC {
         }
     }
 
-    // Set a Robin boundary condition for a specific entity
-    pub fn set_bc(&mut self, entity: MeshEntity, condition: BoundaryCondition) {
+    pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
         self.conditions.set_data(entity, condition);
     }
 
-    // Apply the Robin boundary condition during the system matrix assembly
-    pub fn apply_bc(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, _time: f64) {
-        for (entity, condition) in self.conditions.data.iter() {
+    pub fn apply_bc(
+        &self,
+        matrix: &mut MatMut<f64>,
+        rhs: &mut MatMut<f64>,
+        entity_to_index: &FxHashMap<MeshEntity, usize>,
+        _time: f64,
+    ) {
+        let data = self.conditions.data.read().unwrap();
+        for (entity, condition) in data.iter() {
             if let Some(&index) = entity_to_index.get(entity) {
                 match condition {
                     BoundaryCondition::Robin { alpha, beta } => {
@@ -36,16 +41,19 @@ impl RobinBC {
         }
     }
 
-    pub fn apply_robin(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, index: usize, alpha: f64, beta: f64) {
-        // Robin condition modifies both the matrix and the RHS
-
-        // Modify the diagonal of the matrix (alpha term)
+    pub fn apply_robin(
+        &self,
+        matrix: &mut MatMut<f64>,
+        rhs: &mut MatMut<f64>,
+        index: usize,
+        alpha: f64,
+        beta: f64,
+    ) {
         matrix.write(index, index, matrix.read(index, index) + alpha);
-
-        // Add the beta * flux to the RHS (beta term)
         rhs.write(index, 0, rhs.read(index, 0) + beta);
     }
 }
+
 
 impl BoundaryConditionApply for RobinBC {
     fn apply(&self, _entity: &MeshEntity, rhs: &mut MatMut<f64>, matrix: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
