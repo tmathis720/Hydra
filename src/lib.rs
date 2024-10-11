@@ -9,4 +9,4 @@ pub mod tests;
 
 pub use geometry::{Geometry, CellShape, FaceShape};
 pub use linalg::{Vector, Matrix};
-pub use domain::{Arrow, MeshEntity, Section, Sieve, Mesh};
+pub use domain::{Arrow, MeshEntity, Section, Sieve, mesh::Mesh};

@@ -62,7 +62,3 @@ We expect all contributors to follow our **Code of Conduct**, which promotes a p
 ## Licensing
 
 By contributing to HYDRA, you agree that your contributions will be licensed under the **MIT License**, in alignment with the project's overall licensing terms.
-
----
-
-Thank you for your interest in contributing to HYDRA! Together, we can build a robust, efficient, and scalable tool for geophysical fluid dynamics simulations. If you have any questions, feel free to open an issue or join our community discussions.
