@@ -1,6 +1,7 @@
 #[doc=include_str!("domain/docs/about_domain.md")]
 pub mod domain;
 pub mod geometry;
+#[doc=include_str!("boundary/docs/about_boundary.md")]
 pub mod boundary;
 pub mod solver;
 pub mod time_stepping;

@@ -5,22 +5,64 @@ use rustc_hash::FxHashMap;
 use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
 use crate::domain::section::Section;
 use faer::MatMut;
-
+/// The `DirichletBC` struct represents a handler for applying Dirichlet boundary conditions 
+/// to a set of mesh entities. It stores the conditions in a `Section` structure and applies
+/// them to modify both the system matrix and the right-hand side (rhs).
+/// 
+/// Example usage:
+/// 
+///    let dirichlet_bc = DirichletBC::new();  
+///    let entity = MeshEntity::Vertex(1);  
+///    dirichlet_bc.set_bc(entity, BoundaryCondition::Dirichlet(10.0));  
+///    dirichlet_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, 0.0);  
+/// 
 pub struct DirichletBC {
     conditions: Section<BoundaryCondition>,
 }
 
 impl DirichletBC {
+    /// Creates a new instance of `DirichletBC` with an empty section to store boundary conditions.
+    /// 
+    /// Example usage:
+    /// 
+    ///    let dirichlet_bc = DirichletBC::new();  
+    /// 
     pub fn new() -> Self {
         Self {
             conditions: Section::new(),
         }
     }
 
+    /// Sets a Dirichlet boundary condition for a specific mesh entity.
+    ///
+    /// # Arguments:
+    /// * `entity` - The mesh entity to which the boundary condition will be applied.
+    /// * `condition` - The boundary condition to set (either a constant value or a functional form).
+    ///
+    /// Example usage:
+    /// 
+    ///    let entity = MeshEntity::Vertex(1);  
+    ///    dirichlet_bc.set_bc(entity, BoundaryCondition::Dirichlet(5.0));  
+    /// 
     pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
         self.conditions.set_data(entity, condition);
     }
 
+    /// Applies the stored Dirichlet boundary conditions to the system matrix and rhs. 
+    /// It iterates over the stored conditions and applies either constant or function-based Dirichlet
+    /// boundary conditions to the corresponding entities.
+    ///
+    /// # Arguments:
+    /// * `matrix` - The mutable system matrix.
+    /// * `rhs` - The mutable right-hand side vector.
+    /// * `entity_to_index` - A hash map that associates mesh entities with their indices in the system.
+    /// * `time` - The current time, used for time-dependent boundary conditions.
+    ///
+    /// Example usage:
+    /// 
+    ///    let entity_to_index = FxHashMap::default();  
+    ///    dirichlet_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, 0.0);  
+    /// 
     pub fn apply_bc(
         &self,
         matrix: &mut MatMut<f64>,
@@ -46,6 +88,18 @@ impl DirichletBC {
         }
     }
 
+    /// Applies a constant Dirichlet boundary condition to the matrix and rhs for a specific index.
+    ///
+    /// # Arguments:
+    /// * `matrix` - The mutable system matrix.
+    /// * `rhs` - The mutable right-hand side vector.
+    /// * `index` - The index of the matrix row and rhs corresponding to the mesh entity.
+    /// * `value` - The Dirichlet condition value to be applied.
+    ///
+    /// Example usage:
+    /// 
+    ///    dirichlet_bc.apply_constant_dirichlet(&mut matrix, &mut rhs, 1, 5.0);  
+    /// 
     pub fn apply_constant_dirichlet(
         &self,
         matrix: &mut MatMut<f64>,
@@ -61,15 +115,42 @@ impl DirichletBC {
         rhs.write(index, 0, value);
     }
 
+    /// Retrieves the coordinates of the mesh entity.
+    ///
+    /// This method currently returns a default placeholder value, but it can be expanded 
+    /// to extract real entity coordinates if needed.
+    ///
+    /// # Arguments:
+    /// * `_entity` - The mesh entity for which coordinates are being requested.
+    ///
+    /// Returns an array of default coordinates `[0.0, 0.0, 0.0]`.
+    ///
+    /// Example usage:
+    /// 
+    ///    let coords = dirichlet_bc.get_coordinates(&entity);  
+    /// 
     fn get_coordinates(&self, _entity: &MeshEntity) -> [f64; 3] {
         [0.0, 0.0, 0.0]
     }
 }
 
-
 impl BoundaryConditionApply for DirichletBC {
+    /// Applies the stored Dirichlet boundary conditions for a specific mesh entity.
+    ///
+    /// This implementation utilizes the general `apply_bc` method to modify the matrix and rhs.
+    ///
+    /// # Arguments:
+    /// * `_entity` - The mesh entity to which the boundary condition applies.
+    /// * `rhs` - The mutable right-hand side vector.
+    /// * `matrix` - The mutable system matrix.
+    /// * `entity_to_index` - A hash map that associates mesh entities with their indices.
+    /// * `time` - The current time, used for time-dependent boundary conditions.
+    ///
+    /// Example usage:
+    /// 
+    ///    dirichlet_bc.apply(&entity, &mut rhs, &mut matrix, &entity_to_index, 0.0);  
+    /// 
     fn apply(&self, _entity: &MeshEntity, rhs: &mut MatMut<f64>, matrix: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
-        // Dirichlet-specific logic
         self.apply_bc(matrix, rhs, entity_to_index, time);
     }
 }

@@ -6,21 +6,65 @@ use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
 use crate::domain::section::Section;
 use faer::MatMut;
 
+/// The `RobinBC` struct represents a handler for applying Robin boundary conditions 
+/// to a set of mesh entities. Robin boundary conditions involve a linear combination 
+/// of Dirichlet and Neumann boundary conditions, and they modify both the system matrix 
+/// and the right-hand side (RHS).
+/// 
+/// Example usage:
+/// 
+///    let robin_bc = RobinBC::new();  
+///    let entity = MeshEntity::Vertex(1);  
+///    robin_bc.set_bc(entity, BoundaryCondition::Robin { alpha: 2.0, beta: 3.0 });  
+///    robin_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, 0.0);  
+/// 
 pub struct RobinBC {
     conditions: Section<BoundaryCondition>,
 }
 
 impl RobinBC {
+    /// Creates a new instance of `RobinBC` with an empty section to store boundary conditions.
+    /// 
+    /// Example usage:
+    /// 
+    ///    let robin_bc = RobinBC::new();  
+    /// 
     pub fn new() -> Self {
         Self {
             conditions: Section::new(),
         }
     }
 
+    /// Sets a Robin boundary condition for a specific mesh entity.
+    ///
+    /// # Arguments:
+    /// * `entity` - The mesh entity to which the boundary condition will be applied.
+    /// * `condition` - The boundary condition to set (Robin condition with alpha and beta).
+    ///
+    /// Example usage:
+    /// 
+    ///    let entity = MeshEntity::Vertex(1);  
+    ///    robin_bc.set_bc(entity, BoundaryCondition::Robin { alpha: 2.0, beta: 3.0 });  
+    /// 
     pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
         self.conditions.set_data(entity, condition);
     }
 
+    /// Applies the stored Robin boundary conditions to both the system matrix and rhs. 
+    /// It iterates over the stored conditions and applies the Robin boundary condition 
+    /// to the corresponding entities.
+    ///
+    /// # Arguments:
+    /// * `matrix` - The mutable system matrix.
+    /// * `rhs` - The mutable right-hand side vector.
+    /// * `entity_to_index` - A hash map that associates mesh entities with their indices in the system.
+    /// * `_time` - The current time (unused in Robin BC).
+    ///
+    /// Example usage:
+    /// 
+    ///    let entity_to_index = FxHashMap::default();  
+    ///    robin_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, 0.0);  
+    /// 
     pub fn apply_bc(
         &self,
         matrix: &mut MatMut<f64>,
@@ -41,6 +85,19 @@ impl RobinBC {
         }
     }
 
+    /// Applies a Robin boundary condition to the system matrix and rhs for a specific index.
+    ///
+    /// # Arguments:
+    /// * `matrix` - The mutable system matrix.
+    /// * `rhs` - The mutable right-hand side vector.
+    /// * `index` - The index of the matrix row and rhs corresponding to the mesh entity.
+    /// * `alpha` - The coefficient for the Robin condition in the matrix (modifying the diagonal).
+    /// * `beta` - The constant value for the Robin condition (added to rhs).
+    ///
+    /// Example usage:
+    /// 
+    ///    robin_bc.apply_robin(&mut matrix, &mut rhs, 1, 2.0, 3.0);  
+    /// 
     pub fn apply_robin(
         &self,
         matrix: &mut MatMut<f64>,
@@ -54,13 +111,27 @@ impl RobinBC {
     }
 }
 
-
 impl BoundaryConditionApply for RobinBC {
+    /// Applies the stored Robin boundary conditions for a specific mesh entity.
+    ///
+    /// This implementation utilizes the general `apply_bc` method to modify the matrix and rhs.
+    ///
+    /// # Arguments:
+    /// * `_entity` - The mesh entity to which the boundary condition applies.
+    /// * `rhs` - The mutable right-hand side vector.
+    /// * `matrix` - The mutable system matrix.
+    /// * `entity_to_index` - A hash map that associates mesh entities with their indices.
+    /// * `time` - The current time (unused in Robin BC).
+    ///
+    /// Example usage:
+    /// 
+    ///    robin_bc.apply(&entity, &mut rhs, &mut matrix, &entity_to_index, 0.0);  
+    /// 
     fn apply(&self, _entity: &MeshEntity, rhs: &mut MatMut<f64>, matrix: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
-        // Robin-specific logic
         self.apply_bc(matrix, rhs, entity_to_index, time);
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

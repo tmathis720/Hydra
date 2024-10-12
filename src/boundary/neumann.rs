@@ -6,21 +6,65 @@ use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
 use crate::domain::section::Section;
 use faer::MatMut;
 
+/// The `NeumannBC` struct represents a handler for applying Neumann boundary conditions 
+/// to a set of mesh entities. Neumann boundary conditions involve specifying the flux across 
+/// a boundary, and they modify only the right-hand side (RHS) of the system without modifying 
+/// the system matrix.
+/// 
+/// Example usage:
+/// 
+///    let neumann_bc = NeumannBC::new();  
+///    let entity = MeshEntity::Vertex(1);  
+///    neumann_bc.set_bc(entity, BoundaryCondition::Neumann(10.0));  
+///    neumann_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, 0.0);  
+/// 
 pub struct NeumannBC {
     conditions: Section<BoundaryCondition>,
 }
 
 impl NeumannBC {
+    /// Creates a new instance of `NeumannBC` with an empty section to store boundary conditions.
+    /// 
+    /// Example usage:
+    /// 
+    ///    let neumann_bc = NeumannBC::new();  
+    /// 
     pub fn new() -> Self {
         Self {
             conditions: Section::new(),
         }
     }
 
+    /// Sets a Neumann boundary condition for a specific mesh entity.
+    ///
+    /// # Arguments:
+    /// * `entity` - The mesh entity to which the boundary condition will be applied.
+    /// * `condition` - The boundary condition to set (either a constant flux or a functional form).
+    ///
+    /// Example usage:
+    /// 
+    ///    let entity = MeshEntity::Vertex(1);  
+    ///    neumann_bc.set_bc(entity, BoundaryCondition::Neumann(5.0));  
+    /// 
     pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
         self.conditions.set_data(entity, condition);
     }
 
+    /// Applies the stored Neumann boundary conditions to the right-hand side (RHS) of the system. 
+    /// It iterates over the stored conditions and applies either constant or function-based Neumann
+    /// boundary conditions to the corresponding entities.
+    ///
+    /// # Arguments:
+    /// * `_matrix` - The mutable system matrix (unused in Neumann BC).
+    /// * `rhs` - The mutable right-hand side vector.
+    /// * `entity_to_index` - A hash map that associates mesh entities with their indices in the system.
+    /// * `time` - The current time, used for time-dependent boundary conditions.
+    ///
+    /// Example usage:
+    /// 
+    ///    let entity_to_index = FxHashMap::default();  
+    ///    neumann_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, 0.0);  
+    /// 
     pub fn apply_bc(
         &self,
         _matrix: &mut MatMut<f64>,
@@ -46,22 +90,61 @@ impl NeumannBC {
         }
     }
 
+    /// Applies a constant Neumann boundary condition to the right-hand side (RHS) for a specific index.
+    ///
+    /// # Arguments:
+    /// * `rhs` - The mutable right-hand side vector.
+    /// * `index` - The index of the rhs corresponding to the mesh entity.
+    /// * `value` - The Neumann flux to be applied.
+    ///
+    /// Example usage:
+    /// 
+    ///    neumann_bc.apply_constant_neumann(&mut rhs, 1, 5.0);  
+    /// 
     pub fn apply_constant_neumann(&self, rhs: &mut MatMut<f64>, index: usize, value: f64) {
         rhs.write(index, 0, rhs.read(index, 0) + value);
     }
 
+    /// Retrieves the coordinates of the mesh entity.
+    ///
+    /// This method currently returns a default placeholder value, but it can be expanded 
+    /// to extract real entity coordinates if needed.
+    ///
+    /// # Arguments:
+    /// * `_entity` - The mesh entity for which coordinates are being requested.
+    ///
+    /// Returns an array of default coordinates `[0.0, 0.0, 0.0]`.
+    ///
+    /// Example usage:
+    /// 
+    ///    let coords = neumann_bc.get_coordinates(&entity);  
+    /// 
     fn get_coordinates(&self, _entity: &MeshEntity) -> [f64; 3] {
         [0.0, 0.0, 0.0]
     }
 }
 
-
 impl BoundaryConditionApply for NeumannBC {
+    /// Applies the stored Neumann boundary conditions for a specific mesh entity.
+    ///
+    /// This implementation utilizes the general `apply_bc` method to modify the rhs.
+    ///
+    /// # Arguments:
+    /// * `_entity` - The mesh entity to which the boundary condition applies.
+    /// * `rhs` - The mutable right-hand side vector.
+    /// * `_matrix` - The mutable system matrix (unused in Neumann BC).
+    /// * `entity_to_index` - A hash map that associates mesh entities with their indices.
+    /// * `time` - The current time, used for time-dependent boundary conditions.
+    ///
+    /// Example usage:
+    /// 
+    ///    neumann_bc.apply(&entity, &mut rhs, &mut matrix, &entity_to_index, 0.0);  
+    /// 
     fn apply(&self, _entity: &MeshEntity, rhs: &mut MatMut<f64>, _matrix: &mut MatMut<f64>, entity_to_index: &FxHashMap<MeshEntity, usize>, time: f64) {
-        // Neumann-specific logic
         self.apply_bc(_matrix, rhs, entity_to_index, time);
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
