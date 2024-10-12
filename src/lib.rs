@@ -1,3 +1,4 @@
+#[doc=include_str!("domain/docs/about_domain.md")]
 pub mod domain;
 pub mod geometry;
 pub mod boundary;

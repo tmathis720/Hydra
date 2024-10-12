@@ -5,6 +5,9 @@ mod tests {
     use crossbeam::channel::unbounded;
     use crate::domain::mesh::Mesh;
 
+    /// Tests that boundary data can be sent from one mesh and received by another.  
+    /// This test sets up vertex coordinates for a mesh, sends the data,  
+    /// and verifies that the receiving mesh gets the correct data.  
     #[test]
     fn test_send_receive_boundary_data() {
         let mut mesh = Mesh::new();
@@ -38,19 +41,8 @@ mod tests {
         assert_eq!(mesh_receiver.vertex_coordinates.get(&2), Some(&[4.0, 5.0, 6.0]));
     }
 
-    /* #[test]
-    fn test_receive_empty_data() {
-        let mut mesh = Mesh::new();
-        let (test_sender, test_receiver) = unbounded();
-        mesh.set_boundary_channels(test_sender, test_receiver);
-
-        // Simulate receiving without sending any data.
-        mesh.receive_boundary_data();
-
-        // Ensure no data has been added.
-        assert!(mesh.vertex_coordinates.is_empty());
-    } */
-
+    /// Tests that sending boundary data without a receiver does not cause a failure.  
+    /// This ensures that missing a receiver does not result in panics or unexpected errors.  
     #[test]
     fn test_send_without_receiver() {
         let mut mesh = Mesh::new();
@@ -65,6 +57,8 @@ mod tests {
         assert!(mesh.vertex_coordinates.get(&3).is_some());
     }
 
+    /// Tests the addition of a new entity to the mesh.  
+    /// Verifies that the entity is successfully added to the mesh's entity set.  
     #[test]
     fn test_add_entity() {
         let mesh = Mesh::new();
@@ -73,6 +67,8 @@ mod tests {
         assert!(mesh.entities.read().unwrap().contains(&vertex));
     }
 
+    /// Tests the iterator over the mesh's vertex coordinates.  
+    /// Verifies that the iterator returns the correct vertex IDs.  
     #[test]
     fn test_iter_vertices() {
         let mut mesh = Mesh::new();
@@ -91,6 +87,9 @@ mod integration_tests {
     use crossbeam::channel::unbounded;
     use rustc_hash::FxHashMap;
 
+    /// Full integration test that simulates mesh operations including entity addition,  
+    /// boundary data synchronization, hierarchical mesh refinement, and applying  
+    /// constraints at hanging nodes.  
     #[test]
     fn test_full_mesh_integration() {
         // Step 1: Create a new mesh and add entities (vertices, edges, cells)
@@ -158,4 +157,3 @@ mod integration_tests {
         assert_eq!(parent_dofs, [1.0, 1.5, 2.0, 2.5]);
     }
 }
-

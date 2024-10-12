@@ -3,8 +3,15 @@ use crate::domain::sieve::Sieve;
 use rustc_hash::FxHashSet;
 
 impl Sieve {
-    /// Given cells and vertices, infer and add edges (in 2D) or faces (in 3D).
-    /// For 2D: Cells will generate edges, and edges will connect vertices.
+    /// Infers and adds missing edges (in 2D) or faces (in 3D) based on existing cells and vertices.  
+    /// 
+    /// For 2D meshes, this method generates edges by connecting vertices of a cell.  
+    /// These edges are then associated with the corresponding vertices in the sieve.  
+    ///
+    /// Example usage:
+    /// 
+    ///    sieve.fill_missing_entities();  
+    ///
     pub fn fill_missing_entities(&self) {
         let mut edge_set: FxHashSet<(MeshEntity, MeshEntity)> = FxHashSet::default();
 
@@ -15,6 +22,7 @@ impl Sieve {
         for (cell, vertices) in adjacency.iter() {
             if let MeshEntity::Cell(_) = cell {
                 let vertices: Vec<_> = vertices.iter().collect();
+                // Connect each vertex with its neighboring vertex to form edges.
                 for i in 0..vertices.len() {
                     let v1 = vertices[i];
                     let v2 = vertices[(i + 1) % vertices.len()];
@@ -24,10 +32,11 @@ impl Sieve {
             }
         }
 
-        // Add the deduced edges to the sieve
+        // Add the deduced edges to the sieve.
         let mut adjacency = self.adjacency.write().unwrap();
         for (v1, v2) in edge_set {
-            let edge = MeshEntity::Edge(adjacency.len());  // Generate unique ID for new edge
+            // Generate a unique ID for the new edge.
+            let edge = MeshEntity::Edge(adjacency.len());  
             self.add_arrow(v1, edge);
             self.add_arrow(v2, edge);
         }

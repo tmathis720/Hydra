@@ -3,22 +3,61 @@ use std::sync::{Arc, RwLock};
 use rayon::prelude::*;
 use crate::domain::mesh_entity::MeshEntity;
 
+/// A generic `Section` struct that associates data of type `T` with `MeshEntity` elements.  
+/// It provides methods for setting, updating, and retrieving data, and supports  
+/// parallel updates for performance improvements.  
+/// 
+/// Example usage:
+/// 
+///    let section = Section::new();  
+///    let vertex = MeshEntity::Vertex(1);  
+///    section.set_data(vertex, 42);  
+///    assert_eq!(section.restrict(&vertex), Some(42));  
+/// 
 pub struct Section<T> {
+    /// A thread-safe map storing data of type `T` associated with `MeshEntity` objects.  
     pub data: Arc<RwLock<FxHashMap<MeshEntity, T>>>,
 }
 
 impl<T> Section<T> {
+    /// Creates a new `Section` with an empty data map.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let section = Section::new();  
+    ///    assert!(section.data.read().unwrap().is_empty());  
+    ///
     pub fn new() -> Self {
         Section {
             data: Arc::new(RwLock::new(FxHashMap::default())),
         }
     }
 
+    /// Sets the data associated with a given `MeshEntity`.  
+    /// This method inserts the `entity` and its corresponding `value` into the data map.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let section = Section::new();  
+    ///    section.set_data(MeshEntity::Vertex(1), 10);  
+    ///
     pub fn set_data(&self, entity: MeshEntity, value: T) {
         let mut data = self.data.write().unwrap();
         data.insert(entity, value);
     }
 
+    /// Restricts the data for a given `MeshEntity` by returning an immutable copy of the data  
+    /// associated with the `entity`, if it exists.  
+    ///
+    /// Returns `None` if no data is found for the entity.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let section = Section::new();  
+    ///    let vertex = MeshEntity::Vertex(1);  
+    ///    section.set_data(vertex, 42);  
+    ///    assert_eq!(section.restrict(&vertex), Some(42));  
+    ///
     pub fn restrict(&self, entity: &MeshEntity) -> Option<T>
     where
         T: Clone,
@@ -26,6 +65,13 @@ impl<T> Section<T> {
         self.data.read().unwrap().get(entity).cloned()
     }
 
+    /// Applies the given function in parallel to update all data values in the section.  
+    /// This method uses Rayon to iterate over the data map concurrently for performance.  
+    ///
+    /// Example usage:
+    /// 
+    ///    section.parallel_update(|v| *v += 1);  
+    ///
     pub fn parallel_update<F>(&self, update_fn: F)
     where
         F: Fn(&mut T) + Sync + Send,
@@ -35,8 +81,20 @@ impl<T> Section<T> {
         data.par_iter_mut().for_each(|(_, v)| update_fn(v));
     }
 
-
-    /// Restrict data to a given mesh entity (mutable access)
+    /// Restricts the data for a given `MeshEntity` by returning a mutable copy of the data  
+    /// associated with the `entity`, if it exists.  
+    ///
+    /// Returns `None` if no data is found for the entity.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let section = Section::new();  
+    ///    let vertex = MeshEntity::Vertex(1);  
+    ///    section.set_data(vertex, 5);  
+    ///    let mut value = section.restrict_mut(&vertex).unwrap();  
+    ///    value = 10;  
+    ///    section.set_data(vertex, value);  
+    ///
     pub fn restrict_mut(&self, entity: &MeshEntity) -> Option<T>
     where
         T: Clone,
@@ -45,25 +103,51 @@ impl<T> Section<T> {
         data.get(entity).cloned()
     }
 
-    /// Update the data for a given mesh entity
+    /// Updates the data for a specific `MeshEntity` by replacing the existing value  
+    /// with the new value.  
+    ///
+    /// Example usage:
+    /// 
+    ///    section.update_data(&MeshEntity::Vertex(1), 15);  
+    ///
     pub fn update_data(&self, entity: &MeshEntity, new_value: T) {
         let mut data = self.data.write().unwrap();
         data.insert(*entity, new_value);
     }
 
-    /// Clear all data in the section
+    /// Clears all data from the section, removing all entity associations.  
+    ///
+    /// Example usage:
+    /// 
+    ///    section.clear();  
+    ///    assert!(section.data.read().unwrap().is_empty());  
+    ///
     pub fn clear(&self) {
         let mut data = self.data.write().unwrap();
         data.clear();
     }
 
-    /// Get all mesh entities associated with this section
+    /// Retrieves all `MeshEntity` objects associated with the section.  
+    ///
+    /// Returns a vector containing all mesh entities currently stored in the section.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let entities = section.entities();  
+    ///
     pub fn entities(&self) -> Vec<MeshEntity> {
         let data = self.data.read().unwrap();
         data.keys().cloned().collect()
     }
 
-    /// Get all data stored in this section (immutable references)
+    /// Retrieves all data stored in the section as immutable copies.  
+    ///
+    /// Returns a vector of data values.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let all_data = section.all_data();  
+    ///
     pub fn all_data(&self) -> Vec<T>
     where
         T: Clone,
@@ -72,7 +156,14 @@ impl<T> Section<T> {
         data.values().cloned().collect()
     }
 
-    /// Get mutable access to all data stored in this section
+    /// Retrieves all data stored in the section with mutable access.  
+    ///
+    /// Returns a vector of data values that can be modified.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let all_data_mut = section.all_data_mut();  
+    ///
     pub fn all_data_mut(&self) -> Vec<T>
     where
         T: Clone,
@@ -80,17 +171,16 @@ impl<T> Section<T> {
         let mut data = self.data.write().unwrap();
         data.values().cloned().collect()
     }
-
-    
 }
 
-// Unit tests for the Section structure
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::domain::mesh_entity::MeshEntity;
 
     #[test]
+    /// Test that verifies setting and restricting data for a `MeshEntity`  
+    /// works as expected.  
     fn test_set_and_restrict_data() {
         let section = Section::new();
         let vertex = MeshEntity::Vertex(1);
@@ -99,6 +189,8 @@ mod tests {
     }
 
     #[test]
+    /// Test that verifies updating the data for an entity works as expected,  
+    /// including updating a non-existent entity.  
     fn test_update_data() {
         let mut section = Section::new();
         let vertex = MeshEntity::Vertex(1);
@@ -117,6 +209,8 @@ mod tests {
     }
 
     #[test]
+    /// Test that verifies the mutable restriction of data for a `MeshEntity`  
+    /// works as expected.  
     fn test_restrict_mut() {
         let section = Section::new();
         let vertex = MeshEntity::Vertex(1);
@@ -130,6 +224,8 @@ mod tests {
     }
 
     #[test]
+    /// Test that verifies retrieving all entities associated with the section  
+    /// works as expected.  
     fn test_get_all_entities() {
         let mut section = Section::new();
         let vertex = MeshEntity::Vertex(1);
@@ -145,6 +241,8 @@ mod tests {
     }
 
     #[test]
+    /// Test that verifies retrieving all data stored in the section works  
+    /// as expected.  
     fn test_get_all_data() {
         let mut section = Section::new();
         let vertex = MeshEntity::Vertex(1);
@@ -155,11 +253,13 @@ mod tests {
 
         let all_data = section.all_data();
         assert_eq!(all_data.len(), 2);
-        assert!(all_data.contains(&&10));
-        assert!(all_data.contains(&&20));
+        assert!(all_data.contains(&10));
+        assert!(all_data.contains(&20));
     }
 
     #[test]
+    /// Test that verifies parallel updates to data in the section are  
+    /// applied correctly using Rayon for concurrency.  
     fn test_parallel_update() {
         let section = Section::new();
         let vertex = MeshEntity::Vertex(1);
