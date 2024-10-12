@@ -1,15 +1,6 @@
 ### Report on the `src/boundary/` Module
 
-This report covers the `src/boundary/` module, which implements the handling of various boundary conditions commonly used in the solution of partial differential equations (PDEs) in fluid dynamics and geophysical simulations. The boundary conditions supported in this module include Dirichlet, Neumann, and Robin conditions, as well as their functional forms. The module is structured as follows:
-
-```bash
-C:.
-│   bc_handler.rs
-│   dirichlet.rs
-│   mod.rs
-│   neumann.rs
-│   robin.rs
-```
+This report covers the `src/boundary/` module, which implements the handling of various boundary conditions commonly used in the solution of partial differential equations (PDEs) in fluid dynamics and geophysical simulations. The boundary conditions supported in this module include Dirichlet, Neumann, and Robin conditions, as well as their functional forms.
 
 Each file within the `boundary` module has a specific responsibility related to the application of boundary conditions. Below is a detailed breakdown of each component:
 
@@ -34,7 +25,7 @@ This file defines the core logic for handling boundary conditions, providing a g
   - Applying boundary conditions to modify the system's matrix and RHS. The boundary conditions are applied to specific mesh entities using a mapping between mesh entities and system indices.
 
 #### Example:
-```rust
+```rust,ignore
 let handler = BoundaryConditionHandler::new();
 let entity = MeshEntity::Vertex(1);
 handler.set_bc(entity, BoundaryCondition::Dirichlet(10.0));
@@ -62,7 +53,7 @@ Implements the specific logic for handling Dirichlet boundary conditions, which 
   Currently, this method returns default coordinates for entities but can be extended to retrieve actual entity coordinates.
 
 #### Example:
-```rust
+```rust,ignore
 let dirichlet_bc = DirichletBC::new();
 let entity = MeshEntity::Vertex(1);
 dirichlet_bc.set_bc(entity, BoundaryCondition::Dirichlet(5.0));
@@ -87,7 +78,7 @@ Implements the logic for handling Neumann boundary conditions, which specify the
   This method modifies only the RHS to account for the flux specified by the Neumann boundary condition, without altering the system matrix.
 
 #### Example:
-```rust
+```rust,ignore
 let neumann_bc = NeumannBC::new();
 let entity = MeshEntity::Vertex(1);
 neumann_bc.set_bc(entity, BoundaryCondition::Neumann(5.0));
@@ -112,7 +103,7 @@ Implements the logic for handling Robin boundary conditions, a linear combinatio
   This method applies the Robin boundary condition by adjusting both the matrix and the RHS based on the `alpha` and `beta` parameters.
 
 #### Example:
-```rust
+```rust,ignore
 let robin_bc = RobinBC::new();
 let entity = MeshEntity::Vertex(1);
 robin_bc.set_bc(entity, BoundaryCondition::Robin { alpha: 2.0, beta: 3.0 });

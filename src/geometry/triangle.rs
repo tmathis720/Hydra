@@ -2,9 +2,34 @@ use crate::geometry::Geometry;
 
 impl Geometry {
     /// Computes the centroid of a triangular face.
+    ///
+    /// This function calculates the centroid of a triangle using its three vertices. The
+    /// centroid is the point that is the average of the positions of the vertices.
+    /// 
+    /// # Arguments
+    ///
+    /// * `triangle_vertices` - A vector of 3D coordinates representing the vertices of the triangle.
+    ///
+    /// # Returns
+    ///
+    /// * `[f64; 3]` - The computed 3D coordinates of the triangle's centroid.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the number of vertices provided is not exactly three.
+    ///
+    /// # Example
+    /// 
+    /// ```rust,ignore
+    /// let geometry = Geometry::new();
+    /// let vertices = vec![[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 4.0, 0.0]];
+    /// let centroid = geometry.compute_triangle_centroid(&vertices);
+    /// assert_eq!(centroid, [1.0, 4.0 / 3.0, 0.0]);
+    /// ```
     pub fn compute_triangle_centroid(&self, triangle_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
         assert!(triangle_vertices.len() == 3, "Triangle must have exactly 3 vertices");
 
+        // Sequential centroid calculation
         let mut centroid = [0.0, 0.0, 0.0];
         for vertex in triangle_vertices {
             centroid[0] += vertex[0];
@@ -13,20 +38,35 @@ impl Geometry {
         }
 
         let num_vertices = triangle_vertices.len() as f64;
-        centroid[0] /= num_vertices;
-        centroid[1] /= num_vertices;
-        centroid[2] /= num_vertices;
-
-        centroid
+        [centroid[0] / num_vertices, centroid[1] / num_vertices, centroid[2] / num_vertices]
     }
 
     /// Computes the area of a triangular face.
     ///
+    /// This function calculates the area of a triangle using the cross product of two edge vectors.
+    /// The magnitude of the cross product gives twice the area of the triangle, and thus the final
+    /// area is half of that magnitude.
+    ///
     /// # Arguments
-    /// * `triangle_vertices` - A vector of 3D coordinates for the triangle vertices.
+    ///
+    /// * `triangle_vertices` - A vector of 3D coordinates representing the vertices of the triangle.
     ///
     /// # Returns
-    /// * `f64` - The area of the triangle.
+    ///
+    /// * `f64` - The computed area of the triangle.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the number of vertices provided is not exactly three.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let geometry = Geometry::new();
+    /// let vertices = vec![[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 4.0, 0.0]];
+    /// let area = geometry.compute_triangle_area(&vertices);
+    /// assert!((area - 6.0).abs() < 1e-10);  // Area should be approximately 6.0
+    /// ```
     pub fn compute_triangle_area(&self, triangle_vertices: &Vec<[f64; 3]>) -> f64 {
         assert!(
             triangle_vertices.len() == 3,
@@ -38,33 +78,24 @@ impl Geometry {
         let v2 = triangle_vertices[2];
 
         // Compute vectors v0->v1 and v0->v2
-        let e1 = [
-            v1[0] - v0[0],
-            v1[1] - v0[1],
-            v1[2] - v0[2],
-        ];
-        let e2 = [
-            v2[0] - v0[0],
-            v2[1] - v0[1],
-            v2[2] - v0[2],
-        ];
+        let e1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
+        let e2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
 
-        // Compute cross product of the two vectors
+        // Cross product of e1 and e2
         let cross_product = [
             e1[1] * e2[2] - e1[2] * e2[1],
             e1[2] * e2[0] - e1[0] * e2[2],
             e1[0] * e2[1] - e1[1] * e2[0],
         ];
 
-        // Compute the magnitude of the cross product vector
+        // Compute the magnitude of the cross product
         let cross_product_magnitude = (cross_product[0].powi(2)
             + cross_product[1].powi(2)
             + cross_product[2].powi(2))
         .sqrt();
 
-        // The area is half the magnitude of the cross product
-        let area = 0.5 * cross_product_magnitude;
-        area
+        // Area is half the magnitude of the cross product
+        0.5 * cross_product_magnitude
     }
 }
 

@@ -1,5 +1,3 @@
-// src/boundary/bc_handler.rs
-
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use crate::domain::mesh_entity::MeshEntity;

@@ -1,13 +1,37 @@
 use crate::geometry::Geometry;
 
 impl Geometry {
-    /// Computes the area of a quadrilateral face.
+    /// Computes the area of a quadrilateral face by dividing it into two triangles.
+    ///
+    /// This function computes the area of a quadrilateral in 3D space by splitting it into
+    /// two triangles and summing their respective areas. The quadrilateral is assumed to have
+    /// exactly four vertices.
     ///
     /// # Arguments
-    /// * `quad_vertices` - A vector of 3D coordinates for the quadrilateral vertices.
+    ///
+    /// * `quad_vertices` - A vector of 3D coordinates representing the vertices of the quadrilateral.
     ///
     /// # Returns
-    /// * `f64` - The area of the quadrilateral.
+    ///
+    /// * `f64` - The computed area of the quadrilateral.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the number of vertices provided is not exactly four.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let geometry = Geometry::new();
+    /// let quad_vertices = vec![
+    ///     [0.0, 0.0, 0.0],
+    ///     [1.0, 0.0, 0.0],
+    ///     [1.0, 1.0, 0.0],
+    ///     [0.0, 1.0, 0.0]
+    /// ];
+    /// let area = geometry.compute_quadrilateral_area(&quad_vertices);
+    /// assert_eq!(area, 1.0); // The area of a square with side length 1 is 1.0
+    /// ```
     pub fn compute_quadrilateral_area(&self, quad_vertices: &Vec<[f64; 3]>) -> f64 {
         assert!(quad_vertices.len() == 4, "Quadrilateral must have exactly 4 vertices");
 
@@ -23,6 +47,36 @@ impl Geometry {
     }
 
     /// Computes the centroid of a quadrilateral face.
+    ///
+    /// This function calculates the centroid (geometric center) of a quadrilateral by averaging the
+    /// positions of its four vertices. The centroid is the point that minimizes the sum of the
+    /// squared distances to all the vertices.
+    ///
+    /// # Arguments
+    ///
+    /// * `quad_vertices` - A vector of 3D coordinates representing the vertices of the quadrilateral.
+    ///
+    /// # Returns
+    ///
+    /// * `[f64; 3]` - The computed centroid of the quadrilateral.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the number of vertices provided is not exactly four.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let geometry = Geometry::new();
+    /// let quad_vertices = vec![
+    ///     [0.0, 0.0, 0.0],
+    ///     [1.0, 0.0, 0.0],
+    ///     [1.0, 1.0, 0.0],
+    ///     [0.0, 1.0, 0.0]
+    /// ];
+    /// let centroid = geometry.compute_quadrilateral_centroid(&quad_vertices);
+    /// assert_eq!(centroid, [0.5, 0.5, 0.0]); // The centroid of the square is its center
+    /// ```
     pub fn compute_quadrilateral_centroid(&self, quad_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
         assert!(quad_vertices.len() == 4, "Quadrilateral must have exactly 4 vertices");
 

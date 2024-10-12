@@ -2,13 +2,37 @@ use crate::geometry::Geometry;
 
 impl Geometry {
     
-    /// Computes the centroid of a prism cell (assuming a triangular prism).
+    /// Computes the centroid of a triangular prism.
+    ///
+    /// The prism is assumed to have two parallel triangular faces (top and bottom),
+    /// each defined by 3 vertices. The centroid is calculated by averaging the centroids
+    /// of the top and bottom triangles.
     ///
     /// # Arguments
-    /// * `cell_vertices` - A vector of 6 vertices representing the 3D coordinates of the prism's vertices.
+    /// * `cell_vertices` - A vector of 6 vertices representing the 3D coordinates of the prism's vertices. 
+    /// The first 3 vertices define the top triangle, and the last 3 vertices define the bottom triangle.
     ///
     /// # Returns
-    /// * `[f64; 3]` - The 3D coordinates of the prism centroid.
+    /// * `[f64; 3]` - The 3D coordinates of the centroid of the triangular prism.
+    ///
+    /// # Panics
+    /// This function will panic if the number of vertices is not exactly 6.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let geometry = Geometry::new();
+    /// let prism_vertices = vec![
+    ///     [0.0, 0.0, 0.0], // top triangle vertex 1
+    ///     [1.0, 0.0, 0.0], // top triangle vertex 2
+    ///     [0.0, 1.0, 0.0], // top triangle vertex 3
+    ///     [0.0, 0.0, 1.0], // bottom triangle vertex 1
+    ///     [1.0, 0.0, 1.0], // bottom triangle vertex 2
+    ///     [0.0, 1.0, 1.0], // bottom triangle vertex 3
+    /// ];
+    /// let centroid = geometry.compute_prism_centroid(&prism_vertices);
+    /// assert_eq!(centroid, [1.0 / 3.0, 1.0 / 3.0, 0.5]);
+    /// ```
     pub fn compute_prism_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
         assert!(cell_vertices.len() == 6, "Triangular prism must have exactly 6 vertices");
 
@@ -30,13 +54,36 @@ impl Geometry {
         prism_centroid
     }
 
-    /// Computes the volume of a prism cell (assuming a triangular prism).
+    /// Computes the volume of a triangular prism.
+    ///
+    /// The volume is calculated by multiplying the area of the triangular base (bottom face)
+    /// with the height, which is the distance between the centroids of the top and bottom triangles.
     ///
     /// # Arguments
-    /// * `cell_vertices` - A vector of 6 vertices representing the 3D coordinates of the prism's vertices.
+    /// * `cell_vertices` - A vector of 6 vertices representing the 3D coordinates of the prism's vertices. 
+    /// The first 3 vertices define the top triangle, and the last 3 vertices define the bottom triangle.
     ///
     /// # Returns
     /// * `f64` - The volume of the triangular prism.
+    ///
+    /// # Panics
+    /// This function will panic if the number of vertices is not exactly 6.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let geometry = Geometry::new();
+    /// let prism_vertices = vec![
+    ///     [0.0, 0.0, 0.0], // top triangle vertex 1
+    ///     [1.0, 0.0, 0.0], // top triangle vertex 2
+    ///     [0.0, 1.0, 0.0], // top triangle vertex 3
+    ///     [0.0, 0.0, 1.0], // bottom triangle vertex 1
+    ///     [1.0, 0.0, 1.0], // bottom triangle vertex 2
+    ///     [0.0, 1.0, 1.0], // bottom triangle vertex 3
+    /// ];
+    /// let volume = geometry.compute_prism_volume(&prism_vertices);
+    /// assert!((volume - 0.5).abs() < 1e-10);
+    /// ```
     pub fn compute_prism_volume(&self, cell_vertices: &Vec<[f64; 3]>) -> f64 {
         assert!(cell_vertices.len() == 6, "Triangular prism must have exactly 6 vertices");
 

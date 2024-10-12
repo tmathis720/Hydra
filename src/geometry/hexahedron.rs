@@ -1,7 +1,37 @@
 use crate::geometry::Geometry;
 
 impl Geometry {
-    /// Computes the centroid of a hexahedral cell
+    /// Computes the centroid of a hexahedral cell (e.g., a cube or cuboid).
+    ///
+    /// The centroid is calculated by averaging the positions of all 8 vertices of the hexahedron.
+    ///
+    /// # Arguments
+    /// * `cell_vertices` - A vector of 8 vertices, each represented by a 3D coordinate `[f64; 3]`,
+    ///   representing the vertices of the hexahedron.
+    ///
+    /// # Returns
+    /// * `[f64; 3]` - The 3D coordinates of the centroid of the hexahedron.
+    ///
+    /// # Panics
+    /// This function will panic if the number of vertices is not exactly 8.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let geometry = Geometry::new();
+    /// let hexahedron_vertices = vec![
+    ///     [0.0, 0.0, 0.0], // vertex 1
+    ///     [1.0, 0.0, 0.0], // vertex 2
+    ///     [1.0, 1.0, 0.0], // vertex 3
+    ///     [0.0, 1.0, 0.0], // vertex 4
+    ///     [0.0, 0.0, 1.0], // vertex 5
+    ///     [1.0, 0.0, 1.0], // vertex 6
+    ///     [1.0, 1.0, 1.0], // vertex 7
+    ///     [0.0, 1.0, 1.0], // vertex 8
+    /// ];
+    /// let centroid = geometry.compute_hexahedron_centroid(&hexahedron_vertices);
+    /// assert_eq!(centroid, [0.5, 0.5, 0.5]);  // Centroid of a unit cube
+    /// ```
     pub fn compute_hexahedron_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
         let mut centroid = [0.0, 0.0, 0.0];
         for v in cell_vertices {
@@ -16,13 +46,39 @@ impl Geometry {
         centroid
     }
 
-    /// Computes the volume of a hexahedral (cube-like) cell using tetrahedral decomposition.
+    /// Computes the volume of a hexahedral cell using tetrahedral decomposition.
+    ///
+    /// A hexahedron (e.g., a cube or cuboid) is decomposed into 5 tetrahedrons, and the volume
+    /// of each tetrahedron is calculated. The sum of the volumes of all tetrahedrons gives the total
+    /// volume of the hexahedron.
     ///
     /// # Arguments
-    /// * `cell_vertices` - A vector of 8 vertices representing the 3D coordinates of the hexahedron's vertices.
+    /// * `cell_vertices` - A vector of 8 vertices, each represented by a 3D coordinate `[f64; 3]`,
+    ///   representing the vertices of the hexahedron.
     ///
     /// # Returns
     /// * `f64` - The volume of the hexahedron.
+    ///
+    /// # Panics
+    /// This function will panic if the number of vertices is not exactly 8.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let geometry = Geometry::new();
+    /// let hexahedron_vertices = vec![
+    ///     [0.0, 0.0, 0.0], // vertex 1
+    ///     [1.0, 0.0, 0.0], // vertex 2
+    ///     [1.0, 1.0, 0.0], // vertex 3
+    ///     [0.0, 1.0, 0.0], // vertex 4
+    ///     [0.0, 0.0, 1.0], // vertex 5
+    ///     [1.0, 0.0, 1.0], // vertex 6
+    ///     [1.0, 1.0, 1.0], // vertex 7
+    ///     [0.0, 1.0, 1.0], // vertex 8
+    /// ];
+    /// let volume = geometry.compute_hexahedron_volume(&hexahedron_vertices);
+    /// assert!((volume - 1.0).abs() < 1e-10);  // Volume of a unit cube
+    /// ```
     pub fn compute_hexahedron_volume(&self, cell_vertices: &Vec<[f64; 3]>) -> f64 {
         assert!(cell_vertices.len() == 8, "Hexahedron must have exactly 8 vertices");
 
