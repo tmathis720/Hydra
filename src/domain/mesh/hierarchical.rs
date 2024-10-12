@@ -67,7 +67,10 @@ impl<'a, T> Iterator for LeafIterator<'a, T> {
             match node {
                 MeshNode::Leaf(data) => return Some(data),
                 MeshNode::Branch { children, .. } => {
-                    self.stack.extend(&**children);
+                    // Push children onto the stack in reverse order to get them in the desired order.
+                    for child in children.iter().rev() {
+                        self.stack.push(child);
+                    }
                 }
             }
         }

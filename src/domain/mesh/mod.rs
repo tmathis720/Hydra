@@ -22,8 +22,8 @@ pub struct Mesh {
     pub sieve: Arc<Sieve>,
     pub entities: Arc<RwLock<FxHashSet<MeshEntity>>>,
     pub vertex_coordinates: FxHashMap<usize, [f64; 3]>,
-    boundary_data_sender: Option<Sender<FxHashMap<MeshEntity, [f64; 3]>>>,
-    boundary_data_receiver: Option<Receiver<FxHashMap<MeshEntity, [f64; 3]>>>,
+    pub boundary_data_sender: Option<Sender<FxHashMap<MeshEntity, [f64; 3]>>>,
+    pub boundary_data_receiver: Option<Receiver<FxHashMap<MeshEntity, [f64; 3]>>>,
 }
 
 impl Mesh {

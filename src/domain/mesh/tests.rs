@@ -81,3 +81,81 @@ mod tests {
         assert_eq!(vertices, vec![&1]);
     }
 }
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::domain::mesh::hierarchical::MeshNode;
+    use crate::domain::mesh_entity::MeshEntity;
+    use crate::domain::mesh::Mesh;
+    use crossbeam::channel::unbounded;
+    use rustc_hash::FxHashMap;
+
+    #[test]
+    fn test_full_mesh_integration() {
+        // Step 1: Create a new mesh and add entities (vertices, edges, cells)
+        let mut mesh = Mesh::new();
+        let vertex1 = MeshEntity::Vertex(1);
+        let vertex2 = MeshEntity::Vertex(2);
+        let vertex3 = MeshEntity::Vertex(3);
+        let cell1 = MeshEntity::Cell(1);
+
+        mesh.add_entity(vertex1);
+        mesh.add_entity(vertex2);
+        mesh.add_entity(vertex3);
+        mesh.add_entity(cell1);
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
+
+        // Step 2: Set up and sync boundary data.
+        let (sender, receiver) = unbounded();
+        mesh.set_boundary_channels(sender, receiver);
+        mesh.send_boundary_data();
+
+        // Create another mesh instance to simulate receiving boundary data.
+        let mut mesh_receiver = Mesh::new();
+        mesh_receiver.set_boundary_channels(mesh.boundary_data_sender.clone().unwrap(), mesh.boundary_data_receiver.clone().unwrap());
+        mesh_receiver.receive_boundary_data();
+
+        // Verify that the receiver mesh has the correct boundary data.
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&1), Some(&[0.0, 0.0, 0.0]));
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&2), Some(&[1.0, 0.0, 0.0]));
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&3), Some(&[0.0, 1.0, 0.0]));
+
+        // Step 3: Refine a hierarchical mesh node.
+        let mut node = MeshNode::Leaf(cell1);
+        node.refine(|&cell| [
+            MeshEntity::Cell(2), MeshEntity::Cell(3), MeshEntity::Cell(4), MeshEntity::Cell(5)
+        ]);
+
+        // Verify that the node has been refined into a branch.
+        if let MeshNode::Branch { ref children, .. } = node {
+            assert_eq!(children.len(), 4);
+            assert_eq!(children[0], MeshNode::Leaf(MeshEntity::Cell(2)));
+            assert_eq!(children[1], MeshNode::Leaf(MeshEntity::Cell(3)));
+            assert_eq!(children[2], MeshNode::Leaf(MeshEntity::Cell(4)));
+            assert_eq!(children[3], MeshNode::Leaf(MeshEntity::Cell(5)));
+        } else {
+            panic!("Expected the node to be refined into a branch.");
+        }
+
+        // Step 4: Apply RCM ordering to the mesh and verify order.
+        let rcm_order = mesh.rcm_ordering(vertex1);
+        assert!(rcm_order.len() > 0); // RCM ordering should produce a non-empty order.
+
+        // Step 5: Apply constraints at the hanging nodes after refinement.
+        let mut parent_dofs = [0.0; 4];
+        let mut child_dofs = [
+            [1.0, 1.5, 2.0, 2.5],
+            [1.0, 1.5, 2.0, 2.5],
+            [1.0, 1.5, 2.0, 2.5],
+            [1.0, 1.5, 2.0, 2.5],
+        ];
+        node.apply_hanging_node_constraints(&mut parent_dofs, &mut child_dofs);
+
+        // Verify that the hanging node constraints were applied correctly.
+        assert_eq!(parent_dofs, [1.0, 1.5, 2.0, 2.5]);
+    }
+}
+

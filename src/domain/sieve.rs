@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use crate::domain::mesh_entity::MeshEntity;
 use crossbeam::thread;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Sieve {
     pub adjacency: Arc<RwLock<FxHashMap<MeshEntity, FxHashSet<MeshEntity>>>>,
 }

@@ -59,7 +59,7 @@ This roadmap outlines the process for improving the Hydra geometry module by add
      - Use numerical integration methods like Gauss quadrature for volume and surface area calculations of higher-order elements.
    - **Resources**:
      - Resources on shape functions and Gauss quadrature (e.g., finite element method textbooks, online tutorials).
-     - Rust’s `nalgebra` crate for matrix operations required in numerical integration.
+     - Rust’s `faer` crate for matrix operations required in numerical integration.
    - **Dependencies**: Robust error handling (to validate higher-order shapes), caching (to store computed values).
 
 7. **Add Unit Tests for Higher-Order Elements**:

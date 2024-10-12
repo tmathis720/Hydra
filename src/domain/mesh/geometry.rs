@@ -26,8 +26,11 @@ impl Mesh {
             4 => FaceShape::Quadrilateral,
             _ => panic!("Unsupported face shape with {} vertices", face_vertices.len()),
         };
-        let geometry = Geometry::new();
-        geometry.compute_face_area(face_shape, &face_vertices)
+
+        // Use a new or existing geometry instance, providing a unique ID for caching.
+        let mut geometry = Geometry::new();
+        let face_id = face.id(); // Assuming `id` method provides a unique ID for the face.
+        geometry.compute_face_area(face_id, face_shape, &face_vertices)
     }
 
     /// Get cell centroid
@@ -40,39 +43,10 @@ impl Mesh {
             8 => CellShape::Hexahedron,
             _ => panic!("Unsupported cell shape with {} vertices", cell_vertices.len()),
         };
-        let geometry = Geometry::new();
-        geometry.compute_cell_centroid(cell_shape, &cell_vertices)
-    }
 
-    /// Get cell vertices
-    pub fn get_cell_vertices(&self, cell: &MeshEntity) -> Vec<[f64; 3]> {
-        let mut vertices = Vec::new();
-        if let Some(connected_faces) = self.sieve.cone(cell) {
-            for face in connected_faces {
-                let face_vertices = self.get_face_vertices(&face);
-                vertices.extend(face_vertices);
-            }
-            vertices.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            vertices.dedup();
-        }
-        vertices
-    }
-
-    /// Get face vertices
-    pub fn get_face_vertices(&self, face: &MeshEntity) -> Vec<[f64; 3]> {
-        let mut vertices = Vec::new();
-        if let Some(connected_vertices) = self.sieve.cone(face) {
-            for vertex in connected_vertices {
-                if let MeshEntity::Vertex(vertex_id) = vertex {
-                    if let Some(coords) = self.get_vertex_coordinates(vertex_id) {
-                        vertices.push(coords);
-                    } else {
-                        panic!("Coordinates for vertex {} not found", vertex_id);
-                    }
-                }
-            }
-        }
-        vertices
+        // Use a new or existing Geometry instance, providing a unique ID for caching.
+        let mut geometry = Geometry::new();
+        geometry.compute_cell_centroid(self, cell)
     }
 
     pub fn get_neighboring_vertices(&self, vertex: &MeshEntity) -> Vec<MeshEntity> {
@@ -97,5 +71,57 @@ impl Mesh {
         self.vertex_coordinates.keys()
     }
 
-    // Additional geometry-related methods...
+    /// Get the shape of a cell based on its number of vertices.
+    pub fn get_cell_shape(&self, cell: &MeshEntity) -> Result<CellShape, String> {
+        let cell_vertices = self.get_cell_vertices(cell);
+        match cell_vertices.len() {
+            4 => Ok(CellShape::Tetrahedron),
+            5 => Ok(CellShape::Pyramid),
+            6 => Ok(CellShape::Prism),
+            8 => Ok(CellShape::Hexahedron),
+            _ => Err(format!(
+                "Unsupported cell shape with {} vertices. Expected 4, 5, 6, or 8 vertices.",
+                cell_vertices.len()
+            )),
+        }
+    }
+
+    /// Get the vertices of a cell.
+    pub fn get_cell_vertices(&self, cell: &MeshEntity) -> Vec<[f64; 3]> {
+        let mut vertices = Vec::new();
+    
+        // Retrieve entities connected to the cell.
+        if let Some(connected_entities) = self.sieve.cone(cell) {
+            for entity in connected_entities {
+                // Check if the entity is a vertex and extract its coordinates.
+                if let MeshEntity::Vertex(vertex_id) = entity {
+                    if let Some(coords) = self.get_vertex_coordinates(vertex_id) {
+                        vertices.push(coords);
+                    } else {
+                        panic!("Coordinates for vertex {} not found", vertex_id);
+                    }
+                }
+            }
+        }
+    
+        // Sort and deduplicate vertices to ensure unique entries.
+        vertices.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        vertices.dedup();
+        vertices
+    }
+
+    /// Get the vertices of a face.
+    pub fn get_face_vertices(&self, face: &MeshEntity) -> Vec<[f64; 3]> {
+        let mut vertices = Vec::new();
+        if let Some(connected_vertices) = self.sieve.cone(face) {
+            for vertex in connected_vertices {
+                if let MeshEntity::Vertex(vertex_id) = vertex {
+                    if let Some(coords) = self.get_vertex_coordinates(vertex_id) {
+                        vertices.push(coords);
+                    }
+                }
+            }
+        }
+        vertices
+    }
 }
