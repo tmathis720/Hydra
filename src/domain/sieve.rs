@@ -2,7 +2,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::{Arc, RwLock};
 use rayon::prelude::*;
 use crate::domain::mesh_entity::MeshEntity;
-use crossbeam::thread;
 
 /// A `Sieve` struct that manages the relationships (arrows) between `MeshEntity`  
 /// elements, organized in an adjacency map.  
@@ -240,7 +239,7 @@ mod tests {
     /// Test that verifies the support of an entity includes the  
     /// correct supporting entities.  
     fn test_support() {
-        let mut sieve = Sieve::new();
+        let sieve = Sieve::new();
         let vertex = MeshEntity::Vertex(1);
         let edge = MeshEntity::Edge(1);
 
@@ -254,7 +253,7 @@ mod tests {
     /// Test that verifies the star of an entity includes both cone and  
     /// support sets of the entity.  
     fn test_star() {
-        let mut sieve = Sieve::new();
+        let sieve = Sieve::new();
         let vertex = MeshEntity::Vertex(1);
         let edge = MeshEntity::Edge(1);
         let face = MeshEntity::Face(1);
@@ -272,7 +271,7 @@ mod tests {
     /// Test that verifies the meet operation between two entities returns  
     /// the correct minimal separator (intersection of closures).  
     fn test_meet() {
-        let mut sieve = Sieve::new();
+        let sieve = Sieve::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
         let edge = MeshEntity::Edge(1);
@@ -291,7 +290,7 @@ mod tests {
     /// Test that verifies the join operation between two entities returns  
     /// the correct minimal separator (union of stars).  
     fn test_join() {
-        let mut sieve = Sieve::new();
+        let sieve = Sieve::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
         let edge = MeshEntity::Edge(1);

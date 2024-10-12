@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::domain::mesh_entity::MeshEntity;
     use crossbeam::channel::unbounded;
     use crate::domain::mesh::Mesh;
@@ -80,12 +79,10 @@ mod tests {
 
 #[cfg(test)]
 mod integration_tests {
-    use super::*;
     use crate::domain::mesh::hierarchical::MeshNode;
     use crate::domain::mesh_entity::MeshEntity;
     use crate::domain::mesh::Mesh;
     use crossbeam::channel::unbounded;
-    use rustc_hash::FxHashMap;
 
     /// Full integration test that simulates mesh operations including entity addition,  
     /// boundary data synchronization, hierarchical mesh refinement, and applying  
@@ -124,7 +121,7 @@ mod integration_tests {
 
         // Step 3: Refine a hierarchical mesh node.
         let mut node = MeshNode::Leaf(cell1);
-        node.refine(|&cell| [
+        node.refine(|&_cell| [
             MeshEntity::Cell(2), MeshEntity::Cell(3), MeshEntity::Cell(4), MeshEntity::Cell(5)
         ]);
 

@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_set_bc() {
-        let mut neumann_bc = NeumannBC::new();
+        let neumann_bc = NeumannBC::new();
         let entity = MeshEntity::Vertex(1);
         
         // Set a Neumann boundary condition
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_apply_constant_neumann() {
-        let mut neumann_bc = NeumannBC::new();
+        let neumann_bc = NeumannBC::new();
         let entity = MeshEntity::Vertex(1);
         let mut entity_to_index = FxHashMap::default();
         entity_to_index.insert(entity, 1);

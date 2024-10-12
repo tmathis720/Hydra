@@ -99,7 +99,7 @@ impl<T> Section<T> {
     where
         T: Clone,
     {
-        let mut data = self.data.write().unwrap();
+        let data = self.data.write().unwrap();
         data.get(entity).cloned()
     }
 
@@ -168,7 +168,7 @@ impl<T> Section<T> {
     where
         T: Clone,
     {
-        let mut data = self.data.write().unwrap();
+        let data = self.data.write().unwrap();
         data.values().cloned().collect()
     }
 }
@@ -192,7 +192,7 @@ mod tests {
     /// Test that verifies updating the data for an entity works as expected,  
     /// including updating a non-existent entity.  
     fn test_update_data() {
-        let mut section = Section::new();
+        let section = Section::new();
         let vertex = MeshEntity::Vertex(1);
 
         section.set_data(vertex, 10);
@@ -227,7 +227,7 @@ mod tests {
     /// Test that verifies retrieving all entities associated with the section  
     /// works as expected.  
     fn test_get_all_entities() {
-        let mut section = Section::new();
+        let section = Section::new();
         let vertex = MeshEntity::Vertex(1);
         let edge = MeshEntity::Edge(1);
 
@@ -244,7 +244,7 @@ mod tests {
     /// Test that verifies retrieving all data stored in the section works  
     /// as expected.  
     fn test_get_all_data() {
-        let mut section = Section::new();
+        let section = Section::new();
         let vertex = MeshEntity::Vertex(1);
         let edge = MeshEntity::Edge(1);
 

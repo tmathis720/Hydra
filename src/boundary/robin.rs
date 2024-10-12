@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_set_bc() {
-        let mut robin_bc = RobinBC::new();
+        let robin_bc = RobinBC::new();
         let entity = MeshEntity::Vertex(1);
         
         // Set a Robin boundary condition
@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn test_apply_robin_bc() {
-        let mut robin_bc = RobinBC::new();
+        let robin_bc = RobinBC::new();
         let entity = MeshEntity::Vertex(1);
         let mut entity_to_index = FxHashMap::default();
         entity_to_index.insert(entity, 1);

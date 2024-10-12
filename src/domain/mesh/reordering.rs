@@ -61,7 +61,7 @@ impl Mesh {
     /// 
     ///    mesh.apply_reordering(&new_order);  
     ///
-    pub fn apply_reordering(&mut self, new_order: &[usize]) {
+    pub fn apply_reordering(&mut self, _new_order: &[usize]) {
         // Implement the application of reordering to mesh entities or sparse matrix structure.
     }
 

@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn test_set_bc() {
-        let mut dirichlet_bc = DirichletBC::new();
+        let dirichlet_bc = DirichletBC::new();
         let entity = MeshEntity::Vertex(1);
         
         // Set a Dirichlet boundary condition
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_apply_constant_dirichlet() {
-        let mut dirichlet_bc = DirichletBC::new();
+        let dirichlet_bc = DirichletBC::new();
         let entity = MeshEntity::Vertex(1);
         let mut entity_to_index = FxHashMap::default();
         entity_to_index.insert(entity, 1);

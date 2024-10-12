@@ -33,7 +33,7 @@ impl Sieve {
         }
 
         // Add the deduced edges to the sieve.
-        let mut adjacency = self.adjacency.write().unwrap();
+        let adjacency = self.adjacency.write().unwrap();
         for (v1, v2) in edge_set {
             // Generate a unique ID for the new edge.
             let edge = MeshEntity::Edge(adjacency.len());  

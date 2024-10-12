@@ -1,4 +1,3 @@
-use crate::domain::mesh_entity::MeshEntity;
 use std::boxed::Box;
 
 /// Represents a hierarchical mesh node, which can either be a leaf (non-refined)  

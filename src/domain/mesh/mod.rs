@@ -9,11 +9,6 @@ use crate::domain::sieve::Sieve;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::{Arc, RwLock};
 use crossbeam::channel::{Sender, Receiver};
-use entities::*;
-use geometry::*;
-use reordering::*;
-use boundary::*;
-use hierarchical::*;
 
 // Delegate methods to corresponding modules
 

@@ -2,7 +2,6 @@ use super::Mesh;
 use crate::domain::mesh_entity::MeshEntity;
 use rustc_hash::FxHashMap;
 use crossbeam::channel::{Sender, Receiver};
-use std::sync::RwLock;
 
 impl Mesh {
     /// Synchronizes the boundary data by first sending the local boundary data  

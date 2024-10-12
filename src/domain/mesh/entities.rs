@@ -1,8 +1,7 @@
 use super::Mesh;
 use crate::domain::mesh_entity::MeshEntity;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rustc_hash::{FxHashMap, FxHashSet};
-use std::sync::RwLock;
+use rustc_hash::FxHashMap;
 
 impl Mesh {
     /// Adds a new `MeshEntity` to the mesh.  

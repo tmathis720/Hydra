@@ -88,7 +88,7 @@ impl Mesh {
     ///
     pub fn get_cell_centroid(&self, cell: &MeshEntity) -> [f64; 3] {
         let cell_vertices = self.get_cell_vertices(cell);
-        let cell_shape = match cell_vertices.len() {
+        let _cell_shape = match cell_vertices.len() {
             4 => CellShape::Tetrahedron,
             5 => CellShape::Pyramid,
             6 => CellShape::Prism,
