@@ -1,4 +1,4 @@
-### Report on the `src/boundary/` Module
+### Overview of the `src/boundary/` Module
 
 This report covers the `src/boundary/` module, which implements the handling of various boundary conditions commonly used in the solution of partial differential equations (PDEs) in fluid dynamics and geophysical simulations. The boundary conditions supported in this module include Dirichlet, Neumann, and Robin conditions, as well as their functional forms.
 

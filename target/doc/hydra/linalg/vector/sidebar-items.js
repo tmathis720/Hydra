@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["mat_impl","traits","vec_impl"]};

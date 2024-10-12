@@ -1,0 +1,131 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Overview of the `src/boundary/` Module"><title>hydra::boundary - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="hydra" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../hydra/index.html">hydra</a><span class="version">0.3.0</span></h2></div><h2 class="location"><a href="#">Module boundary</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#modules">Modules</a></li></ul></section><h2><a href="../index.html">In crate hydra</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../index.html">hydra</a>::<wbr><a class="mod" href="#">boundary</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../../src/hydra/boundary/mod.rs.html#1-4">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h4 id="overview-of-the-srcboundary-module"><a class="doc-anchor" href="#overview-of-the-srcboundary-module">§</a>Overview of the <code>src/boundary/</code> Module</h4>
+<p>This report covers the <code>src/boundary/</code> module, which implements the handling of various boundary conditions commonly used in the solution of partial differential equations (PDEs) in fluid dynamics and geophysical simulations. The boundary conditions supported in this module include Dirichlet, Neumann, and Robin conditions, as well as their functional forms.</p>
+<p>Each file within the <code>boundary</code> module has a specific responsibility related to the application of boundary conditions. Below is a detailed breakdown of each component:</p>
+<hr />
+<h4 id="1-bc_handlerrs"><a class="doc-anchor" href="#1-bc_handlerrs">§</a>1. <code>bc_handler.rs</code></h4>
+<p><strong>Purpose</strong>:<br />
+This file defines the core logic for handling boundary conditions, providing a generalized framework that can manage different types of boundary conditions (Dirichlet, Neumann, Robin) and their functional counterparts.</p>
+<h5 id="key-components"><a class="doc-anchor" href="#key-components">§</a>Key Components:</h5>
+<ul>
+<li>
+<p><strong><code>BoundaryCondition</code> Enum</strong>:<br />
+This enum represents different types of boundary conditions:</p>
+<ul>
+<li><code>Dirichlet(f64)</code>: A constant Dirichlet boundary condition with a specified value.</li>
+<li><code>Neumann(f64)</code>: A constant Neumann boundary condition representing flux.</li>
+<li><code>Robin { alpha: f64, beta: f64 }</code>: A Robin boundary condition, a linear combination of Dirichlet and Neumann conditions.</li>
+<li>Functional variants like <code>DirichletFn</code> and <code>NeumannFn</code> allow time-dependent boundary conditions via function callbacks.</li>
+</ul>
+</li>
+<li>
+<p><strong><code>BoundaryConditionHandler</code> Struct</strong>:<br />
+This struct provides methods for:</p>
+<ul>
+<li>Storing boundary conditions using the <code>Section</code> structure.</li>
+<li>Applying boundary conditions to modify the system’s matrix and RHS. The boundary conditions are applied to specific mesh entities using a mapping between mesh entities and system indices.</li>
+</ul>
+</li>
+</ul>
+<h5 id="example"><a class="doc-anchor" href="#example">§</a>Example:</h5>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>handler = BoundaryConditionHandler::new();
+<span class="kw">let </span>entity = MeshEntity::Vertex(<span class="number">1</span>);
+handler.set_bc(entity, BoundaryCondition::Dirichlet(<span class="number">10.0</span>));
+handler.apply_bc(<span class="kw-2">&amp;mut </span>matrix, <span class="kw-2">&amp;mut </span>rhs, <span class="kw-2">&amp;</span>boundary_entities, <span class="kw-2">&amp;</span>entity_to_index, <span class="number">0.0</span>);</code></pre></div>
+<h5 id="test-coverage"><a class="doc-anchor" href="#test-coverage">§</a>Test Coverage:</h5>
+<p>The file includes test cases to verify setting boundary conditions (<code>test_set_bc</code>), applying constant Dirichlet conditions (<code>test_apply_constant_dirichlet</code>), and handling function-based boundary conditions.</p>
+<hr />
+<h4 id="2-dirichletrs"><a class="doc-anchor" href="#2-dirichletrs">§</a>2. <code>dirichlet.rs</code></h4>
+<p><strong>Purpose</strong>:<br />
+Implements the specific logic for handling Dirichlet boundary conditions, which enforce a fixed value at the boundary of the domain.</p>
+<h5 id="key-components-1"><a class="doc-anchor" href="#key-components-1">§</a>Key Components:</h5>
+<ul>
+<li>
+<p><strong><code>DirichletBC</code> Struct</strong>:<br />
+This struct stores and applies Dirichlet boundary conditions. The conditions can either be constant or time-dependent (via a functional form).</p>
+</li>
+<li>
+<p><strong><code>apply_constant_dirichlet</code> Method</strong>:<br />
+This method modifies the system matrix and RHS to enforce a constant Dirichlet boundary condition, zeroing out the corresponding row in the matrix and setting the RHS to the specified value.</p>
+</li>
+<li>
+<p><strong><code>get_coordinates</code> Method</strong>:<br />
+Currently, this method returns default coordinates for entities but can be extended to retrieve actual entity coordinates.</p>
+</li>
+</ul>
+<h5 id="example-1"><a class="doc-anchor" href="#example-1">§</a>Example:</h5>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>dirichlet_bc = DirichletBC::new();
+<span class="kw">let </span>entity = MeshEntity::Vertex(<span class="number">1</span>);
+dirichlet_bc.set_bc(entity, BoundaryCondition::Dirichlet(<span class="number">5.0</span>));
+dirichlet_bc.apply_bc(<span class="kw-2">&amp;mut </span>matrix, <span class="kw-2">&amp;mut </span>rhs, <span class="kw-2">&amp;</span>entity_to_index, <span class="number">0.0</span>);</code></pre></div>
+<h5 id="test-coverage-1"><a class="doc-anchor" href="#test-coverage-1">§</a>Test Coverage:</h5>
+<p>The file includes test cases to verify that Dirichlet conditions are properly set (<code>test_set_bc</code>), constant Dirichlet conditions are applied (<code>test_apply_constant_dirichlet</code>), and function-based Dirichlet conditions are handled (<code>test_apply_function_based_dirichlet</code>).</p>
+<hr />
+<h4 id="3-neumannrs"><a class="doc-anchor" href="#3-neumannrs">§</a>3. <code>neumann.rs</code></h4>
+<p><strong>Purpose</strong>:<br />
+Implements the logic for handling Neumann boundary conditions, which specify the flux at the boundary of the domain.</p>
+<h5 id="key-components-2"><a class="doc-anchor" href="#key-components-2">§</a>Key Components:</h5>
+<ul>
+<li>
+<p><strong><code>NeumannBC</code> Struct</strong>:<br />
+This struct stores and applies Neumann boundary conditions. The Neumann conditions can either be constant or time-dependent (via a functional form).</p>
+</li>
+<li>
+<p><strong><code>apply_constant_neumann</code> Method</strong>:<br />
+This method modifies only the RHS to account for the flux specified by the Neumann boundary condition, without altering the system matrix.</p>
+</li>
+</ul>
+<h5 id="example-2"><a class="doc-anchor" href="#example-2">§</a>Example:</h5>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>neumann_bc = NeumannBC::new();
+<span class="kw">let </span>entity = MeshEntity::Vertex(<span class="number">1</span>);
+neumann_bc.set_bc(entity, BoundaryCondition::Neumann(<span class="number">5.0</span>));
+neumann_bc.apply_bc(<span class="kw-2">&amp;mut </span>matrix, <span class="kw-2">&amp;mut </span>rhs, <span class="kw-2">&amp;</span>entity_to_index, <span class="number">0.0</span>);</code></pre></div>
+<h5 id="test-coverage-2"><a class="doc-anchor" href="#test-coverage-2">§</a>Test Coverage:</h5>
+<p>The file includes test cases for setting Neumann boundary conditions (<code>test_set_bc</code>), applying constant Neumann conditions (<code>test_apply_constant_neumann</code>), and handling function-based Neumann conditions (<code>test_apply_function_based_neumann</code>).</p>
+<hr />
+<h4 id="4-robinrs"><a class="doc-anchor" href="#4-robinrs">§</a>4. <code>robin.rs</code></h4>
+<p><strong>Purpose</strong>:<br />
+Implements the logic for handling Robin boundary conditions, a linear combination of Dirichlet and Neumann boundary conditions.</p>
+<h5 id="key-components-3"><a class="doc-anchor" href="#key-components-3">§</a>Key Components:</h5>
+<ul>
+<li>
+<p><strong><code>RobinBC</code> Struct</strong>:<br />
+This struct stores and applies Robin boundary conditions, which involve both modifying the system matrix and adding a term to the RHS. The Robin condition is of the form <code>alpha * u + beta</code>, where <code>alpha</code> modifies the diagonal of the matrix and <code>beta</code> modifies the RHS.</p>
+</li>
+<li>
+<p><strong><code>apply_robin</code> Method</strong>:<br />
+This method applies the Robin boundary condition by adjusting both the matrix and the RHS based on the <code>alpha</code> and <code>beta</code> parameters.</p>
+</li>
+</ul>
+<h5 id="example-3"><a class="doc-anchor" href="#example-3">§</a>Example:</h5>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>robin_bc = RobinBC::new();
+<span class="kw">let </span>entity = MeshEntity::Vertex(<span class="number">1</span>);
+robin_bc.set_bc(entity, BoundaryCondition::Robin { alpha: <span class="number">2.0</span>, beta: <span class="number">3.0 </span>});
+robin_bc.apply_bc(<span class="kw-2">&amp;mut </span>matrix, <span class="kw-2">&amp;mut </span>rhs, <span class="kw-2">&amp;</span>entity_to_index, <span class="number">0.0</span>);</code></pre></div>
+<h5 id="test-coverage-3"><a class="doc-anchor" href="#test-coverage-3">§</a>Test Coverage:</h5>
+<p>The file includes test cases to verify setting Robin boundary conditions (<code>test_set_bc</code>) and applying them to modify the matrix and RHS (<code>test_apply_robin_bc</code>).</p>
+<hr />
+<h4 id="5-modrs"><a class="doc-anchor" href="#5-modrs">§</a>5. <code>mod.rs</code></h4>
+<p><strong>Purpose</strong>:<br />
+The <code>mod.rs</code> file serves as the module entry point, which includes all boundary condition types and functionality. It allows users to access the <code>BoundaryCondition</code>, <code>BoundaryConditionHandler</code>, and specific boundary condition types (Dirichlet, Neumann, Robin) from a single interface.</p>
+<hr />
+<h4 id="summary"><a class="doc-anchor" href="#summary">§</a>Summary</h4>
+<p>The <code>boundary</code> module in the <code>Hydra</code> project is a highly modular system for handling boundary conditions in numerical simulations. The flexibility to handle constant and time-dependent boundary conditions through functional forms makes this module adaptable to various geophysical and fluid dynamics scenarios.</p>
+<ul>
+<li>
+<p><strong>Strengths</strong>:</p>
+<ul>
+<li>Modular handling of boundary conditions through separate structs for Dirichlet, Neumann, and Robin conditions.</li>
+<li>Time-dependent boundary conditions supported via functional callbacks.</li>
+<li>Well-tested code with coverage for both constant and functional boundary conditions.</li>
+</ul>
+</li>
+<li>
+<p><strong>Potential Improvements</strong>:</p>
+<ul>
+<li>The <code>get_coordinates</code> methods currently return placeholder values and could be expanded to fetch actual coordinates from the mesh.</li>
+<li>More test cases could be added to verify interactions between multiple boundary conditions applied to the same entities.</li>
+</ul>
+</li>
+</ul>
+<p>This module provides a solid foundation for enforcing boundary conditions in the finite volume method (FVM) or other numerical methods employed in the Hydra project.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="bc_handler/index.html" title="mod hydra::boundary::bc_handler">bc_handler</a></div></li><li><div class="item-name"><a class="mod" href="dirichlet/index.html" title="mod hydra::boundary::dirichlet">dirichlet</a></div></li><li><div class="item-name"><a class="mod" href="neumann/index.html" title="mod hydra::boundary::neumann">neumann</a></div></li><li><div class="item-name"><a class="mod" href="robin/index.html" title="mod hydra::boundary::robin">robin</a></div></li></ul></section></div></main></body></html>

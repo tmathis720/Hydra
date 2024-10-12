@@ -1,0 +1,123 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Overview of the `src/domain/` Module"><title>hydra::domain - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="hydra" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../hydra/index.html">hydra</a><span class="version">0.3.0</span></h2></div><h2 class="location"><a href="#">Module domain</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li></ul></section><h2><a href="../index.html">In crate hydra</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../index.html">hydra</a>::<wbr><a class="mod" href="#">domain</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../../src/hydra/domain/mod.rs.html#3-25">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h4 id="overview-of-the-srcdomain-module"><a class="doc-anchor" href="#overview-of-the-srcdomain-module">§</a>Overview of the <code>src/domain/</code> Module</h4>
+<p>The <code>src/domain/</code> module of the project contains key components that form the foundation for mesh management and operations in the context of solving geophysical fluid dynamics problems. This module defines entities such as cells, vertices, edges, and more complex structures like hierarchical meshes. It also contains utilities for manipulating and reordering the mesh, applying algorithms like Cuthill-McKee for optimization, and managing overlapping data regions for parallel computations. Below is a high-level overview of the key components discussed:</p>
+<hr />
+<h5 id="1-entity_fillrs"><a class="doc-anchor" href="#1-entity_fillrs">§</a>1. <strong>entity_fill.rs</strong></h5>
+<p>This file provides functionality for automatically deducing and adding missing mesh entities based on adjacency information. For 2D meshes, cells will generate edges by connecting neighboring vertices, while in 3D, it would generate faces. The deduced edges or faces are added back to the mesh structure for completeness.</p>
+<ul>
+<li><strong>Key Functionality</strong>:
+<ul>
+<li><code>fill_missing_entities</code>: Infers missing edges (in 2D) or faces (in 3D) based on cell and vertex relationships.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h5 id="2-mesh_entityrs"><a class="doc-anchor" href="#2-mesh_entityrs">§</a>2. <strong>mesh_entity.rs</strong></h5>
+<p>This file defines the fundamental building blocks of the mesh: vertices, edges, faces, and cells. Each type of mesh entity is encapsulated within an enum, <code>MeshEntity</code>, allowing for structured and flexible handling of various mesh components.</p>
+<ul>
+<li><strong>Key Components</strong>:
+<ul>
+<li><code>MeshEntity</code>: An enum representing different types of mesh elements (Vertex, Edge, Face, Cell).</li>
+<li><code>Arrow</code>: A structure used to define directed relationships between mesh entities, which can represent connections or dependencies.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h5 id="3-overlaprs"><a class="doc-anchor" href="#3-overlaprs">§</a>3. <strong>overlap.rs</strong></h5>
+<p>This file handles the concept of overlapping regions in distributed mesh structures. It helps in managing “ghost” entities, which are shared between different partitions in a parallel computation setup.</p>
+<ul>
+<li><strong>Key Components</strong>:
+<ul>
+<li><code>Overlap</code>: Manages local and ghost entities in distributed computations, allowing for communication between different mesh partitions.</li>
+<li><code>Delta</code>: Manages transformation data for overlapping regions, helping to ensure consistency across partitions.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h5 id="4-sectionrs"><a class="doc-anchor" href="#4-sectionrs">§</a>4. <strong>section.rs</strong></h5>
+<p>The <code>section.rs</code> file defines the <code>Section</code> structure, which associates data with specific mesh entities. This is a flexible and generic mechanism that can store data like physical variables (velocity, pressure, etc.) and supports parallel updates for performance improvements.</p>
+<ul>
+<li><strong>Key Components</strong>:
+<ul>
+<li><code>Section</code>: A structure that associates arbitrary data (e.g., field values) with mesh entities. It provides methods to restrict, update, and manipulate data associated with the mesh.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h5 id="5-sievers"><a class="doc-anchor" href="#5-sievers">§</a>5. <strong>sieve.rs</strong></h5>
+<p>This file defines the <code>Sieve</code> structure, which is responsible for managing relationships between mesh entities, such as how vertices form edges or how edges form cells. It provides powerful methods for working with these connections, including adding new relationships and retrieving supporting entities.</p>
+<ul>
+<li><strong>Key Components</strong>:
+<ul>
+<li><code>Sieve</code>: A structure that stores relationships between entities and allows operations like adding connections between vertices, edges, and cells.</li>
+<li><code>fill_missing_entities</code>: A method to deduce and add missing edges or faces to the mesh based on existing relationships.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h5 id="6-stratifyrs"><a class="doc-anchor" href="#6-stratifyrs">§</a>6. <strong>stratify.rs</strong></h5>
+<p>This file provides functionality to categorize mesh entities into strata based on their dimension (e.g., vertices in stratum 0, edges in stratum 1). This can be useful for managing hierarchical meshes and organizing entities based on their dimensional characteristics.</p>
+<ul>
+<li><strong>Key Functionality</strong>:
+<ul>
+<li><code>stratify</code>: Organizes mesh entities into different strata based on their dimensionality.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h4 id="subdirectory-mesh"><a class="doc-anchor" href="#subdirectory-mesh">§</a><strong>Subdirectory: mesh/</strong></h4>
+<p>The <code>mesh</code> subdirectory contains specialized files that extend the capabilities of the main mesh components, providing more focused utilities for geometry, reordering, boundary handling, and hierarchical mesh structures.</p>
+<h5 id="1-boundaryrs"><a class="doc-anchor" href="#1-boundaryrs">§</a>1. <strong>boundary.rs</strong></h5>
+<p>Manages the communication of boundary data between mesh partitions or across different stages of computation. It handles the setup of communication channels for exchanging boundary-related data, such as vertex coordinates, ensuring consistency across different mesh sections.</p>
+<ul>
+<li><strong>Key Components</strong>:
+<ul>
+<li><code>sync_boundary_data</code>: Synchronizes boundary data by sending local data and receiving updates from other mesh sections.</li>
+</ul>
+</li>
+</ul>
+<h5 id="2-entitiesrs"><a class="doc-anchor" href="#2-entitiesrs">§</a>2. <strong>entities.rs</strong></h5>
+<p>Extends <code>mesh_entity.rs</code> by providing more detailed handling of entities and their relationships. It serves as a delegate for working with different types of entities within the mesh.</p>
+<h5 id="3-geometryrs"><a class="doc-anchor" href="#3-geometryrs">§</a>3. <strong>geometry.rs</strong></h5>
+<p>Provides geometric utilities that allow for the computation of key metrics like cell centroids, face areas, and distances between entities. This file contains the logic necessary for geometric calculations needed in finite volume methods or other mesh-based computations.</p>
+<ul>
+<li><strong>Key Functionality</strong>:
+<ul>
+<li><code>compute_face_area</code>: Computes the area of a face based on its vertices.</li>
+<li><code>compute_cell_centroid</code>: Computes the centroid of a cell for use in geometric calculations.</li>
+</ul>
+</li>
+</ul>
+<h5 id="4-hierarchicalrs"><a class="doc-anchor" href="#4-hierarchicalrs">§</a>4. <strong>hierarchical.rs</strong></h5>
+<p>Defines a hierarchical mesh structure, supporting operations on quadtree (2D) or octree (3D) meshes. It allows for refining and coarsening mesh entities, enabling adaptive mesh refinement strategies.</p>
+<ul>
+<li><strong>Key Components</strong>:
+<ul>
+<li><code>MeshNode</code>: Represents a node in the hierarchical mesh, which can either be a leaf (non-refined) or a branch (refined into smaller child elements).</li>
+<li><code>refine</code>: Converts a leaf node into a branch with child elements.</li>
+<li><code>coarsen</code>: Converts a branch node back into a leaf node.</li>
+</ul>
+</li>
+</ul>
+<h5 id="5-reorderingrs"><a class="doc-anchor" href="#5-reorderingrs">§</a>5. <strong>reordering.rs</strong></h5>
+<p>Implements reordering algorithms like Cuthill-McKee and Morton ordering, which help in optimizing the mesh structure for solver performance by improving memory locality.</p>
+<ul>
+<li><strong>Key Functionality</strong>:
+<ul>
+<li><code>cuthill_mckee</code>: Reorders mesh entities to reduce matrix bandwidth and improve solver efficiency.</li>
+<li><code>morton_order_2d</code>: Applies Morton ordering (Z-order curve) to 2D elements to optimize memory access patterns.</li>
+</ul>
+</li>
+</ul>
+<h5 id="6-testsrs"><a class="doc-anchor" href="#6-testsrs">§</a>6. <strong>tests.rs</strong></h5>
+<p>Contains unit and integration tests for validating the functionality of the mesh system. These tests ensure that mesh entities are handled correctly, that reordering algorithms work as expected, and that hierarchical mesh refinement is applied properly.</p>
+<ul>
+<li><strong>Key Tests</strong>:
+<ul>
+<li>Boundary data communication, refinement and coarsening of hierarchical meshes, and entity addition to the mesh.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h4 id="conclusion"><a class="doc-anchor" href="#conclusion">§</a>Conclusion</h4>
+<p>The <code>src/domain/</code> module provides the core functionality for defining and manipulating meshes in a geophysical fluid dynamics simulation. It includes tools for managing the relationships between entities, optimizing solver performance through reordering, and supporting hierarchical adaptive meshes. The module is structured to support flexibility, scalability, and parallel computation, making it suitable for large-scale scientific computations.</p>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name" id="reexport.MeshEntity"><code>pub use mesh_entity::<a class="enum" href="mesh_entity/enum.MeshEntity.html" title="enum hydra::domain::mesh_entity::MeshEntity">MeshEntity</a>;</code></div></li><li><div class="item-name" id="reexport.Arrow"><code>pub use mesh_entity::<a class="struct" href="mesh_entity/struct.Arrow.html" title="struct hydra::domain::mesh_entity::Arrow">Arrow</a>;</code></div></li><li><div class="item-name" id="reexport.Sieve"><code>pub use sieve::<a class="struct" href="sieve/struct.Sieve.html" title="struct hydra::domain::sieve::Sieve">Sieve</a>;</code></div></li><li><div class="item-name" id="reexport.Section"><code>pub use section::<a class="struct" href="section/struct.Section.html" title="struct hydra::domain::section::Section">Section</a>;</code></div></li></ul><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="entity_fill/index.html" title="mod hydra::domain::entity_fill">entity_fill</a></div></li><li><div class="item-name"><a class="mod" href="mesh/index.html" title="mod hydra::domain::mesh">mesh</a></div></li><li><div class="item-name"><a class="mod" href="mesh_entity/index.html" title="mod hydra::domain::mesh_entity">mesh_entity</a></div></li><li><div class="item-name"><a class="mod" href="overlap/index.html" title="mod hydra::domain::overlap">overlap</a></div></li><li><div class="item-name"><a class="mod" href="section/index.html" title="mod hydra::domain::section">section</a></div></li><li><div class="item-name"><a class="mod" href="sieve/index.html" title="mod hydra::domain::sieve">sieve</a></div></li><li><div class="item-name"><a class="mod" href="stratify/index.html" title="mod hydra::domain::stratify">stratify</a></div></li></ul></section></div></main></body></html>

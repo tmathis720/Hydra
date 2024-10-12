@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CellShape","FaceShape"],"mod":["hexahedron","prism","pyramid","quadrilateral","tetrahedron","triangle"],"struct":["Geometry","GeometryCache"]};

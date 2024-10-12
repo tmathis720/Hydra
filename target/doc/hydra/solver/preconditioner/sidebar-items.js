@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["jacobi","lu"],"trait":["Preconditioner"]};

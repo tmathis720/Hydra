@@ -1,0 +1,110 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Overview of the `src/geometry/` Module"><title>hydra::geometry - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="hydra" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../hydra/index.html">hydra</a><span class="version">0.3.0</span></h2></div><h2 class="location"><a href="#">Module geometry</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></section><h2><a href="../index.html">In crate hydra</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../index.html">hydra</a>::<wbr><a class="mod" href="#">geometry</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../../src/hydra/geometry/mod.rs.html#1-447">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h4 id="overview-of-the-srcgeometry-module"><a class="doc-anchor" href="#overview-of-the-srcgeometry-module">§</a>Overview of the <code>src/geometry/</code> Module</h4><h5 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h5>
+<p>The <code>src/geometry/</code> module in the Hydra project is responsible for performing geometric calculations on 3D shapes commonly used in geophysical fluid dynamics simulations, such as prisms, pyramids, hexahedrons, and tetrahedrons. This module provides essential methods to compute properties like the <strong>centroid</strong> (the geometric center) and <strong>volume</strong> of these cells, which are crucial for finite volume methods (FVM) that solve partial differential equations over complex domains. The geometry module is built with extensibility in mind, supporting various 3D cell shapes through modular functions and decomposition techniques.</p>
+<p>Key operations in this module include:</p>
+<ul>
+<li>Centroid calculation for common geometric shapes (hexahedrons, prisms, pyramids, and tetrahedrons)</li>
+<li>Volume computation for both simple and complex shapes (e.g., through tetrahedral decomposition)</li>
+<li>Support for degenerate cases where cells collapse into lower-dimensional shapes, ensuring robustness in numerical simulations</li>
+</ul>
+<h5 id="key-classes-and-functions"><a class="doc-anchor" href="#key-classes-and-functions">§</a>Key Classes and Functions</h5><h6 id="1-centroid-calculation"><a class="doc-anchor" href="#1-centroid-calculation">§</a>1. <strong>Centroid Calculation</strong></h6>
+<p>Centroid calculation determines the average position of all vertices in a geometric shape. This is critical in mesh-based simulations where centroids often serve as reference points for finite volume methods or flux calculations.</p>
+<ul>
+<li>
+<p><strong><code>compute_hexahedron_centroid</code></strong>:</p>
+<ul>
+<li>Calculates the centroid of a hexahedron (cube or cuboid) by averaging the coordinates of its 8 vertices.</li>
+<li>Example:
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>geometry = Geometry::new();
+<span class="kw">let </span>hexahedron_vertices = <span class="macro">vec!</span>[
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>],
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>], [<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">1.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">1.0</span>],
+];
+<span class="kw">let </span>centroid = geometry.compute_hexahedron_centroid(<span class="kw-2">&amp;</span>hexahedron_vertices);
+<span class="macro">assert_eq!</span>(centroid, [<span class="number">0.5</span>, <span class="number">0.5</span>, <span class="number">0.5</span>]);</code></pre></div>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><code>compute_prism_centroid</code></strong>:</p>
+<ul>
+<li>Computes the centroid of a triangular prism by calculating the centroids of the top and bottom triangles and averaging them.</li>
+<li>Example:
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>geometry = Geometry::new();
+<span class="kw">let </span>prism_vertices = <span class="macro">vec!</span>[
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>],
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">1.0</span>],
+];
+<span class="kw">let </span>centroid = geometry.compute_prism_centroid(<span class="kw-2">&amp;</span>prism_vertices);
+<span class="macro">assert_eq!</span>(centroid, [<span class="number">1.0 </span>/ <span class="number">3.0</span>, <span class="number">1.0 </span>/ <span class="number">3.0</span>, <span class="number">0.5</span>]);</code></pre></div>
+</li>
+</ul>
+</li>
+</ul>
+<h6 id="2-volume-calculation"><a class="doc-anchor" href="#2-volume-calculation">§</a>2. <strong>Volume Calculation</strong></h6>
+<p>The volume of a 3D geometric cell is a fundamental quantity in finite volume methods, determining the amount of flux passing through a volume. This module supports volume computation for common geometric shapes.</p>
+<ul>
+<li>
+<p><strong><code>compute_hexahedron_volume</code></strong>:</p>
+<ul>
+<li>Computes the volume of a hexahedron by decomposing it into 5 tetrahedrons and summing their volumes.</li>
+<li>Example:
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>geometry = Geometry::new();
+<span class="kw">let </span>hexahedron_vertices = <span class="macro">vec!</span>[
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>],
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>], [<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">1.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">1.0</span>],
+];
+<span class="kw">let </span>volume = geometry.compute_hexahedron_volume(<span class="kw-2">&amp;</span>hexahedron_vertices);
+<span class="macro">assert!</span>((volume - <span class="number">1.0</span>).abs() &lt; <span class="number">1e-10</span>); <span class="comment">// Volume of a unit cube</span></code></pre></div>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><code>compute_prism_volume</code></strong>:</p>
+<ul>
+<li>Computes the volume of a triangular prism by multiplying the area of the base (bottom triangle) by the height (distance between the centroids of the top and bottom triangles).</li>
+<li>Example:
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>geometry = Geometry::new();
+<span class="kw">let </span>prism_vertices = <span class="macro">vec!</span>[
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>],
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">1.0</span>],
+];
+<span class="kw">let </span>volume = geometry.compute_prism_volume(<span class="kw-2">&amp;</span>prism_vertices);
+<span class="macro">assert!</span>((volume - <span class="number">0.5</span>).abs() &lt; <span class="number">1e-10</span>);</code></pre></div>
+</li>
+</ul>
+</li>
+</ul>
+<h6 id="3-tetrahedral-decomposition"><a class="doc-anchor" href="#3-tetrahedral-decomposition">§</a>3. <strong>Tetrahedral Decomposition</strong></h6>
+<p>For more complex shapes, the geometry module uses <strong>tetrahedral decomposition</strong> to compute volumes. This technique is applied in the volume calculation of hexahedrons, where the shape is decomposed into 5 tetrahedrons. The volume of each tetrahedron is calculated and summed to get the total volume of the hexahedron.</p>
+<ul>
+<li><strong><code>compute_tetrahedron_volume</code></strong>:
+<ul>
+<li>This function is used internally to calculate the volume of individual tetrahedrons, which is then used in the decomposition process.</li>
+</ul>
+</li>
+</ul>
+<h6 id="4-handling-degenerate-cases"><a class="doc-anchor" href="#4-handling-degenerate-cases">§</a>4. <strong>Handling Degenerate Cases</strong></h6>
+<p>The module is designed to handle <strong>degenerate cases</strong>, where cells collapse into lower-dimensional shapes (e.g., all vertices of a hexahedron lie on the same plane). In such cases, the volume should be zero, and the module appropriately returns this value. This ensures that numerical simulations remain stable even when encountering degenerate geometries.</p>
+<ul>
+<li>Example:
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>geometry = Geometry::new();
+<span class="kw">let </span>degenerate_hexahedron_vertices = <span class="macro">vec!</span>[
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>],
+    [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>], [<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>], [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>],
+];
+<span class="kw">let </span>volume = geometry.compute_hexahedron_volume(<span class="kw-2">&amp;</span>degenerate_hexahedron_vertices);
+<span class="macro">assert_eq!</span>(volume, <span class="number">0.0</span>);  <span class="comment">// Degenerate hexahedron should have zero volume</span></code></pre></div>
+</li>
+</ul>
+<h5 id="test-coverage"><a class="doc-anchor" href="#test-coverage">§</a>Test Coverage</h5>
+<p>The module includes comprehensive unit tests for both centroid and volume calculations. Each geometric shape has multiple test cases, covering both regular and degenerate scenarios. These tests ensure that the module behaves correctly across a wide range of input cases and helps prevent errors when adding new features or modifications.</p>
+<ul>
+<li><strong>Regular Case Tests</strong>: Tests for normal shapes, such as cubes and prisms, to verify the correctness of centroid and volume calculations.</li>
+<li><strong>Degenerate Case Tests</strong>: Tests for degenerate shapes, such as a collapsed hexahedron or prism, ensuring that the computed volume is zero and that centroids are handled appropriately.</li>
+</ul>
+<h5 id="summary"><a class="doc-anchor" href="#summary">§</a>Summary</h5>
+<p>The <code>src/geometry/</code> module in Hydra provides core geometric utilities for mesh-based simulations. It offers highly efficient and mathematically robust methods for calculating centroids and volumes for common 3D cells like hexahedrons, prisms, and tetrahedrons. The ability to handle degenerate cases ensures the reliability and stability of numerical simulations, while the use of tetrahedral decomposition enables complex shape handling. Overall, this module serves as a fundamental building block in Hydra’s mesh handling and simulation processes.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="hexahedron/index.html" title="mod hydra::geometry::hexahedron">hexahedron</a></div></li><li><div class="item-name"><a class="mod" href="prism/index.html" title="mod hydra::geometry::prism">prism</a></div></li><li><div class="item-name"><a class="mod" href="pyramid/index.html" title="mod hydra::geometry::pyramid">pyramid</a></div></li><li><div class="item-name"><a class="mod" href="quadrilateral/index.html" title="mod hydra::geometry::quadrilateral">quadrilateral</a></div></li><li><div class="item-name"><a class="mod" href="tetrahedron/index.html" title="mod hydra::geometry::tetrahedron">tetrahedron</a></div></li><li><div class="item-name"><a class="mod" href="triangle/index.html" title="mod hydra::geometry::triangle">triangle</a></div></li></ul><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.Geometry.html" title="struct hydra::geometry::Geometry">Geometry</a></div><div class="desc docblock-short">The <code>Geometry</code> struct stores geometric data for a mesh, including vertex coordinates, 
+cell centroids, and volumes. It also maintains a cache of computed properties such as 
+volume and centroid for reuse, optimizing performance.</div></li><li><div class="item-name"><a class="struct" href="struct.GeometryCache.html" title="struct hydra::geometry::GeometryCache">GeometryCache</a></div><div class="desc docblock-short">The <code>GeometryCache</code> struct stores computed properties of geometric entities, 
+including volume, centroid, and area. It helps avoid recomputation and thus improves efficiency.</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.CellShape.html" title="enum hydra::geometry::CellShape">CellShape</a></div><div class="desc docblock-short"><code>CellShape</code> enumerates the different cell shapes in a mesh, including:</div></li><li><div class="item-name"><a class="enum" href="enum.FaceShape.html" title="enum hydra::geometry::FaceShape">FaceShape</a></div><div class="desc docblock-short"><code>FaceShape</code> enumerates the different face shapes in a mesh, including:</div></li></ul></section></div></main></body></html>

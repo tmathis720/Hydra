@@ -1,4 +1,4 @@
-### Detailed Report on the `src/geometry/` Module
+### Overview of the `src/geometry/` Module
 
 #### Overview
 The `src/geometry/` module in the Hydra project is responsible for performing geometric calculations on 3D shapes commonly used in geophysical fluid dynamics simulations, such as prisms, pyramids, hexahedrons, and tetrahedrons. This module provides essential methods to compute properties like the **centroid** (the geometric center) and **volume** of these cells, which are crucial for finite volume methods (FVM) that solve partial differential equations over complex domains. The geometry module is built with extensibility in mind, supporting various 3D cell shapes through modular functions and decomposition techniques.

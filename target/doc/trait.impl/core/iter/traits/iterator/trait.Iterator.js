@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"hydra":[["impl&lt;'a, T&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.80.1/core/iter/traits/iterator/trait.Iterator.html\" title=\"trait core::iter::traits::iterator::Iterator\">Iterator</a> for <a class=\"struct\" href=\"hydra/domain/mesh/hierarchical/struct.LeafIterator.html\" title=\"struct hydra::domain::mesh::hierarchical::LeafIterator\">LeafIterator</a>&lt;'a, T&gt;"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
