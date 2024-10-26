@@ -1,7 +1,6 @@
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use crate::domain::{mesh::Mesh, MeshEntity};
-use faer::{Mat, zipped, unzipped};
 use std::sync::Mutex;
 
 // Module for handling geometric data and computations
@@ -341,7 +340,7 @@ mod tests {
     #[test]
     fn test_compute_total_volume() {
         let mut geometry = Geometry::new();
-        let mut mesh = Mesh::new();
+        let _mesh = Mesh::new();
 
         // Example setup: Define cells with known volumes
         // Here, you would typically define several cells and their volumes for the test

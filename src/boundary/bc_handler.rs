@@ -1,5 +1,4 @@
 use dashmap::DashMap;
-use rayon::prelude::*;
 use std::sync::Arc;
 use crate::domain::mesh_entity::MeshEntity;
 use crate::boundary::dirichlet::DirichletBC;
