@@ -18,20 +18,6 @@ impl Geometry {
     /// # Panics
     ///
     /// This function will panic if the number of vertices provided is not exactly four.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let quad_vertices = vec![
-    ///     [0.0, 0.0, 0.0],
-    ///     [1.0, 0.0, 0.0],
-    ///     [1.0, 1.0, 0.0],
-    ///     [0.0, 1.0, 0.0]
-    /// ];
-    /// let area = geometry.compute_quadrilateral_area(&quad_vertices);
-    /// assert_eq!(area, 1.0); // The area of a square with side length 1 is 1.0
-    /// ```
     pub fn compute_quadrilateral_area(&self, quad_vertices: &Vec<[f64; 3]>) -> f64 {
         assert!(quad_vertices.len() == 4, "Quadrilateral must have exactly 4 vertices");
 
@@ -63,20 +49,6 @@ impl Geometry {
     /// # Panics
     ///
     /// This function will panic if the number of vertices provided is not exactly four.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let quad_vertices = vec![
-    ///     [0.0, 0.0, 0.0],
-    ///     [1.0, 0.0, 0.0],
-    ///     [1.0, 1.0, 0.0],
-    ///     [0.0, 1.0, 0.0]
-    /// ];
-    /// let centroid = geometry.compute_quadrilateral_centroid(&quad_vertices);
-    /// assert_eq!(centroid, [0.5, 0.5, 0.0]); // The centroid of the square is its center
-    /// ```
     pub fn compute_quadrilateral_centroid(&self, quad_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
         assert!(quad_vertices.len() == 4, "Quadrilateral must have exactly 4 vertices");
 
@@ -94,11 +66,57 @@ impl Geometry {
 
         centroid
     }
+
+    /// Computes the normal vector for a quadrilateral face in 3D space.
+    ///
+    /// The normal vector is approximated by dividing the quadrilateral into two triangles,
+    /// calculating each triangle's normal, and averaging them.
+    ///
+    /// # Arguments
+    /// * `quad_vertices` - A vector of 3D coordinates representing the vertices of the quadrilateral.
+    ///
+    /// # Returns
+    /// * `[f64; 3]` - The normal vector for the quadrilateral face.
+    pub fn compute_quadrilateral_normal(&self, quad_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
+        assert!(quad_vertices.len() == 4, "Quadrilateral must have exactly 4 vertices");
+
+        // Divide the quadrilateral into two triangles
+        let triangle1 = vec![quad_vertices[0], quad_vertices[1], quad_vertices[2]];
+        let triangle2 = vec![quad_vertices[2], quad_vertices[3], quad_vertices[0]];
+
+        // Compute normals for each triangle
+        let normal1 = self.compute_triangle_normal(&triangle1);
+        let normal2 = self.compute_triangle_normal(&triangle2);
+
+        // Average the two normals
+        [
+            (normal1[0] + normal2[0]) / 2.0,
+            (normal1[1] + normal2[1]) / 2.0,
+            (normal1[2] + normal2[2]) / 2.0,
+        ]
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::geometry::Geometry;
+
+    #[test]
+    fn test_quadrilateral_normal() {
+        let geometry = Geometry::new();
+
+        let quad_vertices = vec![
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ];
+
+        let normal = geometry.compute_quadrilateral_normal(&quad_vertices);
+
+        // Expected normal should be [0.0, 0.0, 1.0] for this quadrilateral in the XY plane
+        assert!((normal[2] - 1.0).abs() < 1e-10);
+    }
 
     #[test]
     fn test_quadrilateral_area_square() {
@@ -150,7 +168,7 @@ mod tests {
 
         let centroid = geometry.compute_quadrilateral_centroid(&quad_vertices);
 
-        // The centroid of a square centered at (0.5, 0.5, 0.0)
+        // The centroid of a square is at (0.5, 0.5, 0.0)
         assert_eq!(centroid, [0.5, 0.5, 0.0]);
     }
 

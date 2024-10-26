@@ -5,7 +5,7 @@ impl Geometry {
     ///
     /// This function calculates the centroid (geometric center) of a tetrahedron using
     /// the 3D coordinates of its four vertices. The centroid is the average of the
-    /// positions of all the vertices.
+    /// positions of all vertices.
     ///
     /// # Arguments
     ///
@@ -20,25 +20,29 @@ impl Geometry {
     /// ```rust,ignore
     /// let geometry = Geometry::new();
     /// let vertices = vec![
-    ///     [0.0, 0.0, 0.0], 
-    ///     [1.0, 0.0, 0.0], 
-    ///     [0.0, 1.0, 0.0], 
+    ///     [0.0, 0.0, 0.0],
+    ///     [1.0, 0.0, 0.0],
+    ///     [0.0, 1.0, 0.0],
     ///     [0.0, 0.0, 1.0]
     /// ];
     /// let centroid = geometry.compute_tetrahedron_centroid(&vertices);
     /// assert_eq!(centroid, [0.25, 0.25, 0.25]);
     /// ```
     pub fn compute_tetrahedron_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
+        assert_eq!(cell_vertices.len(), 4, "Tetrahedron must have exactly 4 vertices");
+
         let mut centroid = [0.0, 0.0, 0.0];
         for v in cell_vertices {
             centroid[0] += v[0];
             centroid[1] += v[1];
             centroid[2] += v[2];
         }
-        let num_vertices = cell_vertices.len() as f64;
-        centroid[0] /= num_vertices;
-        centroid[1] /= num_vertices;
-        centroid[2] /= num_vertices;
+
+        // Average the vertex coordinates to get the centroid
+        for i in 0..3 {
+            centroid[i] /= 4.0;
+        }
+
         centroid
     }
 
@@ -65,16 +69,16 @@ impl Geometry {
     /// ```rust,ignore
     /// let geometry = Geometry::new();
     /// let vertices = vec![
-    ///     [0.0, 0.0, 0.0], 
-    ///     [1.0, 0.0, 0.0], 
-    ///     [0.0, 1.0, 0.0], 
+    ///     [0.0, 0.0, 0.0],
+    ///     [1.0, 0.0, 0.0],
+    ///     [0.0, 1.0, 0.0],
     ///     [0.0, 0.0, 1.0]
     /// ];
     /// let volume = geometry.compute_tetrahedron_volume(&vertices);
     /// assert!((volume - 1.0 / 6.0).abs() < 1e-10);
     /// ```
     pub fn compute_tetrahedron_volume(&self, tet_vertices: &Vec<[f64; 3]>) -> f64 {
-        assert!(tet_vertices.len() == 4, "Tetrahedron must have exactly 4 vertices");
+        assert_eq!(tet_vertices.len(), 4, "Tetrahedron must have exactly 4 vertices");
 
         let v0 = tet_vertices[0];
         let v1 = tet_vertices[1];

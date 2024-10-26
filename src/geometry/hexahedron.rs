@@ -14,36 +14,22 @@ impl Geometry {
     ///
     /// # Panics
     /// This function will panic if the number of vertices is not exactly 8.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let hexahedron_vertices = vec![
-    ///     [0.0, 0.0, 0.0], // vertex 1
-    ///     [1.0, 0.0, 0.0], // vertex 2
-    ///     [1.0, 1.0, 0.0], // vertex 3
-    ///     [0.0, 1.0, 0.0], // vertex 4
-    ///     [0.0, 0.0, 1.0], // vertex 5
-    ///     [1.0, 0.0, 1.0], // vertex 6
-    ///     [1.0, 1.0, 1.0], // vertex 7
-    ///     [0.0, 1.0, 1.0], // vertex 8
-    /// ];
-    /// let centroid = geometry.compute_hexahedron_centroid(&hexahedron_vertices);
-    /// assert_eq!(centroid, [0.5, 0.5, 0.5]);  // Centroid of a unit cube
-    /// ```
     pub fn compute_hexahedron_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
+        assert!(cell_vertices.len() == 8, "Hexahedron must have exactly 8 vertices");
+
         let mut centroid = [0.0, 0.0, 0.0];
-        for v in cell_vertices {
-            centroid[0] += v[0];
-            centroid[1] += v[1];
-            centroid[2] += v[2];
+        for vertex in cell_vertices {
+            centroid[0] += vertex[0];
+            centroid[1] += vertex[1];
+            centroid[2] += vertex[2];
         }
+
         let num_vertices = cell_vertices.len() as f64;
-        centroid[0] /= num_vertices;
-        centroid[1] /= num_vertices;
-        centroid[2] /= num_vertices;
-        centroid
+        [
+            centroid[0] / num_vertices,
+            centroid[1] / num_vertices,
+            centroid[2] / num_vertices,
+        ]
     }
 
     /// Computes the volume of a hexahedral cell using tetrahedral decomposition.
@@ -61,24 +47,6 @@ impl Geometry {
     ///
     /// # Panics
     /// This function will panic if the number of vertices is not exactly 8.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let hexahedron_vertices = vec![
-    ///     [0.0, 0.0, 0.0], // vertex 1
-    ///     [1.0, 0.0, 0.0], // vertex 2
-    ///     [1.0, 1.0, 0.0], // vertex 3
-    ///     [0.0, 1.0, 0.0], // vertex 4
-    ///     [0.0, 0.0, 1.0], // vertex 5
-    ///     [1.0, 0.0, 1.0], // vertex 6
-    ///     [1.0, 1.0, 1.0], // vertex 7
-    ///     [0.0, 1.0, 1.0], // vertex 8
-    /// ];
-    /// let volume = geometry.compute_hexahedron_volume(&hexahedron_vertices);
-    /// assert!((volume - 1.0).abs() < 1e-10);  // Volume of a unit cube
-    /// ```
     pub fn compute_hexahedron_volume(&self, cell_vertices: &Vec<[f64; 3]>) -> f64 {
         assert!(cell_vertices.len() == 8, "Hexahedron must have exactly 8 vertices");
 

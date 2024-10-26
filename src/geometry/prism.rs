@@ -1,7 +1,6 @@
 use crate::geometry::Geometry;
 
 impl Geometry {
-    
     /// Computes the centroid of a triangular prism.
     ///
     /// The prism is assumed to have two parallel triangular faces (top and bottom),
@@ -17,22 +16,6 @@ impl Geometry {
     ///
     /// # Panics
     /// This function will panic if the number of vertices is not exactly 6.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let prism_vertices = vec![
-    ///     [0.0, 0.0, 0.0], // top triangle vertex 1
-    ///     [1.0, 0.0, 0.0], // top triangle vertex 2
-    ///     [0.0, 1.0, 0.0], // top triangle vertex 3
-    ///     [0.0, 0.0, 1.0], // bottom triangle vertex 1
-    ///     [1.0, 0.0, 1.0], // bottom triangle vertex 2
-    ///     [0.0, 1.0, 1.0], // bottom triangle vertex 3
-    /// ];
-    /// let centroid = geometry.compute_prism_centroid(&prism_vertices);
-    /// assert_eq!(centroid, [1.0 / 3.0, 1.0 / 3.0, 0.5]);
-    /// ```
     pub fn compute_prism_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
         assert!(cell_vertices.len() == 6, "Triangular prism must have exactly 6 vertices");
 
@@ -41,17 +24,15 @@ impl Geometry {
         let bottom_triangle = vec![cell_vertices[3], cell_vertices[4], cell_vertices[5]];
 
         // Compute the centroids of both triangles
-        let top_centroid = self.compute_tetrahedron_centroid(&top_triangle);
-        let bottom_centroid = self.compute_tetrahedron_centroid(&bottom_triangle);
+        let top_centroid = self.compute_triangle_centroid(&top_triangle);
+        let bottom_centroid = self.compute_triangle_centroid(&bottom_triangle);
 
         // Compute the centroid of the prism by averaging the top and bottom centroids
-        let prism_centroid = [
+        [
             (top_centroid[0] + bottom_centroid[0]) / 2.0,
             (top_centroid[1] + bottom_centroid[1]) / 2.0,
             (top_centroid[2] + bottom_centroid[2]) / 2.0,
-        ];
-
-        prism_centroid
+        ]
     }
 
     /// Computes the volume of a triangular prism.
@@ -68,35 +49,18 @@ impl Geometry {
     ///
     /// # Panics
     /// This function will panic if the number of vertices is not exactly 6.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let prism_vertices = vec![
-    ///     [0.0, 0.0, 0.0], // top triangle vertex 1
-    ///     [1.0, 0.0, 0.0], // top triangle vertex 2
-    ///     [0.0, 1.0, 0.0], // top triangle vertex 3
-    ///     [0.0, 0.0, 1.0], // bottom triangle vertex 1
-    ///     [1.0, 0.0, 1.0], // bottom triangle vertex 2
-    ///     [0.0, 1.0, 1.0], // bottom triangle vertex 3
-    /// ];
-    /// let volume = geometry.compute_prism_volume(&prism_vertices);
-    /// assert!((volume - 0.5).abs() < 1e-10);
-    /// ```
     pub fn compute_prism_volume(&self, cell_vertices: &Vec<[f64; 3]>) -> f64 {
         assert!(cell_vertices.len() == 6, "Triangular prism must have exactly 6 vertices");
 
         // Split into top and bottom triangles
-        let top_triangle = vec![cell_vertices[0], cell_vertices[1], cell_vertices[2]];
         let bottom_triangle = vec![cell_vertices[3], cell_vertices[4], cell_vertices[5]];
 
         // Compute the area of the base triangle (bottom triangle)
         let base_area = self.compute_triangle_area(&bottom_triangle);
 
         // Compute the height of the prism as the distance between the top and bottom triangle centroids
-        let top_centroid = self.compute_tetrahedron_centroid(&top_triangle);
-        let bottom_centroid = self.compute_tetrahedron_centroid(&bottom_triangle);
+        let top_centroid = self.compute_triangle_centroid(&cell_vertices[0..3].to_vec());
+        let bottom_centroid = self.compute_triangle_centroid(&bottom_triangle);
         let height = Geometry::compute_distance(&top_centroid, &bottom_centroid);
 
         // Volume of the prism = base area * height

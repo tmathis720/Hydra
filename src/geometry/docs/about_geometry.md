@@ -1,22 +1,25 @@
 ### Overview of the `src/geometry/` Module
 
 #### Overview
-The `src/geometry/` module in the Hydra project is responsible for performing geometric calculations on 3D shapes commonly used in geophysical fluid dynamics simulations, such as prisms, pyramids, hexahedrons, and tetrahedrons. This module provides essential methods to compute properties like the **centroid** (the geometric center) and **volume** of these cells, which are crucial for finite volume methods (FVM) that solve partial differential equations over complex domains. The geometry module is built with extensibility in mind, supporting various 3D cell shapes through modular functions and decomposition techniques.
+The `src/geometry/` module in the Hydra project provides essential geometric calculations for 3D shapes used in geophysical fluid dynamics simulations, including prisms, pyramids, hexahedrons, tetrahedrons, and more. This module underpins the finite volume methods (FVM) used to solve partial differential equations across complex domains. The module emphasizes computational efficiency, mathematical rigor, and robustness to handle both regular and degenerate shapes that may arise in realistic simulations.
 
 Key operations in this module include:
-- Centroid calculation for common geometric shapes (hexahedrons, prisms, pyramids, and tetrahedrons)
-- Volume computation for both simple and complex shapes (e.g., through tetrahedral decomposition)
-- Support for degenerate cases where cells collapse into lower-dimensional shapes, ensuring robustness in numerical simulations
+- **Centroid Calculation**: Determines the geometric center of various shapes.
+- **Volume Computation**: Uses techniques like tetrahedral decomposition for complex shapes.
+- **Face Normal Calculation**: Computes outward-pointing normal vectors for face flux calculations.
+- **Handling Degenerate Cases**: Manages cases where shapes collapse into lower dimensions.
 
-#### Key Classes and Functions
+#### Key Structures and Functions
+
+The primary struct, `Geometry`, encapsulates the geometric data and methods for a mesh, including vertex positions, centroids, volumes, and cached computed properties to avoid redundant calculations.
 
 ##### 1. **Centroid Calculation**
-
-Centroid calculation determines the average position of all vertices in a geometric shape. This is critical in mesh-based simulations where centroids often serve as reference points for finite volume methods or flux calculations.
+Centroid calculations are vital for determining the center of mass of each control volume. These centroids are used as reference points in numerical methods for flux integration, and they enable efficient computation by avoiding repetitive geometric queries.
 
 - **`compute_hexahedron_centroid`**:
-    - Calculates the centroid of a hexahedron (cube or cuboid) by averaging the coordinates of its 8 vertices.
-    - Example:
+    - Calculates the centroid of a hexahedron (e.g., cube or cuboid) by averaging the coordinates of its 8 vertices.
+    - This method is optimized for stability and handles both regular and degenerate cases where vertices may collapse onto a plane.
+    - **Example Usage**:
       ```rust,ignore
       let geometry = Geometry::new();
       let hexahedron_vertices = vec![
@@ -28,8 +31,8 @@ Centroid calculation determines the average position of all vertices in a geomet
       ```
 
 - **`compute_prism_centroid`**:
-    - Computes the centroid of a triangular prism by calculating the centroids of the top and bottom triangles and averaging them.
-    - Example:
+    - Calculates the centroid of a triangular prism by averaging the centroids of the top and bottom triangular faces.
+    - **Example Usage**:
       ```rust,ignore
       let geometry = Geometry::new();
       let prism_vertices = vec![
@@ -41,12 +44,11 @@ Centroid calculation determines the average position of all vertices in a geomet
       ```
 
 ##### 2. **Volume Calculation**
-
-The volume of a 3D geometric cell is a fundamental quantity in finite volume methods, determining the amount of flux passing through a volume. This module supports volume computation for common geometric shapes.
+Volume computation enables the determination of flux through a control volume, which is central to FVM methods. Complex shapes are decomposed into tetrahedrons for efficient and accurate volume computation.
 
 - **`compute_hexahedron_volume`**:
     - Computes the volume of a hexahedron by decomposing it into 5 tetrahedrons and summing their volumes.
-    - Example:
+    - **Example Usage**:
       ```rust,ignore
       let geometry = Geometry::new();
       let hexahedron_vertices = vec![
@@ -54,34 +56,33 @@ The volume of a 3D geometric cell is a fundamental quantity in finite volume met
           [0.0, 0.0, 1.0], [1.0, 0.0, 1.0], [1.0, 1.0, 1.0], [0.0, 1.0, 1.0],
       ];
       let volume = geometry.compute_hexahedron_volume(&hexahedron_vertices);
-      assert!((volume - 1.0).abs() < 1e-10); // Volume of a unit cube
+      assert!((volume - 1.0).abs() < 1e-10);  // Volume of a unit cube
       ```
 
-- **`compute_prism_volume`**:
-    - Computes the volume of a triangular prism by multiplying the area of the base (bottom triangle) by the height (distance between the centroids of the top and bottom triangles).
-    - Example:
+- **`compute_pyramid_volume`**:
+    - Calculates the volume of a square or triangular-based pyramid by breaking down the geometry into tetrahedrons and summing their volumes.
+    - **Example Usage**:
       ```rust,ignore
       let geometry = Geometry::new();
-      let prism_vertices = vec![
-          [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0],
-          [0.0, 0.0, 1.0], [1.0, 0.0, 1.0], [0.0, 1.0, 1.0],
+      let pyramid_vertices = vec![
+          [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.5, 0.5, 1.0],
       ];
-      let volume = geometry.compute_prism_volume(&prism_vertices);
-      assert!((volume - 0.5).abs() < 1e-10);
+      let volume = geometry.compute_pyramid_volume(&pyramid_vertices);
+      assert!((volume - 1.0 / 3.0).abs() < 1e-10);
       ```
 
-##### 3. **Tetrahedral Decomposition**
+##### 3. **Face Normal Calculation**
+Face normal vectors are crucial for FVM, as they define the direction and magnitude of flux through faces. Normal calculations are available for triangular and quadrilateral faces.
 
-For more complex shapes, the geometry module uses **tetrahedral decomposition** to compute volumes. This technique is applied in the volume calculation of hexahedrons, where the shape is decomposed into 5 tetrahedrons. The volume of each tetrahedron is calculated and summed to get the total volume of the hexahedron.
-
-- **`compute_tetrahedron_volume`**:
-    - This function is used internally to calculate the volume of individual tetrahedrons, which is then used in the decomposition process.
+- **`compute_triangle_normal`**:
+    - Computes the normal vector of a triangle face using the cross product of two edge vectors.
+- **`compute_quadrilateral_normal`**:
+    - Computes the normal vector of a quadrilateral by dividing it into two triangles and averaging their normals.
 
 ##### 4. **Handling Degenerate Cases**
+For robustness, the module handles degenerate cases where cells collapse into lower-dimensional shapes. For instance, if a hexahedron collapses into a plane, the volume will be computed as zero, and centroid calculations will default to the average position of the vertices, ensuring stable simulations under various conditions.
 
-The module is designed to handle **degenerate cases**, where cells collapse into lower-dimensional shapes (e.g., all vertices of a hexahedron lie on the same plane). In such cases, the volume should be zero, and the module appropriately returns this value. This ensures that numerical simulations remain stable even when encountering degenerate geometries.
-
-- Example:
+- **Example of Degenerate Handling**:
   ```rust,ignore
   let geometry = Geometry::new();
   let degenerate_hexahedron_vertices = vec![
@@ -89,16 +90,17 @@ The module is designed to handle **degenerate cases**, where cells collapse into
       [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0],
   ];
   let volume = geometry.compute_hexahedron_volume(&degenerate_hexahedron_vertices);
-  assert_eq!(volume, 0.0);  // Degenerate hexahedron should have zero volume
+  assert_eq!(volume, 0.0);
   ```
 
-#### Test Coverage
+### Test Coverage
 
-The module includes comprehensive unit tests for both centroid and volume calculations. Each geometric shape has multiple test cases, covering both regular and degenerate scenarios. These tests ensure that the module behaves correctly across a wide range of input cases and helps prevent errors when adding new features or modifications.
+The module includes rigorous unit testing for all core functions:
+- **Regular Shape Tests**: Verifies centroid, volume, and normal calculations for standard shapes like cubes and prisms.
+- **Degenerate Shape Tests**: Ensures that the module returns zero volumes for degenerate shapes, handles edge cases in centroid calculations, and tests normals for collapsed faces.
 
-- **Regular Case Tests**: Tests for normal shapes, such as cubes and prisms, to verify the correctness of centroid and volume calculations.
-- **Degenerate Case Tests**: Tests for degenerate shapes, such as a collapsed hexahedron or prism, ensuring that the computed volume is zero and that centroids are handled appropriately.
+These tests are integral for ensuring numerical stability across a wide range of shapes and configurations.
 
-#### Summary
+### Summary
 
-The `src/geometry/` module in Hydra provides core geometric utilities for mesh-based simulations. It offers highly efficient and mathematically robust methods for calculating centroids and volumes for common 3D cells like hexahedrons, prisms, and tetrahedrons. The ability to handle degenerate cases ensures the reliability and stability of numerical simulations, while the use of tetrahedral decomposition enables complex shape handling. Overall, this module serves as a fundamental building block in Hydra’s mesh handling and simulation processes.
+The `src/geometry/` module in Hydra provides fundamental tools for calculating geometric properties within FVM-based simulations. Its capabilities in handling centroids, volumes, and normals for a variety of 3D shapes ensure it can meet the needs of complex geophysical simulations. The module’s flexibility and robust handling of degenerate cases make it a reliable foundation for advancing Hydra's mesh handling and simulation processes.

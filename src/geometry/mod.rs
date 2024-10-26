@@ -1,6 +1,8 @@
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use crate::domain::{mesh::Mesh, MeshEntity};
+use faer::{Mat, zipped, unzipped};
+use std::sync::Mutex;
 
 // Module for handling geometric data and computations
 // 2D Shape Modules
@@ -14,28 +16,22 @@ pub mod pyramid;
 
 /// The `Geometry` struct stores geometric data for a mesh, including vertex coordinates, 
 /// cell centroids, and volumes. It also maintains a cache of computed properties such as 
-/// volume and centroid for reuse, optimizing performance.
-///
-/// Example usage:
-///
-///    let mut geometry = Geometry::new();  
-///    geometry.set_vertex(0, [1.0, 2.0, 3.0]);  
-///    let centroid = geometry.compute_cell_centroid(&mesh, &cell);  
-///
+/// volume and centroid for reuse, optimizing performance by avoiding redundant calculations.
 pub struct Geometry {
-    pub vertices: Vec<[f64; 3]>,  // 3D coordinates for each vertex
-    pub cell_centroids: Vec<[f64; 3]>, // Centroid positions for each cell
-    pub cell_volumes: Vec<f64>,    // Volumes of each cell
-    pub cache: FxHashMap<usize, GeometryCache>, // Cache for computed properties
+    pub vertices: Vec<[f64; 3]>,        // 3D coordinates for each vertex
+    pub cell_centroids: Vec<[f64; 3]>,  // Centroid positions for each cell
+    pub cell_volumes: Vec<f64>,         // Volumes of each cell
+    pub cache: Mutex<FxHashMap<usize, GeometryCache>>, // Cache for computed properties, with thread safety
 }
 
 /// The `GeometryCache` struct stores computed properties of geometric entities, 
-/// including volume, centroid, and area. It helps avoid recomputation and thus improves efficiency.
+/// including volume, centroid, and area, with an optional "dirty" flag for lazy evaluation.
 #[derive(Default)]
 pub struct GeometryCache {
     pub volume: Option<f64>,
     pub centroid: Option<[f64; 3]>,
     pub area: Option<f64>,
+    pub normal: Option<[f64; 3]>,  // Stores a precomputed normal vector for a face
 }
 
 /// `CellShape` enumerates the different cell shapes in a mesh, including:
@@ -60,153 +56,86 @@ pub enum FaceShape {
     Quadrilateral,
 }
 
-// Initial implementation of the Geometry module
 impl Geometry {
     /// Initializes a new `Geometry` instance with empty data.
-    ///
-    /// Example usage:
-    ///
-    ///    let geometry = Geometry::new();  
-    ///
     pub fn new() -> Geometry {
         Geometry {
             vertices: Vec::new(),
             cell_centroids: Vec::new(),
             cell_volumes: Vec::new(),
-            cache: FxHashMap::default(),
+            cache: Mutex::new(FxHashMap::default()),
         }
     }
 
-    /// Adds or updates a vertex in the geometry. If the vertex already exists (based on ID or index),
+    /// Adds or updates a vertex in the geometry. If the vertex already exists,
     /// it updates its coordinates; otherwise, it adds a new vertex.
     ///
     /// # Arguments
-    /// * `vertex_index` - The index or ID of the vertex to be set or updated.
-    /// * `coords` - The 3D coordinates of the vertex as an array of `[f64; 3]`.
-    ///
-    /// Example usage:
-    ///
-    ///    geometry.set_vertex(0, [1.0, 2.0, 3.0]);  
-    ///
+    /// * `vertex_index` - The index of the vertex.
+    /// * `coords` - The 3D coordinates of the vertex.
     pub fn set_vertex(&mut self, vertex_index: usize, coords: [f64; 3]) {
-        // Ensure the vector has enough capacity to accommodate the vertex at the given index
         if vertex_index >= self.vertices.len() {
-            // Resize the vertices vector to hold up to `vertex_index` and beyond
             self.vertices.resize(vertex_index + 1, [0.0, 0.0, 0.0]);
         }
-
-        // Update the vertex at the specified index
         self.vertices[vertex_index] = coords;
-        self.invalidate_cache(); // Invalidate cache when vertices change
+        self.invalidate_cache();
     }
-    
-    /// Computes the centroid of a given cell based on its shape and vertices.
-    ///
-    /// # Arguments
-    /// * `mesh` - A reference to the mesh structure containing the cells and vertices.
-    /// * `cell` - A reference to the `MeshEntity` representing the cell for which the centroid is being computed.
-    ///
-    /// # Returns
-    /// * `[f64; 3]` - The 3D coordinates of the cell centroid.
-    ///
-    /// Example usage:
-    ///
-    ///    let centroid = geometry.compute_cell_centroid(&mesh, &cell);  
-    ///
+
+    /// Computes and returns the centroid of a specified cell using the cell's shape and vertices.
+    /// Caches the result for reuse.
     pub fn compute_cell_centroid(&mut self, mesh: &Mesh, cell: &MeshEntity) -> [f64; 3] {
         let cell_id = cell.id();
-        if let Some(cached) = self.cache.get(&cell_id).and_then(|c| c.centroid) {
+        if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.centroid) {
             return cached;
         }
 
-        let cell_shape = mesh.get_cell_shape(cell);
+        let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
         let cell_vertices = mesh.get_cell_vertices(cell);
 
         let centroid = match cell_shape {
-            Ok(CellShape::Tetrahedron) => self.compute_tetrahedron_centroid(&cell_vertices),
-            Ok(CellShape::Hexahedron) => self.compute_hexahedron_centroid(&cell_vertices),
-            Ok(CellShape::Prism) => self.compute_prism_centroid(&cell_vertices),
-            Ok(CellShape::Pyramid) => self.compute_pyramid_centroid(&cell_vertices),
-            Err(_) => todo!(),
+            CellShape::Tetrahedron => self.compute_tetrahedron_centroid(&cell_vertices),
+            CellShape::Hexahedron => self.compute_hexahedron_centroid(&cell_vertices),
+            CellShape::Prism => self.compute_prism_centroid(&cell_vertices),
+            CellShape::Pyramid => self.compute_pyramid_centroid(&cell_vertices),
         };
 
-        self.cache.entry(cell_id).or_default().centroid = Some(centroid);
+        self.cache.lock().unwrap().entry(cell_id).or_default().centroid = Some(centroid);
         centroid
     }
 
-    /// Computes the volume of a given cell based on its shape and vertex coordinates.
-    ///
-    /// # Arguments
-    /// * `mesh` - A reference to the mesh structure containing the cells and vertices.
-    /// * `cell` - A reference to the `MeshEntity` representing the cell for which the volume is being computed.
-    ///
-    /// # Returns
-    /// * `f64` - The volume of the cell.
-    ///
-    /// Example usage:
-    ///
-    ///    let volume = geometry.compute_cell_volume(&mesh, &cell);  
-    ///
+    /// Computes the volume of a given cell using its shape and vertex coordinates.
+    /// The computed volume is cached for efficiency.
     pub fn compute_cell_volume(&mut self, mesh: &Mesh, cell: &MeshEntity) -> f64 {
         let cell_id = cell.id();
-        if let Some(cached) = self.cache.get(&cell_id).and_then(|c| c.volume) {
+        if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.volume) {
             return cached;
         }
 
-        let cell_shape = mesh.get_cell_shape(cell);
+        let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
         let cell_vertices = mesh.get_cell_vertices(cell);
 
         let volume = match cell_shape {
-            Ok(CellShape::Tetrahedron) => self.compute_tetrahedron_volume(&cell_vertices),
-            Ok(CellShape::Hexahedron) => self.compute_hexahedron_volume(&cell_vertices),
-            Ok(CellShape::Prism) => self.compute_prism_volume(&cell_vertices),
-            Ok(CellShape::Pyramid) => self.compute_pyramid_volume(&cell_vertices),
-            Err(_) => todo!(),
+            CellShape::Tetrahedron => self.compute_tetrahedron_volume(&cell_vertices),
+            CellShape::Hexahedron => self.compute_hexahedron_volume(&cell_vertices),
+            CellShape::Prism => self.compute_prism_volume(&cell_vertices),
+            CellShape::Pyramid => self.compute_pyramid_volume(&cell_vertices),
         };
 
-        self.cache.entry(cell_id).or_default().volume = Some(volume);
+        self.cache.lock().unwrap().entry(cell_id).or_default().volume = Some(volume);
         volume
     }
 
-    /// Computes the Euclidean distance between two points in 3D space.
-    ///
-    /// # Arguments
-    /// * `p1` - The first point as an array of 3D coordinates `[f64; 3]`.
-    /// * `p2` - The second point as an array of 3D coordinates `[f64; 3]`.
-    ///
-    /// # Returns
-    /// * `f64` - The Euclidean distance between the two points.
-    ///
-    /// Example usage:
-    ///
-    ///    let distance = Geometry::compute_distance(&p1, &p2);  
-    ///
+    /// Calculates Euclidean distance between two points in 3D space.
     pub fn compute_distance(p1: &[f64; 3], p2: &[f64; 3]) -> f64 {
-        // Compute the squared differences for each coordinate (x, y, z)
         let dx = p1[0] - p2[0];
         let dy = p1[1] - p2[1];
         let dz = p1[2] - p2[2];
-
-        // Apply the Euclidean distance formula: sqrt(dx^2 + dy^2 + dz^2)
         (dx.powi(2) + dy.powi(2) + dz.powi(2)).sqrt()
     }
 
-    /// Computes the area of a 2D face based on its shape.
-    ///
-    /// # Arguments
-    /// * `face_id` - The ID of the face to cache the result.
-    /// * `face_shape` - Enum defining the shape of the face (e.g., Triangle, Quadrilateral).
-    /// * `face_vertices` - A vector of vertices representing the 3D coordinates of the face's vertices.
-    ///
-    /// # Returns
-    /// * `f64` - The area of the face.
-    ///
-    /// Example usage:
-    ///
-    ///    let area = geometry.compute_face_area(1, FaceShape::Triangle, &triangle_vertices);  
-    ///
+    /// Computes the area of a 2D face based on its shape, caching the result.
     pub fn compute_face_area(&mut self, face_id: usize, face_shape: FaceShape, face_vertices: &Vec<[f64; 3]>) -> f64 {
-        if let Some(cached) = self.cache.get(&face_id).and_then(|c| c.area) {
+        if let Some(cached) = self.cache.lock().unwrap().get(&face_id).and_then(|c| c.area) {
             return cached;
         }
 
@@ -215,7 +144,7 @@ impl Geometry {
             FaceShape::Quadrilateral => self.compute_quadrilateral_area(face_vertices),
         };
 
-        self.cache.entry(face_id).or_default().area = Some(area);
+        self.cache.lock().unwrap().entry(face_id).or_default().area = Some(area);
         area
     }
 
@@ -234,63 +163,31 @@ impl Geometry {
         }
     }
 
-    /// Clears the cache when geometry changes, such as when vertices are updated.
-    ///
-    /// Example usage:
-    ///
-    ///    geometry.invalidate_cache();  
-    ///
+    /// Invalidate the cache when geometry changes (e.g., vertex updates).
     fn invalidate_cache(&mut self) {
-        self.cache.clear();
+        self.cache.lock().unwrap().clear();
     }
 
-    /// Computes the total volume of all cells in the geometry.
-    ///
-    /// # Returns
-    /// * `f64` - The total volume of all cells.
-    ///
-    /// Example usage:
-    ///
-    ///    let total_volume = geometry.compute_total_volume();  
-    ///
+    /// Computes the total volume of all cells.
     pub fn compute_total_volume(&self) -> f64 {
         self.cell_volumes.par_iter().sum()
     }
 
-    /// Updates all cell volumes in parallel by computing them for each cell in the mesh.
-    ///
-    /// # Arguments
-    /// * `mesh` - A reference to the `Mesh` structure containing the cells and vertices.
-    ///
-    /// Example usage:
-    ///
-    ///    geometry.update_all_cell_volumes(&mesh);  
-    ///
+    /// Updates all cell volumes in parallel using mesh information.
     pub fn update_all_cell_volumes(&mut self, mesh: &Mesh) {
-        // Using a mutable reference inside the parallel iteration requires `Mutex` or similar for thread safety.
         let new_volumes: Vec<f64> = mesh
             .get_cells()
             .par_iter()
             .map(|cell| {
-                // Use a temporary Geometry instance to compute the volume.
                 let mut temp_geometry = Geometry::new();
                 temp_geometry.compute_cell_volume(mesh, cell)
             })
             .collect();
-        
-        // Update the cell volumes after the parallel iteration.
+
         self.cell_volumes = new_volumes;
     }
 
     /// Computes the total centroid of all cells.
-    ///
-    /// # Returns
-    /// * `[f64; 3]` - The total centroid of all cells.
-    ///
-    /// Example usage:
-    ///
-    ///    let total_centroid = geometry.compute_total_centroid();  
-    ///
     pub fn compute_total_centroid(&self) -> [f64; 3] {
         let total_centroid: [f64; 3] = self.cell_centroids
             .par_iter()
@@ -311,8 +208,8 @@ impl Geometry {
             total_centroid[2] / num_centroids,
         ]
     }
-
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -391,12 +288,8 @@ mod tests {
         mesh.add_arrow(cell, vertex3);
         mesh.add_arrow(cell, vertex4);
 
-        // Debug: Print the sieve structure.
-        println!("Sieve contents: {:?}", mesh.sieve);
-
         // Verify that `get_cell_vertices` retrieves the correct vertices.
         let cell_vertices = mesh.get_cell_vertices(&cell);
-        println!("Cell vertices: {:?}", cell_vertices);
         assert_eq!(cell_vertices.len(), 4, "Expected 4 vertices for a tetrahedron cell.");
 
         // Validate the shape before computing.
@@ -443,5 +336,18 @@ mod tests {
 
         // Expected centroid is the geometric center: (0.5, 0.5, 0.0)
         assert_eq!(centroid, [0.5, 0.5, 0.0]);
+    }
+
+    #[test]
+    fn test_compute_total_volume() {
+        let mut geometry = Geometry::new();
+        let mut mesh = Mesh::new();
+
+        // Example setup: Define cells with known volumes
+        // Here, you would typically define several cells and their volumes for the test
+        geometry.cell_volumes = vec![1.0, 2.0, 3.0];
+
+        // Expected total volume is the sum of individual cell volumes: 1.0 + 2.0 + 3.0 = 6.0
+        assert_eq!(geometry.compute_total_volume(), 6.0);
     }
 }

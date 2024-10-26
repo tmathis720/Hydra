@@ -17,19 +17,9 @@ impl Geometry {
     /// # Panics
     ///
     /// This function will panic if the number of vertices provided is not exactly three.
-    ///
-    /// # Example
-    /// 
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let vertices = vec![[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 4.0, 0.0]];
-    /// let centroid = geometry.compute_triangle_centroid(&vertices);
-    /// assert_eq!(centroid, [1.0, 4.0 / 3.0, 0.0]);
-    /// ```
     pub fn compute_triangle_centroid(&self, triangle_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
         assert!(triangle_vertices.len() == 3, "Triangle must have exactly 3 vertices");
 
-        // Sequential centroid calculation
         let mut centroid = [0.0, 0.0, 0.0];
         for vertex in triangle_vertices {
             centroid[0] += vertex[0];
@@ -58,15 +48,6 @@ impl Geometry {
     /// # Panics
     ///
     /// This function will panic if the number of vertices provided is not exactly three.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let vertices = vec![[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 4.0, 0.0]];
-    /// let area = geometry.compute_triangle_area(&vertices);
-    /// assert!((area - 6.0).abs() < 1e-10);  // Area should be approximately 6.0
-    /// ```
     pub fn compute_triangle_area(&self, triangle_vertices: &Vec<[f64; 3]>) -> f64 {
         assert!(
             triangle_vertices.len() == 3,
@@ -97,11 +78,58 @@ impl Geometry {
         // Area is half the magnitude of the cross product
         0.5 * cross_product_magnitude
     }
+
+    /// Computes the normal vector for a triangular face in 3D space.
+    ///
+    /// The normal vector is computed using the cross product of two edges from the triangle.
+    /// The length of the normal vector will be proportional to the area of the triangle.
+    ///
+    /// # Arguments
+    /// * `triangle_vertices` - A vector of 3D coordinates representing the vertices of the triangle.
+    ///
+    /// # Returns
+    /// * `[f64; 3]` - The normal vector for the triangular face.
+    pub fn compute_triangle_normal(&self, triangle_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
+        assert!(triangle_vertices.len() == 3, "Triangle must have exactly 3 vertices");
+
+        let v0 = triangle_vertices[0];
+        let v1 = triangle_vertices[1];
+        let v2 = triangle_vertices[2];
+
+        // Compute edge vectors
+        let e1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
+        let e2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
+
+        // Compute the cross product to get the normal vector
+        let normal = [
+            e1[1] * e2[2] - e1[2] * e2[1],
+            e1[2] * e2[0] - e1[0] * e2[2],
+            e1[0] * e2[1] - e1[1] * e2[0],
+        ];
+
+        normal
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::geometry::Geometry;
+
+    #[test]
+    fn test_triangle_normal() {
+        let geometry = Geometry::new();
+
+        let triangle_vertices = vec![
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ];
+
+        let normal = geometry.compute_triangle_normal(&triangle_vertices);
+
+        // Expected normal should be [0.0, 0.0, 1.0] for this triangle in the XY plane
+        assert!((normal[2] - 1.0).abs() < 1e-10);
+    }
 
     #[test]
     fn test_triangle_area() {
@@ -134,7 +162,7 @@ mod tests {
         let centroid = geometry.compute_triangle_centroid(&triangle_vertices);
         
         // The centroid of this triangle is the average of the vertices:
-        // ([0.0, 0.0, 0.0] + [3.0, 0.0, 0.0] + [0.0, 4.0, 0.0]) / 3 = [1.0, 1.3333, 0.0]
+        // ([0.0, 0.0, 0.0] + [3.0, 0.0, 0.0] + [0.0, 4.0, 0.0]) / 3 = [1.0, 4.0 / 3.0, 0.0]
         assert_eq!(centroid, [1.0, 4.0 / 3.0, 0.0]);
     }
 

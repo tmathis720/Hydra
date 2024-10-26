@@ -1,14 +1,13 @@
-use rustc_hash::FxHashMap;
-use std::sync::{Arc, RwLock};
+use dashmap::DashMap;
 use rayon::prelude::*;
 use crate::domain::mesh_entity::MeshEntity;
 
 /// A generic `Section` struct that associates data of type `T` with `MeshEntity` elements.  
 /// It provides methods for setting, updating, and retrieving data, and supports  
 /// parallel updates for performance improvements.  
-/// 
+///
 /// Example usage:
-/// 
+///
 ///    let section = Section::new();  
 ///    let vertex = MeshEntity::Vertex(1);  
 ///    section.set_data(vertex, 42);  
@@ -16,20 +15,20 @@ use crate::domain::mesh_entity::MeshEntity;
 /// 
 pub struct Section<T> {
     /// A thread-safe map storing data of type `T` associated with `MeshEntity` objects.  
-    pub data: Arc<RwLock<FxHashMap<MeshEntity, T>>>,
+    pub data: DashMap<MeshEntity, T>,
 }
 
 impl<T> Section<T> {
     /// Creates a new `Section` with an empty data map.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let section = Section::new();  
-    ///    assert!(section.data.read().unwrap().is_empty());  
+    ///    assert!(section.data.is_empty());  
     ///
     pub fn new() -> Self {
         Section {
-            data: Arc::new(RwLock::new(FxHashMap::default())),
+            data: DashMap::new(),
         }
     }
 
@@ -37,13 +36,12 @@ impl<T> Section<T> {
     /// This method inserts the `entity` and its corresponding `value` into the data map.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let section = Section::new();  
     ///    section.set_data(MeshEntity::Vertex(1), 10);  
     ///
     pub fn set_data(&self, entity: MeshEntity, value: T) {
-        let mut data = self.data.write().unwrap();
-        data.insert(entity, value);
+        self.data.insert(entity, value);
     }
 
     /// Restricts the data for a given `MeshEntity` by returning an immutable copy of the data  
@@ -52,7 +50,7 @@ impl<T> Section<T> {
     /// Returns `None` if no data is found for the entity.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let section = Section::new();  
     ///    let vertex = MeshEntity::Vertex(1);  
     ///    section.set_data(vertex, 42);  
@@ -62,14 +60,13 @@ impl<T> Section<T> {
     where
         T: Clone,
     {
-        self.data.read().unwrap().get(entity).cloned()
+        self.data.get(entity).map(|v| v.clone())
     }
 
-    /// Applies the given function in parallel to update all data values in the section.  
-    /// This method uses Rayon to iterate over the data map concurrently for performance.  
+    /// Applies the given function in parallel to update all data values in the section.
     ///
     /// Example usage:
-    /// 
+    ///
     ///    section.parallel_update(|v| *v += 1);  
     ///
     pub fn parallel_update<F>(&self, update_fn: F)
@@ -77,8 +74,15 @@ impl<T> Section<T> {
         F: Fn(&mut T) + Sync + Send,
         T: Send + Sync,
     {
-        let mut data = self.data.write().unwrap();
-        data.par_iter_mut().for_each(|(_, v)| update_fn(v));
+        // Clone the keys to ensure safe access to each mutable entry in parallel.
+        let keys: Vec<MeshEntity> = self.data.iter().map(|entry| entry.key().clone()).collect();
+
+        // Apply the update function to each entry in parallel.
+        keys.into_par_iter().for_each(|key| {
+            if let Some(mut entry) = self.data.get_mut(&key) {
+                update_fn(entry.value_mut());
+            }
+        });
     }
 
     /// Restricts the data for a given `MeshEntity` by returning a mutable copy of the data  
@@ -87,7 +91,7 @@ impl<T> Section<T> {
     /// Returns `None` if no data is found for the entity.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let section = Section::new();  
     ///    let vertex = MeshEntity::Vertex(1);  
     ///    section.set_data(vertex, 5);  
@@ -99,32 +103,29 @@ impl<T> Section<T> {
     where
         T: Clone,
     {
-        let data = self.data.write().unwrap();
-        data.get(entity).cloned()
+        self.data.get(entity).map(|v| v.clone())
     }
 
     /// Updates the data for a specific `MeshEntity` by replacing the existing value  
     /// with the new value.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    section.update_data(&MeshEntity::Vertex(1), 15);  
     ///
     pub fn update_data(&self, entity: &MeshEntity, new_value: T) {
-        let mut data = self.data.write().unwrap();
-        data.insert(*entity, new_value);
+        self.data.insert(*entity, new_value);
     }
 
     /// Clears all data from the section, removing all entity associations.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    section.clear();  
-    ///    assert!(section.data.read().unwrap().is_empty());  
+    ///    assert!(section.data.is_empty());  
     ///
     pub fn clear(&self) {
-        let mut data = self.data.write().unwrap();
-        data.clear();
+        self.data.clear();
     }
 
     /// Retrieves all `MeshEntity` objects associated with the section.  
@@ -132,12 +133,11 @@ impl<T> Section<T> {
     /// Returns a vector containing all mesh entities currently stored in the section.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let entities = section.entities();  
     ///
     pub fn entities(&self) -> Vec<MeshEntity> {
-        let data = self.data.read().unwrap();
-        data.keys().cloned().collect()
+        self.data.iter().map(|entry| entry.key().clone()).collect()
     }
 
     /// Retrieves all data stored in the section as immutable copies.  
@@ -145,15 +145,14 @@ impl<T> Section<T> {
     /// Returns a vector of data values.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let all_data = section.all_data();  
     ///
     pub fn all_data(&self) -> Vec<T>
     where
         T: Clone,
     {
-        let data = self.data.read().unwrap();
-        data.values().cloned().collect()
+        self.data.iter().map(|entry| entry.value().clone()).collect()
     }
 
     /// Retrieves all data stored in the section with mutable access.  
@@ -161,17 +160,17 @@ impl<T> Section<T> {
     /// Returns a vector of data values that can be modified.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let all_data_mut = section.all_data_mut();  
     ///
     pub fn all_data_mut(&self) -> Vec<T>
     where
         T: Clone,
     {
-        let data = self.data.write().unwrap();
-        data.values().cloned().collect()
+        self.data.iter_mut().map(|entry| entry.value().clone()).collect()
     }
 }
+
 
 #[cfg(test)]
 mod tests {

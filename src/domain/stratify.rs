@@ -1,6 +1,6 @@
 use crate::domain::mesh_entity::MeshEntity;
 use crate::domain::sieve::Sieve;
-use rustc_hash::FxHashMap;
+use dashmap::DashMap;
 
 /// Implements a stratification method for the `Sieve` structure.  
 /// Stratification organizes the mesh entities into different strata based on  
@@ -11,7 +11,7 @@ use rustc_hash::FxHashMap;
 /// - Stratum 3: Cells  
 ///
 /// This method categorizes each `MeshEntity` into its corresponding stratum and  
-/// returns a map where the keys are the dimension (stratum) and the values  
+/// returns a `DashMap` where the keys are the dimension (stratum) and the values  
 /// are vectors of mesh entities in that stratum.  
 ///
 /// Example usage:
@@ -34,14 +34,12 @@ impl Sieve {
     ///    sieve.add_arrow(MeshEntity::Vertex(1), MeshEntity::Edge(1));  
     ///    let strata = sieve.stratify();  
     ///
-    pub fn stratify(&self) -> FxHashMap<usize, Vec<MeshEntity>> {
-        let mut strata: FxHashMap<usize, Vec<MeshEntity>> = FxHashMap::default();
-        
-        // Acquire a read lock to access the adjacency data.
-        let adjacency = self.adjacency.read().unwrap();
-        
+    pub fn stratify(&self) -> DashMap<usize, Vec<MeshEntity>> {
+        let strata: DashMap<usize, Vec<MeshEntity>> = DashMap::new();
+
         // Iterate over the adjacency map to classify entities by their dimension.
-        for (entity, _) in adjacency.iter() {
+        self.adjacency.iter().for_each(|entry| {
+            let entity = entry.key();
             // Determine the dimension of the current entity.
             let dimension = match entity {
                 MeshEntity::Vertex(_) => 0,  // Stratum 0 for vertices
@@ -50,10 +48,10 @@ impl Sieve {
                 MeshEntity::Cell(_) => 3,    // Stratum 3 for cells
             };
             
-            // Add the entity to the appropriate stratum in the map.
-            strata.entry(dimension).or_insert_with(Vec::new).push(*entity);
-        }
-        
+            // Insert entity into the appropriate stratum in a thread-safe manner.
+            strata.entry(dimension).or_insert_with(Vec::new).push(entity.clone());
+        });
+
         strata
     }
 }
