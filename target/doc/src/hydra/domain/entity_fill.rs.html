@@ -41,10 +41,9 @@
 <a href="#41" id="41">41</a>
 <a href="#42" id="42">42</a>
 <a href="#43" id="43">43</a>
-<a href="#44" id="44">44</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::domain::mesh_entity::MeshEntity;
 <span class="kw">use </span><span class="kw">crate</span>::domain::sieve::Sieve;
-<span class="kw">use </span>rustc_hash::FxHashSet;
+<span class="kw">use </span>dashmap::DashMap;
 
 <span class="kw">impl </span>Sieve {
     <span class="doccomment">/// Infers and adds missing edges (in 2D) or faces (in 3D) based on existing cells and vertices.  
@@ -57,33 +56,32 @@
     ///    sieve.fill_missing_entities();  
     ///
     </span><span class="kw">pub fn </span>fill_missing_entities(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="kw">let </span><span class="kw-2">mut </span>edge_set: FxHashSet&lt;(MeshEntity, MeshEntity)&gt; = FxHashSet::default();
-
-        <span class="comment">// Acquire a read lock to access the adjacency data.
-        </span><span class="kw">let </span>adjacency = <span class="self">self</span>.adjacency.read().unwrap();
+        <span class="comment">// Use DashMap instead of FxHashSet for concurrent access.
+        </span><span class="kw">let </span>edge_set: DashMap&lt;(MeshEntity, MeshEntity), ()&gt; = DashMap::new();
 
         <span class="comment">// Loop through each cell and infer its edges (for 2D meshes)
-        </span><span class="kw">for </span>(cell, vertices) <span class="kw">in </span>adjacency.iter() {
+        </span><span class="self">self</span>.adjacency.iter().for_each(|entry| {
+            <span class="kw">let </span>cell = entry.key();
             <span class="kw">if let </span>MeshEntity::Cell(<span class="kw">_</span>) = cell {
-                <span class="kw">let </span>vertices: Vec&lt;<span class="kw">_</span>&gt; = vertices.iter().collect();
+                <span class="kw">let </span>vertices: Vec&lt;<span class="kw">_</span>&gt; = entry.value().iter().map(|v| v.key().clone()).collect();
                 <span class="comment">// Connect each vertex with its neighboring vertex to form edges.
                 </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..vertices.len() {
-                    <span class="kw">let </span>v1 = vertices[i];
-                    <span class="kw">let </span>v2 = vertices[(i + <span class="number">1</span>) % vertices.len()];
-                    <span class="kw">let </span>edge = <span class="kw">if </span>v1 &lt; v2 { (<span class="kw-2">*</span>v1, <span class="kw-2">*</span>v2) } <span class="kw">else </span>{ (<span class="kw-2">*</span>v2, <span class="kw-2">*</span>v1) };
-                    edge_set.insert(edge);
+                    <span class="kw">let </span>v1 = vertices[i].clone();
+                    <span class="kw">let </span>v2 = vertices[(i + <span class="number">1</span>) % vertices.len()].clone();
+                    <span class="kw">let </span>edge = <span class="kw">if </span>v1 &lt; v2 { (v1, v2) } <span class="kw">else </span>{ (v2, v1) };
+                    edge_set.insert(edge, ());
                 }
             }
-        }
+        });
 
         <span class="comment">// Add the deduced edges to the sieve.
-        </span><span class="kw">let </span>adjacency = <span class="self">self</span>.adjacency.write().unwrap();
-        <span class="kw">for </span>(v1, v2) <span class="kw">in </span>edge_set {
+        </span><span class="kw">let </span>edge_count = <span class="self">self</span>.adjacency.len();
+        edge_set.into_iter().enumerate().for_each(|(index, ((v1, v2), <span class="kw">_</span>))| {
             <span class="comment">// Generate a unique ID for the new edge.
-            </span><span class="kw">let </span>edge = MeshEntity::Edge(adjacency.len());  
-            <span class="self">self</span>.add_arrow(v1, edge);
+            </span><span class="kw">let </span>edge = MeshEntity::Edge(edge_count + index);
+            <span class="self">self</span>.add_arrow(v1, edge.clone());
             <span class="self">self</span>.add_arrow(v2, edge);
-        }
+        });
     }
 }
 </code></pre></div></section></main></body></html>

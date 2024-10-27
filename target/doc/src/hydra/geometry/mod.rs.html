@@ -350,104 +350,10 @@
 <a href="#350" id="350">350</a>
 <a href="#351" id="351">351</a>
 <a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span><span class="kw">crate</span>::domain::{mesh::Mesh, MeshEntity};
+<span class="kw">use </span>std::sync::Mutex;
 
 <span class="comment">// Module for handling geometric data and computations
 // 2D Shape Modules
@@ -461,29 +367,23 @@
 
 <span class="doccomment">/// The `Geometry` struct stores geometric data for a mesh, including vertex coordinates, 
 /// cell centroids, and volumes. It also maintains a cache of computed properties such as 
-/// volume and centroid for reuse, optimizing performance.
-///
-/// Example usage:
-///
-///    let mut geometry = Geometry::new();  
-///    geometry.set_vertex(0, [1.0, 2.0, 3.0]);  
-///    let centroid = geometry.compute_cell_centroid(&amp;mesh, &amp;cell);  
-///
+/// volume and centroid for reuse, optimizing performance by avoiding redundant calculations.
 </span><span class="kw">pub struct </span>Geometry {
-    <span class="kw">pub </span>vertices: Vec&lt;[f64; <span class="number">3</span>]&gt;,  <span class="comment">// 3D coordinates for each vertex
-    </span><span class="kw">pub </span>cell_centroids: Vec&lt;[f64; <span class="number">3</span>]&gt;, <span class="comment">// Centroid positions for each cell
-    </span><span class="kw">pub </span>cell_volumes: Vec&lt;f64&gt;,    <span class="comment">// Volumes of each cell
-    </span><span class="kw">pub </span>cache: FxHashMap&lt;usize, GeometryCache&gt;, <span class="comment">// Cache for computed properties
+    <span class="kw">pub </span>vertices: Vec&lt;[f64; <span class="number">3</span>]&gt;,        <span class="comment">// 3D coordinates for each vertex
+    </span><span class="kw">pub </span>cell_centroids: Vec&lt;[f64; <span class="number">3</span>]&gt;,  <span class="comment">// Centroid positions for each cell
+    </span><span class="kw">pub </span>cell_volumes: Vec&lt;f64&gt;,         <span class="comment">// Volumes of each cell
+    </span><span class="kw">pub </span>cache: Mutex&lt;FxHashMap&lt;usize, GeometryCache&gt;&gt;, <span class="comment">// Cache for computed properties, with thread safety
 </span>}
 
 <span class="doccomment">/// The `GeometryCache` struct stores computed properties of geometric entities, 
-/// including volume, centroid, and area. It helps avoid recomputation and thus improves efficiency.
+/// including volume, centroid, and area, with an optional "dirty" flag for lazy evaluation.
 </span><span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>GeometryCache {
     <span class="kw">pub </span>volume: <span class="prelude-ty">Option</span>&lt;f64&gt;,
     <span class="kw">pub </span>centroid: <span class="prelude-ty">Option</span>&lt;[f64; <span class="number">3</span>]&gt;,
     <span class="kw">pub </span>area: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-}
+    <span class="kw">pub </span>normal: <span class="prelude-ty">Option</span>&lt;[f64; <span class="number">3</span>]&gt;,  <span class="comment">// Stores a precomputed normal vector for a face
+</span>}
 
 <span class="doccomment">/// `CellShape` enumerates the different cell shapes in a mesh, including:
 /// * Tetrahedron
@@ -507,153 +407,86 @@
     Quadrilateral,
 }
 
-<span class="comment">// Initial implementation of the Geometry module
-</span><span class="kw">impl </span>Geometry {
+<span class="kw">impl </span>Geometry {
     <span class="doccomment">/// Initializes a new `Geometry` instance with empty data.
-    ///
-    /// Example usage:
-    ///
-    ///    let geometry = Geometry::new();  
-    ///
     </span><span class="kw">pub fn </span>new() -&gt; Geometry {
         Geometry {
             vertices: Vec::new(),
             cell_centroids: Vec::new(),
             cell_volumes: Vec::new(),
-            cache: FxHashMap::default(),
+            cache: Mutex::new(FxHashMap::default()),
         }
     }
 
-    <span class="doccomment">/// Adds or updates a vertex in the geometry. If the vertex already exists (based on ID or index),
+    <span class="doccomment">/// Adds or updates a vertex in the geometry. If the vertex already exists,
     /// it updates its coordinates; otherwise, it adds a new vertex.
     ///
     /// # Arguments
-    /// * `vertex_index` - The index or ID of the vertex to be set or updated.
-    /// * `coords` - The 3D coordinates of the vertex as an array of `[f64; 3]`.
-    ///
-    /// Example usage:
-    ///
-    ///    geometry.set_vertex(0, [1.0, 2.0, 3.0]);  
-    ///
+    /// * `vertex_index` - The index of the vertex.
+    /// * `coords` - The 3D coordinates of the vertex.
     </span><span class="kw">pub fn </span>set_vertex(<span class="kw-2">&amp;mut </span><span class="self">self</span>, vertex_index: usize, coords: [f64; <span class="number">3</span>]) {
-        <span class="comment">// Ensure the vector has enough capacity to accommodate the vertex at the given index
-        </span><span class="kw">if </span>vertex_index &gt;= <span class="self">self</span>.vertices.len() {
-            <span class="comment">// Resize the vertices vector to hold up to `vertex_index` and beyond
-            </span><span class="self">self</span>.vertices.resize(vertex_index + <span class="number">1</span>, [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>]);
+        <span class="kw">if </span>vertex_index &gt;= <span class="self">self</span>.vertices.len() {
+            <span class="self">self</span>.vertices.resize(vertex_index + <span class="number">1</span>, [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>]);
         }
+        <span class="self">self</span>.vertices[vertex_index] = coords;
+        <span class="self">self</span>.invalidate_cache();
+    }
 
-        <span class="comment">// Update the vertex at the specified index
-        </span><span class="self">self</span>.vertices[vertex_index] = coords;
-        <span class="self">self</span>.invalidate_cache(); <span class="comment">// Invalidate cache when vertices change
-    </span>}
-    
-    <span class="doccomment">/// Computes the centroid of a given cell based on its shape and vertices.
-    ///
-    /// # Arguments
-    /// * `mesh` - A reference to the mesh structure containing the cells and vertices.
-    /// * `cell` - A reference to the `MeshEntity` representing the cell for which the centroid is being computed.
-    ///
-    /// # Returns
-    /// * `[f64; 3]` - The 3D coordinates of the cell centroid.
-    ///
-    /// Example usage:
-    ///
-    ///    let centroid = geometry.compute_cell_centroid(&amp;mesh, &amp;cell);  
-    ///
+    <span class="doccomment">/// Computes and returns the centroid of a specified cell using the cell's shape and vertices.
+    /// Caches the result for reuse.
     </span><span class="kw">pub fn </span>compute_cell_centroid(<span class="kw-2">&amp;mut </span><span class="self">self</span>, mesh: <span class="kw-2">&amp;</span>Mesh, cell: <span class="kw-2">&amp;</span>MeshEntity) -&gt; [f64; <span class="number">3</span>] {
         <span class="kw">let </span>cell_id = cell.id();
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(cached) = <span class="self">self</span>.cache.get(<span class="kw-2">&amp;</span>cell_id).and_then(|c| c.centroid) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(cached) = <span class="self">self</span>.cache.lock().unwrap().get(<span class="kw-2">&amp;</span>cell_id).and_then(|c| c.centroid) {
             <span class="kw">return </span>cached;
         }
 
-        <span class="kw">let </span>cell_shape = mesh.get_cell_shape(cell);
+        <span class="kw">let </span>cell_shape = mesh.get_cell_shape(cell).expect(<span class="string">"Cell shape not found"</span>);
         <span class="kw">let </span>cell_vertices = mesh.get_cell_vertices(cell);
 
         <span class="kw">let </span>centroid = <span class="kw">match </span>cell_shape {
-            <span class="prelude-val">Ok</span>(CellShape::Tetrahedron) =&gt; <span class="self">self</span>.compute_tetrahedron_centroid(<span class="kw-2">&amp;</span>cell_vertices),
-            <span class="prelude-val">Ok</span>(CellShape::Hexahedron) =&gt; <span class="self">self</span>.compute_hexahedron_centroid(<span class="kw-2">&amp;</span>cell_vertices),
-            <span class="prelude-val">Ok</span>(CellShape::Prism) =&gt; <span class="self">self</span>.compute_prism_centroid(<span class="kw-2">&amp;</span>cell_vertices),
-            <span class="prelude-val">Ok</span>(CellShape::Pyramid) =&gt; <span class="self">self</span>.compute_pyramid_centroid(<span class="kw-2">&amp;</span>cell_vertices),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+            CellShape::Tetrahedron =&gt; <span class="self">self</span>.compute_tetrahedron_centroid(<span class="kw-2">&amp;</span>cell_vertices),
+            CellShape::Hexahedron =&gt; <span class="self">self</span>.compute_hexahedron_centroid(<span class="kw-2">&amp;</span>cell_vertices),
+            CellShape::Prism =&gt; <span class="self">self</span>.compute_prism_centroid(<span class="kw-2">&amp;</span>cell_vertices),
+            CellShape::Pyramid =&gt; <span class="self">self</span>.compute_pyramid_centroid(<span class="kw-2">&amp;</span>cell_vertices),
         };
 
-        <span class="self">self</span>.cache.entry(cell_id).or_default().centroid = <span class="prelude-val">Some</span>(centroid);
+        <span class="self">self</span>.cache.lock().unwrap().entry(cell_id).or_default().centroid = <span class="prelude-val">Some</span>(centroid);
         centroid
     }
 
-    <span class="doccomment">/// Computes the volume of a given cell based on its shape and vertex coordinates.
-    ///
-    /// # Arguments
-    /// * `mesh` - A reference to the mesh structure containing the cells and vertices.
-    /// * `cell` - A reference to the `MeshEntity` representing the cell for which the volume is being computed.
-    ///
-    /// # Returns
-    /// * `f64` - The volume of the cell.
-    ///
-    /// Example usage:
-    ///
-    ///    let volume = geometry.compute_cell_volume(&amp;mesh, &amp;cell);  
-    ///
+    <span class="doccomment">/// Computes the volume of a given cell using its shape and vertex coordinates.
+    /// The computed volume is cached for efficiency.
     </span><span class="kw">pub fn </span>compute_cell_volume(<span class="kw-2">&amp;mut </span><span class="self">self</span>, mesh: <span class="kw-2">&amp;</span>Mesh, cell: <span class="kw-2">&amp;</span>MeshEntity) -&gt; f64 {
         <span class="kw">let </span>cell_id = cell.id();
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(cached) = <span class="self">self</span>.cache.get(<span class="kw-2">&amp;</span>cell_id).and_then(|c| c.volume) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(cached) = <span class="self">self</span>.cache.lock().unwrap().get(<span class="kw-2">&amp;</span>cell_id).and_then(|c| c.volume) {
             <span class="kw">return </span>cached;
         }
 
-        <span class="kw">let </span>cell_shape = mesh.get_cell_shape(cell);
+        <span class="kw">let </span>cell_shape = mesh.get_cell_shape(cell).expect(<span class="string">"Cell shape not found"</span>);
         <span class="kw">let </span>cell_vertices = mesh.get_cell_vertices(cell);
 
         <span class="kw">let </span>volume = <span class="kw">match </span>cell_shape {
-            <span class="prelude-val">Ok</span>(CellShape::Tetrahedron) =&gt; <span class="self">self</span>.compute_tetrahedron_volume(<span class="kw-2">&amp;</span>cell_vertices),
-            <span class="prelude-val">Ok</span>(CellShape::Hexahedron) =&gt; <span class="self">self</span>.compute_hexahedron_volume(<span class="kw-2">&amp;</span>cell_vertices),
-            <span class="prelude-val">Ok</span>(CellShape::Prism) =&gt; <span class="self">self</span>.compute_prism_volume(<span class="kw-2">&amp;</span>cell_vertices),
-            <span class="prelude-val">Ok</span>(CellShape::Pyramid) =&gt; <span class="self">self</span>.compute_pyramid_volume(<span class="kw-2">&amp;</span>cell_vertices),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+            CellShape::Tetrahedron =&gt; <span class="self">self</span>.compute_tetrahedron_volume(<span class="kw-2">&amp;</span>cell_vertices),
+            CellShape::Hexahedron =&gt; <span class="self">self</span>.compute_hexahedron_volume(<span class="kw-2">&amp;</span>cell_vertices),
+            CellShape::Prism =&gt; <span class="self">self</span>.compute_prism_volume(<span class="kw-2">&amp;</span>cell_vertices),
+            CellShape::Pyramid =&gt; <span class="self">self</span>.compute_pyramid_volume(<span class="kw-2">&amp;</span>cell_vertices),
         };
 
-        <span class="self">self</span>.cache.entry(cell_id).or_default().volume = <span class="prelude-val">Some</span>(volume);
+        <span class="self">self</span>.cache.lock().unwrap().entry(cell_id).or_default().volume = <span class="prelude-val">Some</span>(volume);
         volume
     }
 
-    <span class="doccomment">/// Computes the Euclidean distance between two points in 3D space.
-    ///
-    /// # Arguments
-    /// * `p1` - The first point as an array of 3D coordinates `[f64; 3]`.
-    /// * `p2` - The second point as an array of 3D coordinates `[f64; 3]`.
-    ///
-    /// # Returns
-    /// * `f64` - The Euclidean distance between the two points.
-    ///
-    /// Example usage:
-    ///
-    ///    let distance = Geometry::compute_distance(&amp;p1, &amp;p2);  
-    ///
+    <span class="doccomment">/// Calculates Euclidean distance between two points in 3D space.
     </span><span class="kw">pub fn </span>compute_distance(p1: <span class="kw-2">&amp;</span>[f64; <span class="number">3</span>], p2: <span class="kw-2">&amp;</span>[f64; <span class="number">3</span>]) -&gt; f64 {
-        <span class="comment">// Compute the squared differences for each coordinate (x, y, z)
-        </span><span class="kw">let </span>dx = p1[<span class="number">0</span>] - p2[<span class="number">0</span>];
+        <span class="kw">let </span>dx = p1[<span class="number">0</span>] - p2[<span class="number">0</span>];
         <span class="kw">let </span>dy = p1[<span class="number">1</span>] - p2[<span class="number">1</span>];
         <span class="kw">let </span>dz = p1[<span class="number">2</span>] - p2[<span class="number">2</span>];
-
-        <span class="comment">// Apply the Euclidean distance formula: sqrt(dx^2 + dy^2 + dz^2)
-        </span>(dx.powi(<span class="number">2</span>) + dy.powi(<span class="number">2</span>) + dz.powi(<span class="number">2</span>)).sqrt()
+        (dx.powi(<span class="number">2</span>) + dy.powi(<span class="number">2</span>) + dz.powi(<span class="number">2</span>)).sqrt()
     }
 
-    <span class="doccomment">/// Computes the area of a 2D face based on its shape.
-    ///
-    /// # Arguments
-    /// * `face_id` - The ID of the face to cache the result.
-    /// * `face_shape` - Enum defining the shape of the face (e.g., Triangle, Quadrilateral).
-    /// * `face_vertices` - A vector of vertices representing the 3D coordinates of the face's vertices.
-    ///
-    /// # Returns
-    /// * `f64` - The area of the face.
-    ///
-    /// Example usage:
-    ///
-    ///    let area = geometry.compute_face_area(1, FaceShape::Triangle, &amp;triangle_vertices);  
-    ///
+    <span class="doccomment">/// Computes the area of a 2D face based on its shape, caching the result.
     </span><span class="kw">pub fn </span>compute_face_area(<span class="kw-2">&amp;mut </span><span class="self">self</span>, face_id: usize, face_shape: FaceShape, face_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; f64 {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(cached) = <span class="self">self</span>.cache.get(<span class="kw-2">&amp;</span>face_id).and_then(|c| c.area) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(cached) = <span class="self">self</span>.cache.lock().unwrap().get(<span class="kw-2">&amp;</span>face_id).and_then(|c| c.area) {
             <span class="kw">return </span>cached;
         }
 
@@ -662,7 +495,7 @@
             FaceShape::Quadrilateral =&gt; <span class="self">self</span>.compute_quadrilateral_area(face_vertices),
         };
 
-        <span class="self">self</span>.cache.entry(face_id).or_default().area = <span class="prelude-val">Some</span>(area);
+        <span class="self">self</span>.cache.lock().unwrap().entry(face_id).or_default().area = <span class="prelude-val">Some</span>(area);
         area
     }
 
@@ -681,63 +514,31 @@
         }
     }
 
-    <span class="doccomment">/// Clears the cache when geometry changes, such as when vertices are updated.
-    ///
-    /// Example usage:
-    ///
-    ///    geometry.invalidate_cache();  
-    ///
+    <span class="doccomment">/// Invalidate the cache when geometry changes (e.g., vertex updates).
     </span><span class="kw">fn </span>invalidate_cache(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.cache.clear();
+        <span class="self">self</span>.cache.lock().unwrap().clear();
     }
 
-    <span class="doccomment">/// Computes the total volume of all cells in the geometry.
-    ///
-    /// # Returns
-    /// * `f64` - The total volume of all cells.
-    ///
-    /// Example usage:
-    ///
-    ///    let total_volume = geometry.compute_total_volume();  
-    ///
+    <span class="doccomment">/// Computes the total volume of all cells.
     </span><span class="kw">pub fn </span>compute_total_volume(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f64 {
         <span class="self">self</span>.cell_volumes.par_iter().sum()
     }
 
-    <span class="doccomment">/// Updates all cell volumes in parallel by computing them for each cell in the mesh.
-    ///
-    /// # Arguments
-    /// * `mesh` - A reference to the `Mesh` structure containing the cells and vertices.
-    ///
-    /// Example usage:
-    ///
-    ///    geometry.update_all_cell_volumes(&amp;mesh);  
-    ///
+    <span class="doccomment">/// Updates all cell volumes in parallel using mesh information.
     </span><span class="kw">pub fn </span>update_all_cell_volumes(<span class="kw-2">&amp;mut </span><span class="self">self</span>, mesh: <span class="kw-2">&amp;</span>Mesh) {
-        <span class="comment">// Using a mutable reference inside the parallel iteration requires `Mutex` or similar for thread safety.
-        </span><span class="kw">let </span>new_volumes: Vec&lt;f64&gt; = mesh
+        <span class="kw">let </span>new_volumes: Vec&lt;f64&gt; = mesh
             .get_cells()
             .par_iter()
             .map(|cell| {
-                <span class="comment">// Use a temporary Geometry instance to compute the volume.
-                </span><span class="kw">let </span><span class="kw-2">mut </span>temp_geometry = Geometry::new();
+                <span class="kw">let </span><span class="kw-2">mut </span>temp_geometry = Geometry::new();
                 temp_geometry.compute_cell_volume(mesh, cell)
             })
             .collect();
-        
-        <span class="comment">// Update the cell volumes after the parallel iteration.
-        </span><span class="self">self</span>.cell_volumes = new_volumes;
+
+        <span class="self">self</span>.cell_volumes = new_volumes;
     }
 
     <span class="doccomment">/// Computes the total centroid of all cells.
-    ///
-    /// # Returns
-    /// * `[f64; 3]` - The total centroid of all cells.
-    ///
-    /// Example usage:
-    ///
-    ///    let total_centroid = geometry.compute_total_centroid();  
-    ///
     </span><span class="kw">pub fn </span>compute_total_centroid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [f64; <span class="number">3</span>] {
         <span class="kw">let </span>total_centroid: [f64; <span class="number">3</span>] = <span class="self">self</span>.cell_centroids
             .par_iter()
@@ -758,8 +559,8 @@
             total_centroid[<span class="number">2</span>] / num_centroids,
         ]
     }
-
 }
+
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
@@ -838,12 +639,8 @@
         mesh.add_arrow(cell, vertex3);
         mesh.add_arrow(cell, vertex4);
 
-        <span class="comment">// Debug: Print the sieve structure.
-        </span><span class="macro">println!</span>(<span class="string">"Sieve contents: {:?}"</span>, mesh.sieve);
-
         <span class="comment">// Verify that `get_cell_vertices` retrieves the correct vertices.
         </span><span class="kw">let </span>cell_vertices = mesh.get_cell_vertices(<span class="kw-2">&amp;</span>cell);
-        <span class="macro">println!</span>(<span class="string">"Cell vertices: {:?}"</span>, cell_vertices);
         <span class="macro">assert_eq!</span>(cell_vertices.len(), <span class="number">4</span>, <span class="string">"Expected 4 vertices for a tetrahedron cell."</span>);
 
         <span class="comment">// Validate the shape before computing.
@@ -890,6 +687,19 @@
 
         <span class="comment">// Expected centroid is the geometric center: (0.5, 0.5, 0.0)
         </span><span class="macro">assert_eq!</span>(centroid, [<span class="number">0.5</span>, <span class="number">0.5</span>, <span class="number">0.0</span>]);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_compute_total_volume() {
+        <span class="kw">let </span><span class="kw-2">mut </span>geometry = Geometry::new();
+        <span class="kw">let </span>_mesh = Mesh::new();
+
+        <span class="comment">// Example setup: Define cells with known volumes
+        // Here, you would typically define several cells and their volumes for the test
+        </span>geometry.cell_volumes = <span class="macro">vec!</span>[<span class="number">1.0</span>, <span class="number">2.0</span>, <span class="number">3.0</span>];
+
+        <span class="comment">// Expected total volume is the sum of individual cell volumes: 1.0 + 2.0 + 3.0 = 6.0
+        </span><span class="macro">assert_eq!</span>(geometry.compute_total_volume(), <span class="number">6.0</span>);
     }
 }
 </code></pre></div></section></main></body></html>

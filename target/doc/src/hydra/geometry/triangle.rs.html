@@ -195,6 +195,34 @@
 <a href="#195" id="195">195</a>
 <a href="#196" id="196">196</a>
 <a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::geometry::Geometry;
 
 <span class="kw">impl </span>Geometry {
@@ -214,20 +242,10 @@
     /// # Panics
     ///
     /// This function will panic if the number of vertices provided is not exactly three.
-    ///
-    /// # Example
-    /// 
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let vertices = vec![[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 4.0, 0.0]];
-    /// let centroid = geometry.compute_triangle_centroid(&amp;vertices);
-    /// assert_eq!(centroid, [1.0, 4.0 / 3.0, 0.0]);
-    /// ```
     </span><span class="kw">pub fn </span>compute_triangle_centroid(<span class="kw-2">&amp;</span><span class="self">self</span>, triangle_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; [f64; <span class="number">3</span>] {
         <span class="macro">assert!</span>(triangle_vertices.len() == <span class="number">3</span>, <span class="string">"Triangle must have exactly 3 vertices"</span>);
 
-        <span class="comment">// Sequential centroid calculation
-        </span><span class="kw">let </span><span class="kw-2">mut </span>centroid = [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>];
+        <span class="kw">let </span><span class="kw-2">mut </span>centroid = [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>];
         <span class="kw">for </span>vertex <span class="kw">in </span>triangle_vertices {
             centroid[<span class="number">0</span>] += vertex[<span class="number">0</span>];
             centroid[<span class="number">1</span>] += vertex[<span class="number">1</span>];
@@ -255,15 +273,6 @@
     /// # Panics
     ///
     /// This function will panic if the number of vertices provided is not exactly three.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let vertices = vec![[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 4.0, 0.0]];
-    /// let area = geometry.compute_triangle_area(&amp;vertices);
-    /// assert!((area - 6.0).abs() &lt; 1e-10);  // Area should be approximately 6.0
-    /// ```
     </span><span class="kw">pub fn </span>compute_triangle_area(<span class="kw-2">&amp;</span><span class="self">self</span>, triangle_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; f64 {
         <span class="macro">assert!</span>(
             triangle_vertices.len() == <span class="number">3</span>,
@@ -294,11 +303,58 @@
         <span class="comment">// Area is half the magnitude of the cross product
         </span><span class="number">0.5 </span>* cross_product_magnitude
     }
+
+    <span class="doccomment">/// Computes the normal vector for a triangular face in 3D space.
+    ///
+    /// The normal vector is computed using the cross product of two edges from the triangle.
+    /// The length of the normal vector will be proportional to the area of the triangle.
+    ///
+    /// # Arguments
+    /// * `triangle_vertices` - A vector of 3D coordinates representing the vertices of the triangle.
+    ///
+    /// # Returns
+    /// * `[f64; 3]` - The normal vector for the triangular face.
+    </span><span class="kw">pub fn </span>compute_triangle_normal(<span class="kw-2">&amp;</span><span class="self">self</span>, triangle_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; [f64; <span class="number">3</span>] {
+        <span class="macro">assert!</span>(triangle_vertices.len() == <span class="number">3</span>, <span class="string">"Triangle must have exactly 3 vertices"</span>);
+
+        <span class="kw">let </span>v0 = triangle_vertices[<span class="number">0</span>];
+        <span class="kw">let </span>v1 = triangle_vertices[<span class="number">1</span>];
+        <span class="kw">let </span>v2 = triangle_vertices[<span class="number">2</span>];
+
+        <span class="comment">// Compute edge vectors
+        </span><span class="kw">let </span>e1 = [v1[<span class="number">0</span>] - v0[<span class="number">0</span>], v1[<span class="number">1</span>] - v0[<span class="number">1</span>], v1[<span class="number">2</span>] - v0[<span class="number">2</span>]];
+        <span class="kw">let </span>e2 = [v2[<span class="number">0</span>] - v0[<span class="number">0</span>], v2[<span class="number">1</span>] - v0[<span class="number">1</span>], v2[<span class="number">2</span>] - v0[<span class="number">2</span>]];
+
+        <span class="comment">// Compute the cross product to get the normal vector
+        </span><span class="kw">let </span>normal = [
+            e1[<span class="number">1</span>] * e2[<span class="number">2</span>] - e1[<span class="number">2</span>] * e2[<span class="number">1</span>],
+            e1[<span class="number">2</span>] * e2[<span class="number">0</span>] - e1[<span class="number">0</span>] * e2[<span class="number">2</span>],
+            e1[<span class="number">0</span>] * e2[<span class="number">1</span>] - e1[<span class="number">1</span>] * e2[<span class="number">0</span>],
+        ];
+
+        normal
+    }
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span><span class="kw">crate</span>::geometry::Geometry;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_triangle_normal() {
+        <span class="kw">let </span>geometry = Geometry::new();
+
+        <span class="kw">let </span>triangle_vertices = <span class="macro">vec!</span>[
+            [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>],
+            [<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>],
+            [<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>],
+        ];
+
+        <span class="kw">let </span>normal = geometry.compute_triangle_normal(<span class="kw-2">&amp;</span>triangle_vertices);
+
+        <span class="comment">// Expected normal should be [0.0, 0.0, 1.0] for this triangle in the XY plane
+        </span><span class="macro">assert!</span>((normal[<span class="number">2</span>] - <span class="number">1.0</span>).abs() &lt; <span class="number">1e-10</span>);
+    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_triangle_area() {
@@ -331,7 +387,7 @@
         <span class="kw">let </span>centroid = geometry.compute_triangle_centroid(<span class="kw-2">&amp;</span>triangle_vertices);
         
         <span class="comment">// The centroid of this triangle is the average of the vertices:
-        // ([0.0, 0.0, 0.0] + [3.0, 0.0, 0.0] + [0.0, 4.0, 0.0]) / 3 = [1.0, 1.3333, 0.0]
+        // ([0.0, 0.0, 0.0] + [3.0, 0.0, 0.0] + [0.0, 4.0, 0.0]) / 3 = [1.0, 4.0 / 3.0, 0.0]
         </span><span class="macro">assert_eq!</span>(centroid, [<span class="number">1.0</span>, <span class="number">4.0 </span>/ <span class="number">3.0</span>, <span class="number">0.0</span>]);
     }
 

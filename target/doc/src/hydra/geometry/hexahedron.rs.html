@@ -162,38 +162,6 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::geometry::Geometry;
 
 <span class="kw">impl </span>Geometry {
@@ -210,36 +178,22 @@
     ///
     /// # Panics
     /// This function will panic if the number of vertices is not exactly 8.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let hexahedron_vertices = vec![
-    ///     [0.0, 0.0, 0.0], // vertex 1
-    ///     [1.0, 0.0, 0.0], // vertex 2
-    ///     [1.0, 1.0, 0.0], // vertex 3
-    ///     [0.0, 1.0, 0.0], // vertex 4
-    ///     [0.0, 0.0, 1.0], // vertex 5
-    ///     [1.0, 0.0, 1.0], // vertex 6
-    ///     [1.0, 1.0, 1.0], // vertex 7
-    ///     [0.0, 1.0, 1.0], // vertex 8
-    /// ];
-    /// let centroid = geometry.compute_hexahedron_centroid(&amp;hexahedron_vertices);
-    /// assert_eq!(centroid, [0.5, 0.5, 0.5]);  // Centroid of a unit cube
-    /// ```
     </span><span class="kw">pub fn </span>compute_hexahedron_centroid(<span class="kw-2">&amp;</span><span class="self">self</span>, cell_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; [f64; <span class="number">3</span>] {
+        <span class="macro">assert!</span>(cell_vertices.len() == <span class="number">8</span>, <span class="string">"Hexahedron must have exactly 8 vertices"</span>);
+
         <span class="kw">let </span><span class="kw-2">mut </span>centroid = [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>];
-        <span class="kw">for </span>v <span class="kw">in </span>cell_vertices {
-            centroid[<span class="number">0</span>] += v[<span class="number">0</span>];
-            centroid[<span class="number">1</span>] += v[<span class="number">1</span>];
-            centroid[<span class="number">2</span>] += v[<span class="number">2</span>];
+        <span class="kw">for </span>vertex <span class="kw">in </span>cell_vertices {
+            centroid[<span class="number">0</span>] += vertex[<span class="number">0</span>];
+            centroid[<span class="number">1</span>] += vertex[<span class="number">1</span>];
+            centroid[<span class="number">2</span>] += vertex[<span class="number">2</span>];
         }
+
         <span class="kw">let </span>num_vertices = cell_vertices.len() <span class="kw">as </span>f64;
-        centroid[<span class="number">0</span>] /= num_vertices;
-        centroid[<span class="number">1</span>] /= num_vertices;
-        centroid[<span class="number">2</span>] /= num_vertices;
-        centroid
+        [
+            centroid[<span class="number">0</span>] / num_vertices,
+            centroid[<span class="number">1</span>] / num_vertices,
+            centroid[<span class="number">2</span>] / num_vertices,
+        ]
     }
 
     <span class="doccomment">/// Computes the volume of a hexahedral cell using tetrahedral decomposition.
@@ -257,24 +211,6 @@
     ///
     /// # Panics
     /// This function will panic if the number of vertices is not exactly 8.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let hexahedron_vertices = vec![
-    ///     [0.0, 0.0, 0.0], // vertex 1
-    ///     [1.0, 0.0, 0.0], // vertex 2
-    ///     [1.0, 1.0, 0.0], // vertex 3
-    ///     [0.0, 1.0, 0.0], // vertex 4
-    ///     [0.0, 0.0, 1.0], // vertex 5
-    ///     [1.0, 0.0, 1.0], // vertex 6
-    ///     [1.0, 1.0, 1.0], // vertex 7
-    ///     [0.0, 1.0, 1.0], // vertex 8
-    /// ];
-    /// let volume = geometry.compute_hexahedron_volume(&amp;hexahedron_vertices);
-    /// assert!((volume - 1.0).abs() &lt; 1e-10);  // Volume of a unit cube
-    /// ```
     </span><span class="kw">pub fn </span>compute_hexahedron_volume(<span class="kw-2">&amp;</span><span class="self">self</span>, cell_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; f64 {
         <span class="macro">assert!</span>(cell_vertices.len() == <span class="number">8</span>, <span class="string">"Hexahedron must have exactly 8 vertices"</span>);
 

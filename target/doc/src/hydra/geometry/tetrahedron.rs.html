@@ -173,6 +173,10 @@
 <a href="#173" id="173">173</a>
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::geometry::Geometry;
 
 <span class="kw">impl </span>Geometry {
@@ -180,7 +184,7 @@
     ///
     /// This function calculates the centroid (geometric center) of a tetrahedron using
     /// the 3D coordinates of its four vertices. The centroid is the average of the
-    /// positions of all the vertices.
+    /// positions of all vertices.
     ///
     /// # Arguments
     ///
@@ -195,25 +199,29 @@
     /// ```rust,ignore
     /// let geometry = Geometry::new();
     /// let vertices = vec![
-    ///     [0.0, 0.0, 0.0], 
-    ///     [1.0, 0.0, 0.0], 
-    ///     [0.0, 1.0, 0.0], 
+    ///     [0.0, 0.0, 0.0],
+    ///     [1.0, 0.0, 0.0],
+    ///     [0.0, 1.0, 0.0],
     ///     [0.0, 0.0, 1.0]
     /// ];
     /// let centroid = geometry.compute_tetrahedron_centroid(&amp;vertices);
     /// assert_eq!(centroid, [0.25, 0.25, 0.25]);
     /// ```
     </span><span class="kw">pub fn </span>compute_tetrahedron_centroid(<span class="kw-2">&amp;</span><span class="self">self</span>, cell_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; [f64; <span class="number">3</span>] {
+        <span class="macro">assert_eq!</span>(cell_vertices.len(), <span class="number">4</span>, <span class="string">"Tetrahedron must have exactly 4 vertices"</span>);
+
         <span class="kw">let </span><span class="kw-2">mut </span>centroid = [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>];
         <span class="kw">for </span>v <span class="kw">in </span>cell_vertices {
             centroid[<span class="number">0</span>] += v[<span class="number">0</span>];
             centroid[<span class="number">1</span>] += v[<span class="number">1</span>];
             centroid[<span class="number">2</span>] += v[<span class="number">2</span>];
         }
-        <span class="kw">let </span>num_vertices = cell_vertices.len() <span class="kw">as </span>f64;
-        centroid[<span class="number">0</span>] /= num_vertices;
-        centroid[<span class="number">1</span>] /= num_vertices;
-        centroid[<span class="number">2</span>] /= num_vertices;
+
+        <span class="comment">// Average the vertex coordinates to get the centroid
+        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">3 </span>{
+            centroid[i] /= <span class="number">4.0</span>;
+        }
+
         centroid
     }
 
@@ -240,16 +248,16 @@
     /// ```rust,ignore
     /// let geometry = Geometry::new();
     /// let vertices = vec![
-    ///     [0.0, 0.0, 0.0], 
-    ///     [1.0, 0.0, 0.0], 
-    ///     [0.0, 1.0, 0.0], 
+    ///     [0.0, 0.0, 0.0],
+    ///     [1.0, 0.0, 0.0],
+    ///     [0.0, 1.0, 0.0],
     ///     [0.0, 0.0, 1.0]
     /// ];
     /// let volume = geometry.compute_tetrahedron_volume(&amp;vertices);
     /// assert!((volume - 1.0 / 6.0).abs() &lt; 1e-10);
     /// ```
     </span><span class="kw">pub fn </span>compute_tetrahedron_volume(<span class="kw-2">&amp;</span><span class="self">self</span>, tet_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; f64 {
-        <span class="macro">assert!</span>(tet_vertices.len() == <span class="number">4</span>, <span class="string">"Tetrahedron must have exactly 4 vertices"</span>);
+        <span class="macro">assert_eq!</span>(tet_vertices.len(), <span class="number">4</span>, <span class="string">"Tetrahedron must have exactly 4 vertices"</span>);
 
         <span class="kw">let </span>v0 = tet_vertices[<span class="number">0</span>];
         <span class="kw">let </span>v1 = tet_vertices[<span class="number">1</span>];

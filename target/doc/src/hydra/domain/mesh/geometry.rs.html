@@ -163,67 +163,10 @@
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
 <a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">super</span>::Mesh;
 <span class="kw">use </span><span class="kw">crate</span>::domain::mesh_entity::MeshEntity;
 <span class="kw">use </span><span class="kw">crate</span>::geometry::{Geometry, CellShape, FaceShape};
-<span class="kw">use </span>rustc_hash::FxHashSet;
+<span class="kw">use </span>dashmap::DashMap;
 
 <span class="kw">impl </span>Mesh {
     <span class="doccomment">/// Retrieves all the faces of a given cell.  
@@ -234,12 +177,12 @@
     /// Returns a set of `MeshEntity` representing the faces of the cell, or  
     /// `None` if the cell has no connected faces.  
     ///
-    /// Example usage:
-    /// 
-    ///    let faces = mesh.get_faces_of_cell(&amp;cell);  
-    ///
-    </span><span class="kw">pub fn </span>get_faces_of_cell(<span class="kw-2">&amp;</span><span class="self">self</span>, cell: <span class="kw-2">&amp;</span>MeshEntity) -&gt; <span class="prelude-ty">Option</span>&lt;FxHashSet&lt;MeshEntity&gt;&gt; {
-        <span class="self">self</span>.sieve.cone(cell).map(|set| set.clone())
+    </span><span class="kw">pub fn </span>get_faces_of_cell(<span class="kw-2">&amp;</span><span class="self">self</span>, cell: <span class="kw-2">&amp;</span>MeshEntity) -&gt; <span class="prelude-ty">Option</span>&lt;DashMap&lt;MeshEntity, ()&gt;&gt; {
+        <span class="self">self</span>.sieve.cone(cell).map(|set| {
+            <span class="kw">let </span>faces = DashMap::new();
+            set.into_iter().for_each(|face| { faces.insert(face, ()); });
+            faces
+        })
     }
 
     <span class="doccomment">/// Retrieves all the cells that share the given face.  
@@ -249,22 +192,16 @@
     ///
     /// Returns a set of `MeshEntity` representing the neighboring cells.  
     ///
-    /// Example usage:
-    /// 
-    ///    let cells = mesh.get_cells_sharing_face(&amp;face);  
-    ///
-    </span><span class="kw">pub fn </span>get_cells_sharing_face(<span class="kw-2">&amp;</span><span class="self">self</span>, face: <span class="kw-2">&amp;</span>MeshEntity) -&gt; FxHashSet&lt;MeshEntity&gt; {
-        <span class="self">self</span>.sieve.support(face)
+    </span><span class="kw">pub fn </span>get_cells_sharing_face(<span class="kw-2">&amp;</span><span class="self">self</span>, face: <span class="kw-2">&amp;</span>MeshEntity) -&gt; DashMap&lt;MeshEntity, ()&gt; {
+        <span class="kw">let </span>cells = DashMap::new();
+        <span class="self">self</span>.sieve.support(face).into_iter().for_each(|cell| { cells.insert(cell, ()); });
+        cells
     }
 
     <span class="doccomment">/// Computes the Euclidean distance between two cells based on their centroids.  
     ///
     /// This method calculates the centroids of both cells and then uses the `Geometry`  
     /// module to compute the distance between these centroids.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let distance = mesh.get_distance_between_cells(&amp;cell1, &amp;cell2);  
     ///
     </span><span class="kw">pub fn </span>get_distance_between_cells(<span class="kw-2">&amp;</span><span class="self">self</span>, cell_i: <span class="kw-2">&amp;</span>MeshEntity, cell_j: <span class="kw-2">&amp;</span>MeshEntity) -&gt; f64 {
         <span class="kw">let </span>centroid_i = <span class="self">self</span>.get_cell_centroid(cell_i);
@@ -277,12 +214,6 @@
     /// This method determines the face shape (triangle or quadrilateral) and  
     /// uses the `Geometry` module to compute the area.  
     ///
-    /// Panics if the face has an unsupported number of vertices.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let area = mesh.get_face_area(&amp;face);  
-    ///
     </span><span class="kw">pub fn </span>get_face_area(<span class="kw-2">&amp;</span><span class="self">self</span>, face: <span class="kw-2">&amp;</span>MeshEntity) -&gt; f64 {
         <span class="kw">let </span>face_vertices = <span class="self">self</span>.get_face_vertices(face);
         <span class="kw">let </span>face_shape = <span class="kw">match </span>face_vertices.len() {
@@ -291,22 +222,14 @@
             <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Unsupported face shape with {} vertices"</span>, face_vertices.len()),
         };
 
-        <span class="comment">// Use a new or existing geometry instance, providing a unique ID for caching.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>geometry = Geometry::new();
-        <span class="kw">let </span>face_id = face.id(); <span class="comment">// Assuming `id` method provides a unique ID for the face.
-        </span>geometry.compute_face_area(face_id, face_shape, <span class="kw-2">&amp;</span>face_vertices)
+        <span class="kw">let </span><span class="kw-2">mut </span>geometry = Geometry::new();
+        <span class="kw">let </span>face_id = face.id();
+        geometry.compute_face_area(face_id, face_shape, <span class="kw-2">&amp;</span>face_vertices)
     }
 
     <span class="doccomment">/// Computes the centroid of a cell based on its vertices.  
     ///
-    /// This method determines the cell shape (tetrahedron, pyramid, prism, or hexahedron)  
-    /// and uses the `Geometry` module to compute the centroid.  
-    ///
-    /// Panics if the cell has an unsupported number of vertices.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let centroid = mesh.get_cell_centroid(&amp;cell);  
+    /// This method determines the cell shape and uses the `Geometry` module to compute the centroid.  
     ///
     </span><span class="kw">pub fn </span>get_cell_centroid(<span class="kw-2">&amp;</span><span class="self">self</span>, cell: <span class="kw-2">&amp;</span>MeshEntity) -&gt; [f64; <span class="number">3</span>] {
         <span class="kw">let </span>cell_vertices = <span class="self">self</span>.get_cell_vertices(cell);
@@ -318,8 +241,7 @@
             <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Unsupported cell shape with {} vertices"</span>, cell_vertices.len()),
         };
 
-        <span class="comment">// Use a new or existing Geometry instance, providing a unique ID for caching.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>geometry = Geometry::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>geometry = Geometry::new();
         geometry.compute_cell_centroid(<span class="self">self</span>, cell)
     }
 
@@ -328,48 +250,31 @@
     /// This method uses the `support` function of the sieve to find cells that  
     /// contain the given vertex and then retrieves all other vertices in those cells.  
     ///
-    /// Example usage:
-    /// 
-    ///    let neighbors = mesh.get_neighboring_vertices(&amp;vertex);  
-    ///
     </span><span class="kw">pub fn </span>get_neighboring_vertices(<span class="kw-2">&amp;</span><span class="self">self</span>, vertex: <span class="kw-2">&amp;</span>MeshEntity) -&gt; Vec&lt;MeshEntity&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>neighbors = FxHashSet::default();
+        <span class="kw">let </span>neighbors = DashMap::new();
         <span class="kw">let </span>connected_cells = <span class="self">self</span>.sieve.support(vertex);
 
-        <span class="kw">for </span>cell <span class="kw">in </span><span class="kw-2">&amp;</span>connected_cells {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(cell_vertices) = <span class="self">self</span>.sieve.cone(cell).as_ref() {
+        connected_cells.into_iter().for_each(|cell| {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(cell_vertices) = <span class="self">self</span>.sieve.cone(<span class="kw-2">&amp;</span>cell).as_ref() {
                 <span class="kw">for </span>v <span class="kw">in </span>cell_vertices {
                     <span class="kw">if </span>v != vertex &amp;&amp; <span class="macro">matches!</span>(v, MeshEntity::Vertex(<span class="kw">_</span>)) {
-                        neighbors.insert(<span class="kw-2">*</span>v);
+                        neighbors.insert(v.clone(), ());
                     }
                 }
             } <span class="kw">else </span>{
                 <span class="macro">panic!</span>(<span class="string">"Cell {:?} has no connected vertices"</span>, cell);
             }
-        }
-        neighbors.into_iter().collect()
+        });
+        neighbors.into_iter().map(|(vertex, <span class="kw">_</span>)| vertex).collect()
     }
 
     <span class="doccomment">/// Returns an iterator over the IDs of all vertices in the mesh.  
-    ///
-    /// Example usage:
-    /// 
-    ///    for vertex_id in mesh.iter_vertices() {  
-    ///        println!("Vertex ID: {}", vertex_id);  
-    ///    }  
     ///
     </span><span class="kw">pub fn </span>iter_vertices(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>usize&gt; {
         <span class="self">self</span>.vertex_coordinates.keys()
     }
 
     <span class="doccomment">/// Determines the shape of a cell based on the number of vertices it has.  
-    ///
-    /// This method supports tetrahedrons, pyramids, prisms, and hexahedrons.  
-    /// Returns an error if the cell has an unsupported number of vertices.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let cell_shape = mesh.get_cell_shape(&amp;cell).unwrap();  
     ///
     </span><span class="kw">pub fn </span>get_cell_shape(<span class="kw-2">&amp;</span><span class="self">self</span>, cell: <span class="kw-2">&amp;</span>MeshEntity) -&gt; <span class="prelude-ty">Result</span>&lt;CellShape, String&gt; {
         <span class="kw">let </span>cell_vertices = <span class="self">self</span>.get_cell_vertices(cell);
@@ -387,23 +292,12 @@
 
     <span class="doccomment">/// Retrieves the vertices of a cell and their coordinates.  
     ///
-    /// This method uses the sieve to find all vertices connected to the cell,  
-    /// and retrieves their 3D coordinates from the `vertex_coordinates` map.  
-    ///
-    /// Panics if the coordinates for a vertex are not found.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let vertices = mesh.get_cell_vertices(&amp;cell);  
-    ///
     </span><span class="kw">pub fn </span>get_cell_vertices(<span class="kw-2">&amp;</span><span class="self">self</span>, cell: <span class="kw-2">&amp;</span>MeshEntity) -&gt; Vec&lt;[f64; <span class="number">3</span>]&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>vertices = Vec::new();
     
-        <span class="comment">// Retrieve entities connected to the cell.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(connected_entities) = <span class="self">self</span>.sieve.cone(cell) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(connected_entities) = <span class="self">self</span>.sieve.cone(cell) {
             <span class="kw">for </span>entity <span class="kw">in </span>connected_entities {
-                <span class="comment">// Check if the entity is a vertex and extract its coordinates.
-                </span><span class="kw">if let </span>MeshEntity::Vertex(vertex_id) = entity {
+                <span class="kw">if let </span>MeshEntity::Vertex(vertex_id) = entity {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(coords) = <span class="self">self</span>.get_vertex_coordinates(vertex_id) {
                         vertices.push(coords);
                     } <span class="kw">else </span>{
@@ -412,21 +306,13 @@
                 }
             }
         }
-    
-        <span class="comment">// Sort and deduplicate vertices to ensure unique entries.
-        </span>vertices.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        vertices.sort_by(|a, b| a.partial_cmp(b).unwrap());
         vertices.dedup();
         vertices
     }
 
     <span class="doccomment">/// Retrieves the vertices of a face and their coordinates.  
-    ///
-    /// This method uses the sieve to find all vertices connected to the face,  
-    /// and retrieves their 3D coordinates from the `vertex_coordinates` map.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let face_vertices = mesh.get_face_vertices(&amp;face);  
     ///
     </span><span class="kw">pub fn </span>get_face_vertices(<span class="kw-2">&amp;</span><span class="self">self</span>, face: <span class="kw-2">&amp;</span>MeshEntity) -&gt; Vec&lt;[f64; <span class="number">3</span>]&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>vertices = Vec::new();

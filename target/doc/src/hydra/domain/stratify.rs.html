@@ -55,11 +55,9 @@
 <a href="#55" id="55">55</a>
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::domain::mesh_entity::MeshEntity;
 <span class="kw">use </span><span class="kw">crate</span>::domain::sieve::Sieve;
-<span class="kw">use </span>rustc_hash::FxHashMap;
+<span class="kw">use </span>dashmap::DashMap;
 
 <span class="doccomment">/// Implements a stratification method for the `Sieve` structure.  
 /// Stratification organizes the mesh entities into different strata based on  
@@ -70,7 +68,7 @@
 /// - Stratum 3: Cells  
 ///
 /// This method categorizes each `MeshEntity` into its corresponding stratum and  
-/// returns a map where the keys are the dimension (stratum) and the values  
+/// returns a `DashMap` where the keys are the dimension (stratum) and the values  
 /// are vectors of mesh entities in that stratum.  
 ///
 /// Example usage:
@@ -93,14 +91,12 @@
     ///    sieve.add_arrow(MeshEntity::Vertex(1), MeshEntity::Edge(1));  
     ///    let strata = sieve.stratify();  
     ///
-    </span><span class="kw">pub fn </span>stratify(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FxHashMap&lt;usize, Vec&lt;MeshEntity&gt;&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>strata: FxHashMap&lt;usize, Vec&lt;MeshEntity&gt;&gt; = FxHashMap::default();
-        
-        <span class="comment">// Acquire a read lock to access the adjacency data.
-        </span><span class="kw">let </span>adjacency = <span class="self">self</span>.adjacency.read().unwrap();
-        
+    </span><span class="kw">pub fn </span>stratify(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DashMap&lt;usize, Vec&lt;MeshEntity&gt;&gt; {
+        <span class="kw">let </span>strata: DashMap&lt;usize, Vec&lt;MeshEntity&gt;&gt; = DashMap::new();
+
         <span class="comment">// Iterate over the adjacency map to classify entities by their dimension.
-        </span><span class="kw">for </span>(entity, <span class="kw">_</span>) <span class="kw">in </span>adjacency.iter() {
+        </span><span class="self">self</span>.adjacency.iter().for_each(|entry| {
+            <span class="kw">let </span>entity = entry.key();
             <span class="comment">// Determine the dimension of the current entity.
             </span><span class="kw">let </span>dimension = <span class="kw">match </span>entity {
                 MeshEntity::Vertex(<span class="kw">_</span>) =&gt; <span class="number">0</span>,  <span class="comment">// Stratum 0 for vertices
@@ -109,10 +105,10 @@
                 </span>MeshEntity::Cell(<span class="kw">_</span>) =&gt; <span class="number">3</span>,    <span class="comment">// Stratum 3 for cells
             </span>};
             
-            <span class="comment">// Add the entity to the appropriate stratum in the map.
-            </span>strata.entry(dimension).or_insert_with(Vec::new).push(<span class="kw-2">*</span>entity);
-        }
-        
+            <span class="comment">// Insert entity into the appropriate stratum in a thread-safe manner.
+            </span>strata.entry(dimension).or_insert_with(Vec::new).push(entity.clone());
+        });
+
         strata
     }
 }

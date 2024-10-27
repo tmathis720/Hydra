@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"macro":["col","mat","row","unzipped","zipped"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["ColChunks","ColChunksMut","ColElemChunks","ColElemChunksMut","ColElemPartition","ColElemPartitionMut","ColIter","ColIterMut","ColPartition","ColPartitionMut","ElemIter","ElemIterMut","RowChunks","RowChunksMut","RowElemChunks","RowElemChunksMut","RowElemPartition","RowElemPartitionMut","RowIter","RowIterMut","RowPartition","RowPartitionMut"]};

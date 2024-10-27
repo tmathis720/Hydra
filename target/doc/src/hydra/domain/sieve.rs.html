@@ -246,275 +246,153 @@
 <a href="#246" id="246">246</a>
 <a href="#247" id="247">247</a>
 <a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
-<span class="kw">use </span>std::sync::{Arc, RwLock};
+</pre></div><pre class="rust"><code><span class="kw">use </span>dashmap::DashMap;
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span><span class="kw">crate</span>::domain::mesh_entity::MeshEntity;
 
 <span class="doccomment">/// A `Sieve` struct that manages the relationships (arrows) between `MeshEntity`  
-/// elements, organized in an adjacency map.  
+/// elements, organized in an adjacency map.
 ///
 /// The adjacency map tracks directed relations between entities in the mesh.  
 /// It supports operations such as adding relationships, querying direct  
-/// relations (cones), and computing closure and star sets for entities.  
-/// 
-/// Example usage:
-/// 
-///    let sieve = Sieve::new();  
-///    let vertex = MeshEntity::Vertex(1);  
-///    let edge = MeshEntity::Edge(2);  
-///    sieve.add_arrow(vertex, edge);  
-///    let cone = sieve.cone(&amp;vertex).unwrap();  
-/// 
+/// relations (cones), and computing closure and star sets for entities.
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>Sieve {
     <span class="doccomment">/// A thread-safe adjacency map where each key is a `MeshEntity`,  
     /// and the value is a set of `MeshEntity` objects related to the key.  
-    </span><span class="kw">pub </span>adjacency: Arc&lt;RwLock&lt;FxHashMap&lt;MeshEntity, FxHashSet&lt;MeshEntity&gt;&gt;&gt;&gt;,
+    </span><span class="kw">pub </span>adjacency: DashMap&lt;MeshEntity, DashMap&lt;MeshEntity, ()&gt;&gt;,
 }
 
 <span class="kw">impl </span>Sieve {
-    <span class="doccomment">/// Creates a new empty `Sieve` instance with an empty adjacency map.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let sieve = Sieve::new();  
-    ///    assert!(sieve.adjacency.read().unwrap().is_empty());  
-    /// 
+    <span class="doccomment">/// Creates a new empty `Sieve` instance with an empty adjacency map.
     </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         Sieve {
-            adjacency: Arc::new(RwLock::new(FxHashMap::default())),
+            adjacency: DashMap::new(),
         }
     }
 
     <span class="doccomment">/// Adds a directed relationship (arrow) between two `MeshEntity` elements.  
     /// The relationship is stored in the adjacency map from the `from` entity  
-    /// to the `to` entity.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let sieve = Sieve::new();  
-    ///    let vertex = MeshEntity::Vertex(1);  
-    ///    let edge = MeshEntity::Edge(2);  
-    ///    sieve.add_arrow(vertex, edge);  
-    ///
+    /// to the `to` entity.
     </span><span class="kw">pub fn </span>add_arrow(<span class="kw-2">&amp;</span><span class="self">self</span>, from: MeshEntity, to: MeshEntity) {
-        <span class="kw">let </span><span class="kw-2">mut </span>adjacency = <span class="self">self</span>.adjacency.write().unwrap();
-        adjacency.entry(from).or_insert_with(FxHashSet::default).insert(to);
+        <span class="self">self</span>.adjacency
+            .entry(from)
+            .or_insert_with(DashMap::new)
+            .insert(to, ());
     }
 
     <span class="doccomment">/// Retrieves all entities directly related to the given entity (`point`).  
     /// This operation is referred to as retrieving the cone of the entity.  
-    /// Returns `None` if there are no related entities.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let sieve = Sieve::new();  
-    ///    let vertex = MeshEntity::Vertex(1);  
-    ///    sieve.add_arrow(vertex, MeshEntity::Edge(1));  
-    ///    let cone = sieve.cone(&amp;vertex);  
-    /// 
-    </span><span class="kw">pub fn </span>cone(<span class="kw-2">&amp;</span><span class="self">self</span>, point: <span class="kw-2">&amp;</span>MeshEntity) -&gt; <span class="prelude-ty">Option</span>&lt;FxHashSet&lt;MeshEntity&gt;&gt; {
-        <span class="self">self</span>.adjacency.read().unwrap().get(point).cloned()
+    /// Returns `None` if there are no related entities.
+    </span><span class="kw">pub fn </span>cone(<span class="kw-2">&amp;</span><span class="self">self</span>, point: <span class="kw-2">&amp;</span>MeshEntity) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;MeshEntity&gt;&gt; {
+        <span class="self">self</span>.adjacency.get(point).map(|cone| {
+            cone.iter().map(|entry| entry.key().clone()).collect()
+        })
     }
 
-    <span class="doccomment">/// Computes the transitive closure for a given `MeshEntity`.  
-    /// The closure includes the entity itself and all entities reachable  
-    /// through arrows from the entity.
-    ///
-    /// Example usage:
-    /// 
-    ///    let sieve = Sieve::new();  
-    ///    let vertex = MeshEntity::Vertex(1);  
-    ///    sieve.add_arrow(vertex, MeshEntity::Edge(1));  
-    ///    let closure_set = sieve.closure(&amp;vertex);  
-    ///
-    </span><span class="kw">pub fn </span>closure(<span class="kw-2">&amp;</span><span class="self">self</span>, point: <span class="kw-2">&amp;</span>MeshEntity) -&gt; FxHashSet&lt;MeshEntity&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>result = FxHashSet::default();
-        <span class="kw">let </span><span class="kw-2">mut </span>stack = <span class="macro">vec!</span>[point.clone()];
-        <span class="kw">while let </span><span class="prelude-val">Some</span>(p) = stack.pop() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(cones) = <span class="self">self</span>.cone(<span class="kw-2">&amp;</span>p) {
-                <span class="kw">for </span>q <span class="kw">in </span>cones {
-                    <span class="kw">if </span>result.insert(q.clone()) {
-                        stack.push(q.clone());
+    <span class="doccomment">/// Computes the closure of a given `MeshEntity`.  
+    /// The closure includes the entity itself and all entities it covers (cones) recursively.
+    </span><span class="kw">pub fn </span>closure(<span class="kw-2">&amp;</span><span class="self">self</span>, point: <span class="kw-2">&amp;</span>MeshEntity) -&gt; DashMap&lt;MeshEntity, ()&gt; {
+        <span class="kw">let </span>result = DashMap::new();
+        <span class="kw">let </span>stack = DashMap::new();
+        stack.insert(point.clone(), ());
+
+        <span class="kw">while </span>!stack.is_empty() {
+            <span class="kw">let </span>keys: Vec&lt;MeshEntity&gt; = stack.iter().map(|entry| entry.key().clone()).collect();
+            <span class="kw">for </span>p <span class="kw">in </span>keys {
+                <span class="kw">if </span>result.insert(p.clone(), ()).is_none() {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(cones) = <span class="self">self</span>.cone(<span class="kw-2">&amp;</span>p) {
+                        <span class="kw">for </span>q <span class="kw">in </span>cones {
+                            stack.insert(q, ());
+                        }
                     }
                 }
+                stack.remove(<span class="kw-2">&amp;</span>p);
             }
         }
         result
     }
 
     <span class="doccomment">/// Computes the star of a given `MeshEntity`.  
-    /// The star includes all entities directly related to the entity  
-    /// (cone and support sets).
-    ///
-    /// Example usage:
-    /// 
-    ///    let sieve = Sieve::new();  
-    ///    let vertex = MeshEntity::Vertex(1);  
-    ///    let edge = MeshEntity::Edge(1);  
-    ///    sieve.add_arrow(vertex, edge);  
-    ///    let star_set = sieve.star(&amp;vertex);  
-    ///
-    </span><span class="kw">pub fn </span>star(<span class="kw-2">&amp;</span><span class="self">self</span>, point: <span class="kw-2">&amp;</span>MeshEntity) -&gt; FxHashSet&lt;MeshEntity&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>result = FxHashSet::default();
-        <span class="kw">let </span><span class="kw-2">mut </span>stack = <span class="macro">vec!</span>[point.clone()];
-
-        <span class="kw">while let </span><span class="prelude-val">Some</span>(p) = stack.pop() {
-            <span class="kw">if </span>result.insert(p.clone()) {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(cones) = <span class="self">self</span>.cone(<span class="kw-2">&amp;</span>p) {
-                    <span class="kw">for </span>q <span class="kw">in </span>cones {
-                        stack.push(q.clone());
-                    }
-                }
-                <span class="kw">let </span>supports = <span class="self">self</span>.support(<span class="kw-2">&amp;</span>p);
-                <span class="kw">for </span>q <span class="kw">in </span>supports {
-                    stack.push(q.clone());
-                }
-            }
+    /// The star includes the entity itself and all entities that directly cover it (supports).
+    </span><span class="kw">pub fn </span>star(<span class="kw-2">&amp;</span><span class="self">self</span>, point: <span class="kw-2">&amp;</span>MeshEntity) -&gt; DashMap&lt;MeshEntity, ()&gt; {
+        <span class="kw">let </span>result = DashMap::new();
+        result.insert(point.clone(), ());
+        <span class="kw">let </span>supports = <span class="self">self</span>.support(point);
+        <span class="kw">for </span>support <span class="kw">in </span>supports {
+            result.insert(support, ());
         }
         result
     }
 
     <span class="doccomment">/// Retrieves all entities that support the given entity (`point`).  
     /// These are the entities that have an arrow pointing to `point`.
-    ///
-    /// Example usage:
-    /// 
-    ///    let sieve = Sieve::new();  
-    ///    let vertex = MeshEntity::Vertex(1);  
-    ///    let edge = MeshEntity::Edge(1);  
-    ///    sieve.add_arrow(vertex, edge);  
-    ///    let support_set = sieve.support(&amp;edge);  
-    ///
-    </span><span class="kw">pub fn </span>support(<span class="kw-2">&amp;</span><span class="self">self</span>, point: <span class="kw-2">&amp;</span>MeshEntity) -&gt; FxHashSet&lt;MeshEntity&gt; {
-        <span class="kw">let </span>adjacency = <span class="self">self</span>.adjacency.read().unwrap();
-        adjacency
-            .iter()
-            .filter_map(|(from, to_set)| <span class="kw">if </span>to_set.contains(point) { <span class="prelude-val">Some</span>(from.clone()) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
-            .collect()
+    </span><span class="kw">pub fn </span>support(<span class="kw-2">&amp;</span><span class="self">self</span>, point: <span class="kw-2">&amp;</span>MeshEntity) -&gt; Vec&lt;MeshEntity&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>supports = Vec::new();
+        <span class="self">self</span>.adjacency.iter().for_each(|entry| {
+            <span class="kw">let </span>from = entry.key();
+            <span class="kw">if </span>entry.value().contains_key(point) {
+                supports.push(from.clone());
+            }
+        });
+        supports
     }
 
     <span class="doccomment">/// Computes the meet operation for two entities, `p` and `q`.  
-    /// This is the intersection of their closures (minimal separator).
-    ///
-    /// Example usage:
-    /// 
-    ///    let sieve = Sieve::new();  
-    ///    let vertex1 = MeshEntity::Vertex(1);  
-    ///    let vertex2 = MeshEntity::Vertex(2);  
-    ///    let edge = MeshEntity::Edge(1);  
-    ///    sieve.add_arrow(vertex1, edge);  
-    ///    sieve.add_arrow(vertex2, edge);  
-    ///    let meet_set = sieve.meet(&amp;vertex1, &amp;vertex2);  
-    ///
-    </span><span class="kw">pub fn </span>meet(<span class="kw-2">&amp;</span><span class="self">self</span>, p: <span class="kw-2">&amp;</span>MeshEntity, q: <span class="kw-2">&amp;</span>MeshEntity) -&gt; FxHashSet&lt;MeshEntity&gt; {
+    /// This is the intersection of their closures.
+    </span><span class="kw">pub fn </span>meet(<span class="kw-2">&amp;</span><span class="self">self</span>, p: <span class="kw-2">&amp;</span>MeshEntity, q: <span class="kw-2">&amp;</span>MeshEntity) -&gt; DashMap&lt;MeshEntity, ()&gt; {
         <span class="kw">let </span>closure_p = <span class="self">self</span>.closure(p);
         <span class="kw">let </span>closure_q = <span class="self">self</span>.closure(q);
-        closure_p.intersection(<span class="kw-2">&amp;</span>closure_q).cloned().collect()
+        <span class="kw">let </span>result = DashMap::new();
+
+        closure_p.iter().for_each(|entry| {
+            <span class="kw">let </span>key = entry.key();
+            <span class="kw">if </span>closure_q.contains_key(key) {
+                result.insert(key.clone(), ());
+            }
+        });
+
+        result
     }
 
     <span class="doccomment">/// Computes the join operation for two entities, `p` and `q`.  
-    /// This is the union of their stars (minimal separator).
-    ///
-    /// Example usage:
-    /// 
-    ///    let sieve = Sieve::new();  
-    ///    let vertex1 = MeshEntity::Vertex(1);  
-    ///    let vertex2 = MeshEntity::Vertex(2);  
-    ///    let edge = MeshEntity::Edge(1);  
-    ///    sieve.add_arrow(vertex1, edge);  
-    ///    sieve.add_arrow(vertex2, edge);  
-    ///    let join_set = sieve.join(&amp;vertex1, &amp;vertex2);  
-    ///
-    </span><span class="kw">pub fn </span>join(<span class="kw-2">&amp;</span><span class="self">self</span>, p: <span class="kw-2">&amp;</span>MeshEntity, q: <span class="kw-2">&amp;</span>MeshEntity) -&gt; FxHashSet&lt;MeshEntity&gt; {
+    /// This is the union of their stars.
+    </span><span class="kw">pub fn </span>join(<span class="kw-2">&amp;</span><span class="self">self</span>, p: <span class="kw-2">&amp;</span>MeshEntity, q: <span class="kw-2">&amp;</span>MeshEntity) -&gt; DashMap&lt;MeshEntity, ()&gt; {
         <span class="kw">let </span>star_p = <span class="self">self</span>.star(p);
         <span class="kw">let </span>star_q = <span class="self">self</span>.star(q);
+        <span class="kw">let </span>result = DashMap::new();
 
-        <span class="kw">let </span>join_result: FxHashSet&lt;MeshEntity&gt; = star_p.union(<span class="kw-2">&amp;</span>star_q).cloned().collect();
-        join_result
+        star_p.iter().for_each(|entry| {
+            result.insert(entry.key().clone(), ());
+        });
+        star_q.iter().for_each(|entry| {
+            result.insert(entry.key().clone(), ());
+        });
+
+        result
     }
 
     <span class="doccomment">/// Applies a given function in parallel to all adjacency map entries.  
     /// This function is executed concurrently over each entity and its  
     /// corresponding set of related entities.
-    ///
-    /// Example usage:
-    /// 
-    ///    sieve.par_for_each_adjacent(|(entity, adj_set)| {  
-    ///        println!("{:?} -&gt; {:?}", entity, adj_set);  
-    ///    });  
-    ///
     </span><span class="kw">pub fn </span>par_for_each_adjacent&lt;F&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, func: F)
     <span class="kw">where
-        </span>F: Fn((<span class="kw-2">&amp;</span>MeshEntity, <span class="kw-2">&amp;</span>FxHashSet&lt;MeshEntity&gt;)) + Sync + Send,
+        </span>F: Fn((<span class="kw-2">&amp;</span>MeshEntity, Vec&lt;MeshEntity&gt;)) + Sync + Send,
     {
-        <span class="kw">let </span>adjacency = <span class="self">self</span>.adjacency.read().unwrap();
-        adjacency.par_iter().for_each(func);
+        <span class="comment">// Collect entries from DashMap to avoid borrow conflicts
+        </span><span class="kw">let </span>entries: Vec&lt;<span class="kw">_</span>&gt; = <span class="self">self</span>.adjacency.iter().map(|entry| {
+            <span class="kw">let </span>key = entry.key().clone();
+            <span class="kw">let </span>values: Vec&lt;MeshEntity&gt; = entry.value().iter().map(|e| e.key().clone()).collect();
+            (key, values)
+        }).collect();
+
+        <span class="comment">// Execute in parallel over collected entries
+        </span>entries.par_iter().for_each(|entry| {
+            func((<span class="kw-2">&amp;</span>entry.<span class="number">0</span>, entry.<span class="number">1</span>.clone()));
+        });
     }
 }
+
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
@@ -523,7 +401,7 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Test that verifies adding an arrow between two entities and querying  
-    /// the cone of an entity works as expected.  
+    /// the cone of an entity works as expected.
     </span><span class="kw">fn </span>test_add_arrow_and_cone() {
         <span class="kw">let </span>sieve = Sieve::new();
         <span class="kw">let </span>vertex = MeshEntity::Vertex(<span class="number">1</span>);
@@ -535,19 +413,24 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Test that verifies the closure of a vertex correctly includes  
-    /// all transitive relationships.  
+    /// all transitive relationships and the entity itself.
     </span><span class="kw">fn </span>test_closure() {
         <span class="kw">let </span>sieve = Sieve::new();
         <span class="kw">let </span>vertex = MeshEntity::Vertex(<span class="number">1</span>);
         <span class="kw">let </span>edge = MeshEntity::Edge(<span class="number">1</span>);
+        <span class="kw">let </span>face = MeshEntity::Face(<span class="number">1</span>);
         sieve.add_arrow(vertex, edge);
+        sieve.add_arrow(edge, face);
         <span class="kw">let </span>closure_result = sieve.closure(<span class="kw-2">&amp;</span>vertex);
-        <span class="macro">assert!</span>(closure_result.contains(<span class="kw-2">&amp;</span>edge));
+        <span class="macro">assert!</span>(closure_result.contains_key(<span class="kw-2">&amp;</span>vertex));
+        <span class="macro">assert!</span>(closure_result.contains_key(<span class="kw-2">&amp;</span>edge));
+        <span class="macro">assert!</span>(closure_result.contains_key(<span class="kw-2">&amp;</span>face));
+        <span class="macro">assert_eq!</span>(closure_result.len(), <span class="number">3</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Test that verifies the support of an entity includes the  
-    /// correct supporting entities.  
+    /// correct supporting entities.
     </span><span class="kw">fn </span>test_support() {
         <span class="kw">let </span>sieve = Sieve::new();
         <span class="kw">let </span>vertex = MeshEntity::Vertex(<span class="number">1</span>);
@@ -557,65 +440,58 @@
         <span class="kw">let </span>support_result = sieve.support(<span class="kw-2">&amp;</span>edge);
 
         <span class="macro">assert!</span>(support_result.contains(<span class="kw-2">&amp;</span>vertex));
+        <span class="macro">assert_eq!</span>(support_result.len(), <span class="number">1</span>);
     }
 
     <span class="attr">#[test]
-    </span><span class="doccomment">/// Test that verifies the star of an entity includes both cone and  
-    /// support sets of the entity.  
+    </span><span class="doccomment">/// Test that verifies the star of an entity includes both the entity itself and  
+    /// its immediate supports.
     </span><span class="kw">fn </span>test_star() {
         <span class="kw">let </span>sieve = Sieve::new();
-        <span class="kw">let </span>vertex = MeshEntity::Vertex(<span class="number">1</span>);
         <span class="kw">let </span>edge = MeshEntity::Edge(<span class="number">1</span>);
         <span class="kw">let </span>face = MeshEntity::Face(<span class="number">1</span>);
 
-        sieve.add_arrow(vertex, edge);
         sieve.add_arrow(edge, face);
 
         <span class="kw">let </span>star_result = sieve.star(<span class="kw-2">&amp;</span>face);
 
-        <span class="macro">assert!</span>(star_result.contains(<span class="kw-2">&amp;</span>edge));
-        <span class="macro">assert!</span>(star_result.contains(<span class="kw-2">&amp;</span>vertex));
+        <span class="macro">assert!</span>(star_result.contains_key(<span class="kw-2">&amp;</span>face));
+        <span class="macro">assert!</span>(star_result.contains_key(<span class="kw-2">&amp;</span>edge));
+        <span class="macro">assert_eq!</span>(star_result.len(), <span class="number">2</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Test that verifies the meet operation between two entities returns  
-    /// the correct minimal separator (intersection of closures).  
+    /// the correct intersection of their closures.
     </span><span class="kw">fn </span>test_meet() {
         <span class="kw">let </span>sieve = Sieve::new();
         <span class="kw">let </span>vertex1 = MeshEntity::Vertex(<span class="number">1</span>);
         <span class="kw">let </span>vertex2 = MeshEntity::Vertex(<span class="number">2</span>);
         <span class="kw">let </span>edge = MeshEntity::Edge(<span class="number">1</span>);
-        <span class="kw">let </span>face = MeshEntity::Face(<span class="number">1</span>);
 
         sieve.add_arrow(vertex1, edge);
         sieve.add_arrow(vertex2, edge);
-        sieve.add_arrow(edge, face);
 
         <span class="kw">let </span>meet_result = sieve.meet(<span class="kw-2">&amp;</span>vertex1, <span class="kw-2">&amp;</span>vertex2);
 
-        <span class="macro">assert!</span>(meet_result.contains(<span class="kw-2">&amp;</span>edge));
+        <span class="macro">assert!</span>(meet_result.contains_key(<span class="kw-2">&amp;</span>edge));
+        <span class="macro">assert_eq!</span>(meet_result.len(), <span class="number">1</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Test that verifies the join operation between two entities returns  
-    /// the correct minimal separator (union of stars).  
+    /// the correct union of their stars.
     </span><span class="kw">fn </span>test_join() {
         <span class="kw">let </span>sieve = Sieve::new();
         <span class="kw">let </span>vertex1 = MeshEntity::Vertex(<span class="number">1</span>);
         <span class="kw">let </span>vertex2 = MeshEntity::Vertex(<span class="number">2</span>);
-        <span class="kw">let </span>edge = MeshEntity::Edge(<span class="number">1</span>);
-        <span class="kw">let </span>face = MeshEntity::Face(<span class="number">1</span>);
-
-        sieve.add_arrow(vertex1, edge);
-        sieve.add_arrow(vertex2, edge);
-        sieve.add_arrow(edge, face);
 
         <span class="kw">let </span>join_result = sieve.join(<span class="kw-2">&amp;</span>vertex1, <span class="kw-2">&amp;</span>vertex2);
 
-        <span class="macro">assert!</span>(join_result.contains(<span class="kw-2">&amp;</span>vertex1), <span class="string">"Join result should contain vertex1"</span>);
-        <span class="macro">assert!</span>(join_result.contains(<span class="kw-2">&amp;</span>vertex2), <span class="string">"Join result should contain vertex2"</span>);
-        <span class="macro">assert!</span>(join_result.contains(<span class="kw-2">&amp;</span>edge), <span class="string">"Join result should contain the edge"</span>);
-        <span class="macro">assert!</span>(join_result.contains(<span class="kw-2">&amp;</span>face), <span class="string">"Join result should contain the face"</span>);
+        <span class="macro">assert!</span>(join_result.contains_key(<span class="kw-2">&amp;</span>vertex1), <span class="string">"Join result should contain vertex1"</span>);
+        <span class="macro">assert!</span>(join_result.contains_key(<span class="kw-2">&amp;</span>vertex2), <span class="string">"Join result should contain vertex2"</span>);
+        <span class="macro">assert_eq!</span>(join_result.len(), <span class="number">2</span>);
     }
 }
+
 </code></pre></div></section></main></body></html>

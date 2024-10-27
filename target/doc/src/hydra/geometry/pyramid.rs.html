@@ -187,114 +187,6 @@
 <a href="#187" id="187">187</a>
 <a href="#188" id="188">188</a>
 <a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
-<a href="#236" id="236">236</a>
-<a href="#237" id="237">237</a>
-<a href="#238" id="238">238</a>
-<a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a>
-<a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::geometry::{Geometry, FaceShape};
 
 <span class="kw">impl </span>Geometry {
@@ -303,8 +195,8 @@
     /// The centroid is computed for a pyramid with either a triangular or square base.
     /// The pyramid is represented by 4 vertices (triangular base) or 5 vertices (square base).
     ///
-    /// - For a triangular base, the function treats the pyramid as a tetrahedron.
-    /// - For a square base, the function splits the pyramid into two tetrahedrons and combines their centroids.
+    /// - For a triangular base, the pyramid is treated as a tetrahedron.
+    /// - For a square base, the pyramid is split into two tetrahedrons, and the weighted centroid of both is calculated.
     ///
     /// # Arguments
     /// * `cell_vertices` - A vector of 4 vertices for a triangular-based pyramid, or 5 vertices for a square-based pyramid.
@@ -314,76 +206,27 @@
     ///
     /// # Panics
     /// This function will panic if the number of vertices is not 4 (for a triangular base) or 5 (for a square base).
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let pyramid_vertices = vec![
-    ///     [0.0, 0.0, 0.0], // base vertex 1
-    ///     [1.0, 0.0, 0.0], // base vertex 2
-    ///     [1.0, 1.0, 0.0], // base vertex 3
-    ///     [0.0, 1.0, 0.0], // base vertex 4
-    ///     [0.5, 0.5, 1.0], // apex
-    /// ];
-    /// let centroid = geometry.compute_pyramid_centroid(&amp;pyramid_vertices);
-    /// assert_eq!(centroid, [0.5, 0.5, 0.25]);
-    /// ```
     </span><span class="kw">pub fn </span>compute_pyramid_centroid(<span class="kw-2">&amp;</span><span class="self">self</span>, cell_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; [f64; <span class="number">3</span>] {
-        <span class="kw">let </span><span class="kw-2">mut </span>_total_volume = <span class="number">0.0</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>weighted_centroid = [<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>];
+        <span class="macro">assert!</span>(cell_vertices.len() == <span class="number">4 </span>|| cell_vertices.len() == <span class="number">5</span>, <span class="string">"Pyramid must have 4 or 5 vertices"</span>);
 
-        <span class="kw">let </span>num_vertices = cell_vertices.len();
-        <span class="macro">assert!</span>(num_vertices == <span class="number">4 </span>|| num_vertices == <span class="number">5</span>, <span class="string">"Pyramid must have 4 (triangular) or 5 (square) vertices"</span>);
-
-        <span class="comment">// Define the apex and base vertices
-        </span><span class="kw">let </span>apex = <span class="kw">if </span>num_vertices == <span class="number">4 </span>{ cell_vertices[<span class="number">3</span>] } <span class="kw">else </span>{ cell_vertices[<span class="number">4</span>] };
-        <span class="kw">let </span>base_vertices = <span class="kw">if </span>num_vertices == <span class="number">4 </span>{
-            <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>]] <span class="comment">// Triangular base
-        </span>} <span class="kw">else </span>{
-            <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>], cell_vertices[<span class="number">3</span>]] <span class="comment">// Square base
-        </span>};
-
-        <span class="comment">// For a square-based pyramid, split into two tetrahedrons
-        </span><span class="kw">if </span>num_vertices == <span class="number">5 </span>{
-            <span class="kw">let </span>tetra1 = <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>], apex];
-            <span class="kw">let </span>tetra2 = <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">2</span>], cell_vertices[<span class="number">3</span>], apex];
-
-            <span class="comment">// Compute volumes and centroids
-            </span><span class="kw">let </span>volume1 = <span class="self">self</span>.compute_tetrahedron_volume(<span class="kw-2">&amp;</span>tetra1);
-            <span class="kw">let </span>volume2 = <span class="self">self</span>.compute_tetrahedron_volume(<span class="kw-2">&amp;</span>tetra2);
-
-            <span class="kw">let </span>centroid1 = <span class="self">self</span>.compute_tetrahedron_centroid(<span class="kw-2">&amp;</span>tetra1);
-            <span class="kw">let </span>centroid2 = <span class="self">self</span>.compute_tetrahedron_centroid(<span class="kw-2">&amp;</span>tetra2);
-
-            _total_volume = volume1 + volume2;
-
-            <span class="comment">// Compute the weighted centroid
-            </span>weighted_centroid[<span class="number">0</span>] = (centroid1[<span class="number">0</span>] * volume1 + centroid2[<span class="number">0</span>] * volume2) / _total_volume;
-            weighted_centroid[<span class="number">1</span>] = (centroid1[<span class="number">1</span>] * volume1 + centroid2[<span class="number">1</span>] * volume2) / _total_volume;
-            weighted_centroid[<span class="number">2</span>] = (centroid1[<span class="number">2</span>] * volume1 + centroid2[<span class="number">2</span>] * volume2) / _total_volume;
+        <span class="kw">let </span>apex = <span class="kw">if </span>cell_vertices.len() == <span class="number">4 </span>{ cell_vertices[<span class="number">3</span>] } <span class="kw">else </span>{ cell_vertices[<span class="number">4</span>] };
+        <span class="kw">let </span>base_vertices = <span class="kw">if </span>cell_vertices.len() == <span class="number">4 </span>{
+            <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>]]
         } <span class="kw">else </span>{
-            <span class="comment">// For triangular base pyramid (tetrahedron)
-            </span><span class="kw">let </span>tetra = <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>], apex];
-            <span class="kw">let </span>volume = <span class="self">self</span>.compute_tetrahedron_volume(<span class="kw-2">&amp;</span>tetra);
-            <span class="kw">let </span>centroid = <span class="self">self</span>.compute_tetrahedron_centroid(<span class="kw-2">&amp;</span>tetra);
+            <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>], cell_vertices[<span class="number">3</span>]]
+        };
 
-            _total_volume = volume;
-            weighted_centroid = centroid;
-        }
-
-        <span class="comment">// Adjust the centroid between the base centroid and the apex
-        </span><span class="kw">let </span>base_centroid = <span class="self">self</span>.compute_face_centroid(
-            <span class="kw">if </span>num_vertices == <span class="number">4 </span>{ FaceShape::Triangle } <span class="kw">else </span>{ FaceShape::Quadrilateral },
+        <span class="kw">let </span>base_centroid = <span class="self">self</span>.compute_face_centroid(
+            <span class="kw">if </span>cell_vertices.len() == <span class="number">4 </span>{ FaceShape::Triangle } <span class="kw">else </span>{ FaceShape::Quadrilateral },
             <span class="kw-2">&amp;</span>base_vertices,
         );
 
-        <span class="comment">// Apply pyramid centroid formula: 3/4 base_centroid + 1/4 apex
-        </span>weighted_centroid[<span class="number">0</span>] = (<span class="number">3.0 </span>* base_centroid[<span class="number">0</span>] + apex[<span class="number">0</span>]) / <span class="number">4.0</span>;
-        weighted_centroid[<span class="number">1</span>] = (<span class="number">3.0 </span>* base_centroid[<span class="number">1</span>] + apex[<span class="number">1</span>]) / <span class="number">4.0</span>;
-        weighted_centroid[<span class="number">2</span>] = (<span class="number">3.0 </span>* base_centroid[<span class="number">2</span>] + apex[<span class="number">2</span>]) / <span class="number">4.0</span>;
-
-        weighted_centroid
+        <span class="comment">// Apply pyramid centroid formula: 3/4 * base_centroid + 1/4 * apex
+        </span>[
+            (<span class="number">3.0 </span>* base_centroid[<span class="number">0</span>] + apex[<span class="number">0</span>]) / <span class="number">4.0</span>,
+            (<span class="number">3.0 </span>* base_centroid[<span class="number">1</span>] + apex[<span class="number">1</span>]) / <span class="number">4.0</span>,
+            (<span class="number">3.0 </span>* base_centroid[<span class="number">2</span>] + apex[<span class="number">2</span>]) / <span class="number">4.0</span>,
+        ]
     }
 
     <span class="doccomment">/// Computes the volume of a pyramid cell (triangular or square base).
@@ -398,82 +241,25 @@
     ///
     /// # Panics
     /// This function will panic if the number of vertices is not 4 (triangular) or 5 (square).
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let geometry = Geometry::new();
-    /// let pyramid_vertices = vec![
-    ///     [0.0, 0.0, 0.0], // base vertex 1
-    ///     [1.0, 0.0, 0.0], // base vertex 2
-    ///     [1.0, 1.0, 0.0], // base vertex 3
-    ///     [0.0, 1.0, 0.0], // base vertex 4
-    ///     [0.5, 0.5, 1.0], // apex
-    /// ];
-    /// let volume = geometry.compute_pyramid_volume(&amp;pyramid_vertices);
-    /// assert!((volume - (1.0 / 3.0)).abs() &lt; 1e-10); // Volume of a square pyramid
-    /// ```
     </span><span class="kw">pub fn </span>compute_pyramid_volume(<span class="kw-2">&amp;</span><span class="self">self</span>, cell_vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; f64 {
-        <span class="kw">let </span><span class="kw-2">mut </span>_total_volume = <span class="number">0.0</span>;
+        <span class="macro">assert!</span>(cell_vertices.len() == <span class="number">4 </span>|| cell_vertices.len() == <span class="number">5</span>, <span class="string">"Pyramid must have 4 or 5 vertices"</span>);
 
-        <span class="kw">let </span>num_vertices = cell_vertices.len();
-        <span class="macro">assert!</span>(num_vertices == <span class="number">4 </span>|| num_vertices == <span class="number">5</span>, <span class="string">"Pyramid must have 4 (triangular) or 5 (square) vertices"</span>);
-
-        <span class="comment">// Define the apex and base vertices
-        </span><span class="kw">let </span>apex = <span class="kw">if </span>num_vertices == <span class="number">4 </span>{ cell_vertices[<span class="number">3</span>] } <span class="kw">else </span>{ cell_vertices[<span class="number">4</span>] };
-        <span class="kw">let </span>_base_vertices = <span class="kw">if </span>num_vertices == <span class="number">4 </span>{
-            <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>]] <span class="comment">// Triangular base
-        </span>} <span class="kw">else </span>{
-            <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>], cell_vertices[<span class="number">3</span>]] <span class="comment">// Square base
-        </span>};
-
-        <span class="comment">// Split into two tetrahedrons if square base
-        </span><span class="kw">if </span>num_vertices == <span class="number">5 </span>{
+        <span class="kw">let </span>apex = <span class="kw">if </span>cell_vertices.len() == <span class="number">4 </span>{ cell_vertices[<span class="number">3</span>] } <span class="kw">else </span>{ cell_vertices[<span class="number">4</span>] };
+        
+        <span class="kw">if </span>cell_vertices.len() == <span class="number">5 </span>{
             <span class="kw">let </span>tetra1 = <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>], apex];
             <span class="kw">let </span>tetra2 = <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">2</span>], cell_vertices[<span class="number">3</span>], apex];
 
-            <span class="kw">let </span>volume1 = <span class="self">self</span>.compute_tetrahedron_volume_local(<span class="kw-2">&amp;</span>tetra1);
-            <span class="kw">let </span>volume2 = <span class="self">self</span>.compute_tetrahedron_volume_local(<span class="kw-2">&amp;</span>tetra2);
+            <span class="kw">let </span>volume1 = <span class="self">self</span>.compute_tetrahedron_volume(<span class="kw-2">&amp;</span>tetra1);
+            <span class="kw">let </span>volume2 = <span class="self">self</span>.compute_tetrahedron_volume(<span class="kw-2">&amp;</span>tetra2);
 
-            _total_volume = volume1 + volume2;
+            volume1 + volume2
         } <span class="kw">else </span>{
             <span class="kw">let </span>tetra = <span class="macro">vec!</span>[cell_vertices[<span class="number">0</span>], cell_vertices[<span class="number">1</span>], cell_vertices[<span class="number">2</span>], apex];
-            _total_volume = <span class="self">self</span>.compute_tetrahedron_volume_local(<span class="kw-2">&amp;</span>tetra);
+            <span class="self">self</span>.compute_tetrahedron_volume(<span class="kw-2">&amp;</span>tetra)
         }
-
-        _total_volume
-    }
-
-    <span class="doccomment">/// Computes the volume of a tetrahedron using its four vertices.
-    ///
-    /// # Arguments
-    /// * `vertices` - A vector of 4 vertices representing the tetrahedron.
-    ///
-    /// # Returns
-    /// * `f64` - The volume of the tetrahedron.
-    </span><span class="kw">fn </span>compute_tetrahedron_volume_local(<span class="kw-2">&amp;</span><span class="self">self</span>, vertices: <span class="kw-2">&amp;</span>Vec&lt;[f64; <span class="number">3</span>]&gt;) -&gt; f64 {
-        <span class="macro">assert!</span>(vertices.len() == <span class="number">4</span>, <span class="string">"Tetrahedron must have 4 vertices"</span>);
-
-        <span class="kw">let </span>a = vertices[<span class="number">0</span>];
-        <span class="kw">let </span>b = vertices[<span class="number">1</span>];
-        <span class="kw">let </span>c = vertices[<span class="number">2</span>];
-        <span class="kw">let </span>d = vertices[<span class="number">3</span>];
-
-        <span class="kw">let </span>v1 = [b[<span class="number">0</span>] - d[<span class="number">0</span>], b[<span class="number">1</span>] - d[<span class="number">1</span>], b[<span class="number">2</span>] - d[<span class="number">2</span>]];
-        <span class="kw">let </span>v2 = [c[<span class="number">0</span>] - d[<span class="number">0</span>], c[<span class="number">1</span>] - d[<span class="number">1</span>], c[<span class="number">2</span>] - d[<span class="number">2</span>]];
-        <span class="kw">let </span>v3 = [a[<span class="number">0</span>] - d[<span class="number">0</span>], a[<span class="number">1</span>] - d[<span class="number">1</span>], a[<span class="number">2</span>] - d[<span class="number">2</span>]];
-
-        <span class="kw">let </span>cross_product = [
-            v2[<span class="number">1</span>] * v3[<span class="number">2</span>] - v2[<span class="number">2</span>] * v3[<span class="number">1</span>],
-            v2[<span class="number">2</span>] * v3[<span class="number">0</span>] - v2[<span class="number">0</span>] * v3[<span class="number">2</span>],
-            v2[<span class="number">0</span>] * v3[<span class="number">1</span>] - v2[<span class="number">1</span>] * v3[<span class="number">0</span>],
-        ];
-
-        <span class="kw">let </span>dot_product = v1[<span class="number">0</span>] * cross_product[<span class="number">0</span>] + v1[<span class="number">1</span>] * cross_product[<span class="number">1</span>] + v1[<span class="number">2</span>] * cross_product[<span class="number">2</span>];
-        (dot_product.abs() / <span class="number">6.0</span>).abs()
     }
 }
-
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
@@ -494,8 +280,7 @@
 
         <span class="kw">let </span>volume = geometry.compute_pyramid_volume(<span class="kw-2">&amp;</span>pyramid_vertices);
 
-        <span class="comment">// The expected volume of the square pyramid is (1/3) * base area * height
-        // Base area = 1.0, height = 1.0 -&gt; Volume = (1/3) * 1.0 * 1.0 = 1/3
+        <span class="comment">// Expected volume: (1/3) * base area * height, where base area = 1.0, height = 1.0
         </span><span class="macro">assert!</span>((volume - (<span class="number">1.0 </span>/ <span class="number">3.0</span>)).abs() &lt; <span class="number">1e-10</span>, <span class="string">"Volume of the square pyramid is incorrect"</span>);
     }
 
@@ -513,8 +298,7 @@
 
         <span class="kw">let </span>volume = geometry.compute_pyramid_volume(<span class="kw-2">&amp;</span>pyramid_vertices);
 
-        <span class="comment">// The expected volume of the triangular pyramid (tetrahedron) is (1/3) * base area * height
-        // Base area = 0.5, height = 1.0 -&gt; Volume = (1/3) * 0.5 * 1.0 = 1/6
+        <span class="comment">// Expected volume: (1/3) * base area * height, where base area = 0.5, height = 1.0
         </span><span class="macro">assert!</span>((volume - (<span class="number">1.0 </span>/ <span class="number">6.0</span>)).abs() &lt; <span class="number">1e-10</span>, <span class="string">"Volume of the triangular pyramid is incorrect"</span>);
     }
 
@@ -533,7 +317,7 @@
 
         <span class="kw">let </span>centroid = geometry.compute_pyramid_centroid(<span class="kw-2">&amp;</span>pyramid_vertices);
 
-        <span class="comment">// The correct centroid is at (0.5, 0.5, 0.25)
+        <span class="comment">// Expected centroid: (0.5, 0.5, 0.25)
         </span><span class="macro">assert_eq!</span>(centroid, [<span class="number">0.5</span>, <span class="number">0.5</span>, <span class="number">0.25</span>]);
     }
 
@@ -551,7 +335,7 @@
 
         <span class="kw">let </span>centroid = geometry.compute_pyramid_centroid(<span class="kw-2">&amp;</span>pyramid_vertices);
 
-        <span class="comment">// The correct centroid is at (0.375, 0.375, 0.25)
+        <span class="comment">// Expected centroid: (0.375, 0.375, 0.25)
         </span><span class="macro">assert_eq!</span>(centroid, [<span class="number">0.375</span>, <span class="number">0.375</span>, <span class="number">0.25</span>]);
     }
 
@@ -569,7 +353,7 @@
 
         <span class="kw">let </span>volume = geometry.compute_pyramid_volume(<span class="kw-2">&amp;</span>degenerate_pyramid_vertices);
 
-        <span class="comment">// The volume of a degenerate pyramid should be zero
+        <span class="comment">// Volume of a degenerate pyramid should be zero
         </span><span class="macro">assert_eq!</span>(volume, <span class="number">0.0</span>);
     }
 
@@ -587,7 +371,7 @@
 
         <span class="kw">let </span>centroid = geometry.compute_pyramid_centroid(<span class="kw-2">&amp;</span>degenerate_pyramid_vertices);
 
-        <span class="comment">// The centroid of this degenerate pyramid should still be computed correctly
+        <span class="comment">// Expected centroid in the plane: (0.375, 0.375, 0.0)
         </span><span class="kw">let </span>expected_centroid = [<span class="number">0.375</span>, <span class="number">0.375</span>, <span class="number">0.0</span>];
         <span class="macro">assert_eq!</span>(centroid, expected_centroid);
     }

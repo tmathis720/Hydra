@@ -267,18 +267,16 @@
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>std::sync::{Arc, RwLock};
+</pre></div><pre class="rust"><code><span class="kw">use </span>dashmap::DashMap;
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span><span class="kw">crate</span>::domain::mesh_entity::MeshEntity;
 
 <span class="doccomment">/// A generic `Section` struct that associates data of type `T` with `MeshEntity` elements.  
 /// It provides methods for setting, updating, and retrieving data, and supports  
 /// parallel updates for performance improvements.  
-/// 
+///
 /// Example usage:
-/// 
+///
 ///    let section = Section::new();  
 ///    let vertex = MeshEntity::Vertex(1);  
 ///    section.set_data(vertex, 42);  
@@ -286,20 +284,20 @@
 /// 
 </span><span class="kw">pub struct </span>Section&lt;T&gt; {
     <span class="doccomment">/// A thread-safe map storing data of type `T` associated with `MeshEntity` objects.  
-    </span><span class="kw">pub </span>data: Arc&lt;RwLock&lt;FxHashMap&lt;MeshEntity, T&gt;&gt;&gt;,
+    </span><span class="kw">pub </span>data: DashMap&lt;MeshEntity, T&gt;,
 }
 
 <span class="kw">impl</span>&lt;T&gt; Section&lt;T&gt; {
     <span class="doccomment">/// Creates a new `Section` with an empty data map.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let section = Section::new();  
-    ///    assert!(section.data.read().unwrap().is_empty());  
+    ///    assert!(section.data.is_empty());  
     ///
     </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         Section {
-            data: Arc::new(RwLock::new(FxHashMap::default())),
+            data: DashMap::new(),
         }
     }
 
@@ -307,13 +305,12 @@
     /// This method inserts the `entity` and its corresponding `value` into the data map.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let section = Section::new();  
     ///    section.set_data(MeshEntity::Vertex(1), 10);  
     ///
     </span><span class="kw">pub fn </span>set_data(<span class="kw-2">&amp;</span><span class="self">self</span>, entity: MeshEntity, value: T) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self</span>.data.write().unwrap();
-        data.insert(entity, value);
+        <span class="self">self</span>.data.insert(entity, value);
     }
 
     <span class="doccomment">/// Restricts the data for a given `MeshEntity` by returning an immutable copy of the data  
@@ -322,7 +319,7 @@
     /// Returns `None` if no data is found for the entity.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let section = Section::new();  
     ///    let vertex = MeshEntity::Vertex(1);  
     ///    section.set_data(vertex, 42);  
@@ -332,14 +329,13 @@
     <span class="kw">where
         </span>T: Clone,
     {
-        <span class="self">self</span>.data.read().unwrap().get(entity).cloned()
+        <span class="self">self</span>.data.get(entity).map(|v| v.clone())
     }
 
-    <span class="doccomment">/// Applies the given function in parallel to update all data values in the section.  
-    /// This method uses Rayon to iterate over the data map concurrently for performance.  
+    <span class="doccomment">/// Applies the given function in parallel to update all data values in the section.
     ///
     /// Example usage:
-    /// 
+    ///
     ///    section.parallel_update(|v| *v += 1);  
     ///
     </span><span class="kw">pub fn </span>parallel_update&lt;F&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, update_fn: F)
@@ -347,8 +343,15 @@
         </span>F: Fn(<span class="kw-2">&amp;mut </span>T) + Sync + Send,
         T: Send + Sync,
     {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self</span>.data.write().unwrap();
-        data.par_iter_mut().for_each(|(<span class="kw">_</span>, v)| update_fn(v));
+        <span class="comment">// Clone the keys to ensure safe access to each mutable entry in parallel.
+        </span><span class="kw">let </span>keys: Vec&lt;MeshEntity&gt; = <span class="self">self</span>.data.iter().map(|entry| entry.key().clone()).collect();
+
+        <span class="comment">// Apply the update function to each entry in parallel.
+        </span>keys.into_par_iter().for_each(|key| {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>entry) = <span class="self">self</span>.data.get_mut(<span class="kw-2">&amp;</span>key) {
+                update_fn(entry.value_mut());
+            }
+        });
     }
 
     <span class="doccomment">/// Restricts the data for a given `MeshEntity` by returning a mutable copy of the data  
@@ -357,7 +360,7 @@
     /// Returns `None` if no data is found for the entity.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let section = Section::new();  
     ///    let vertex = MeshEntity::Vertex(1);  
     ///    section.set_data(vertex, 5);  
@@ -369,32 +372,29 @@
     <span class="kw">where
         </span>T: Clone,
     {
-        <span class="kw">let </span>data = <span class="self">self</span>.data.write().unwrap();
-        data.get(entity).cloned()
+        <span class="self">self</span>.data.get(entity).map(|v| v.clone())
     }
 
     <span class="doccomment">/// Updates the data for a specific `MeshEntity` by replacing the existing value  
     /// with the new value.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    section.update_data(&amp;MeshEntity::Vertex(1), 15);  
     ///
     </span><span class="kw">pub fn </span>update_data(<span class="kw-2">&amp;</span><span class="self">self</span>, entity: <span class="kw-2">&amp;</span>MeshEntity, new_value: T) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self</span>.data.write().unwrap();
-        data.insert(<span class="kw-2">*</span>entity, new_value);
+        <span class="self">self</span>.data.insert(<span class="kw-2">*</span>entity, new_value);
     }
 
     <span class="doccomment">/// Clears all data from the section, removing all entity associations.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    section.clear();  
-    ///    assert!(section.data.read().unwrap().is_empty());  
+    ///    assert!(section.data.is_empty());  
     ///
     </span><span class="kw">pub fn </span>clear(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="self">self</span>.data.write().unwrap();
-        data.clear();
+        <span class="self">self</span>.data.clear();
     }
 
     <span class="doccomment">/// Retrieves all `MeshEntity` objects associated with the section.  
@@ -402,12 +402,11 @@
     /// Returns a vector containing all mesh entities currently stored in the section.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let entities = section.entities();  
     ///
     </span><span class="kw">pub fn </span>entities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;MeshEntity&gt; {
-        <span class="kw">let </span>data = <span class="self">self</span>.data.read().unwrap();
-        data.keys().cloned().collect()
+        <span class="self">self</span>.data.iter().map(|entry| entry.key().clone()).collect()
     }
 
     <span class="doccomment">/// Retrieves all data stored in the section as immutable copies.  
@@ -415,15 +414,14 @@
     /// Returns a vector of data values.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let all_data = section.all_data();  
     ///
     </span><span class="kw">pub fn </span>all_data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;T&gt;
     <span class="kw">where
         </span>T: Clone,
     {
-        <span class="kw">let </span>data = <span class="self">self</span>.data.read().unwrap();
-        data.values().cloned().collect()
+        <span class="self">self</span>.data.iter().map(|entry| entry.value().clone()).collect()
     }
 
     <span class="doccomment">/// Retrieves all data stored in the section with mutable access.  
@@ -431,17 +429,17 @@
     /// Returns a vector of data values that can be modified.  
     ///
     /// Example usage:
-    /// 
+    ///
     ///    let all_data_mut = section.all_data_mut();  
     ///
     </span><span class="kw">pub fn </span>all_data_mut(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;T&gt;
     <span class="kw">where
         </span>T: Clone,
     {
-        <span class="kw">let </span>data = <span class="self">self</span>.data.write().unwrap();
-        data.values().cloned().collect()
+        <span class="self">self</span>.data.iter_mut().map(|entry| entry.value().clone()).collect()
     }
 }
+
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
