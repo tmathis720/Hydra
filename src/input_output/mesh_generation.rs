@@ -1,4 +1,4 @@
-use crate::domain::{Mesh, MeshEntity};
+use crate::domain::{mesh::Mesh, MeshEntity};
 
 pub struct MeshGenerator;
 
@@ -195,7 +195,7 @@ impl MeshGenerator {
                     let _n8 = n7 + 1;
 
                     // Define the faces and add them as MeshEntities
-                    let front_face = MeshEntity::Face(mesh.entities.len());
+                    let front_face = MeshEntity::Face(mesh.entities.read().expect("Failed to acquire read lock").len());
                     mesh.add_entity(front_face.clone());
                     mesh.add_relationship(front_face.clone(), MeshEntity::Vertex(n1));
                     mesh.add_relationship(front_face.clone(), MeshEntity::Vertex(n2));

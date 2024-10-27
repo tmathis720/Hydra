@@ -1,4 +1,4 @@
-use crate::domain::{Mesh, MeshEntity, Sieve};
+use crate::domain::{mesh::Mesh, MeshEntity, Sieve};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 

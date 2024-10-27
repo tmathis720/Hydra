@@ -187,6 +187,7 @@ mod tests {
         let expected_num_vertices = (nx + 1) * (ny + 1);
         let num_vertices = mesh
             .entities
+            .read().expect("Failed to acquire read lock")
             .iter()
             .filter(|e| matches!(e, MeshEntity::Vertex(_)))
             .count();
@@ -196,6 +197,7 @@ mod tests {
         let expected_num_cells = nx * ny;
         let num_cells = mesh
             .entities
+            .read().expect("Failed to acquire read lock")
             .iter()
             .filter(|e| matches!(e, MeshEntity::Cell(_)))
             .count();
@@ -217,6 +219,7 @@ mod tests {
         let expected_num_vertices = (nx + 1) * (ny + 1) * (nz + 1);
         let num_vertices = mesh
             .entities
+            .read().expect("Failed to acquire read lock")
             .iter()
             .filter(|e| matches!(e, MeshEntity::Vertex(_)))
             .count();
@@ -226,6 +229,7 @@ mod tests {
         let expected_num_cells = nx * ny * nz;
         let num_cells = mesh
             .entities
+            .read().expect("Failed to acquire read lock")
             .iter()
             .filter(|e| matches!(e, MeshEntity::Cell(_)))
             .count();
@@ -243,6 +247,7 @@ mod tests {
         let expected_num_vertices = num_divisions + 1;
         let num_vertices = mesh
             .entities
+            .read().expect("Failed to acquire read lock")
             .iter()
             .filter(|e| matches!(e, MeshEntity::Vertex(_)))
             .count();
@@ -252,6 +257,7 @@ mod tests {
         let expected_num_cells = num_divisions;
         let num_cells = mesh
             .entities
+            .read().expect("Failed to acquire read lock")
             .iter()
             .filter(|e| matches!(e, MeshEntity::Cell(_)))
             .count();
