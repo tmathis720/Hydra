@@ -25,7 +25,7 @@ use crossbeam::channel::{Sender, Receiver};
 ///    let entity = MeshEntity::Vertex(1);  
 ///    mesh.entities.write().unwrap().insert(entity);  
 /// 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Mesh {
     /// The sieve structure used for organizing the mesh entities' relationships.  
     pub sieve: Arc<Sieve>,  

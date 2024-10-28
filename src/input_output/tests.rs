@@ -153,6 +153,27 @@ mod tests {
     }
 
     #[test]
+    fn test_rectangle_channel_quad_mesh_import() {
+        let temp_file_path = "inputs/rectangular_channel_quad.msh2";
+
+        let result = GmshParser::from_gmsh_file(temp_file_path);
+        assert!(result.is_ok());
+
+        let mesh = result.unwrap();
+
+        let node_count = mesh.count_entities(&MeshEntity::Vertex(0)); // Count vertices (node_count)
+        let element_count = mesh.count_entities(&MeshEntity::Cell(0)); // Count cells (elements)
+        
+        // Validate the mesh structure
+        assert!(node_count > 0, "Rectangular Channel mesh node_count should not be empty");
+        assert!(element_count > 0, "Rectangular Channel mesh elements should not be empty");
+
+        // Further checks on the structure
+        assert_eq!(node_count, 147, "Incorrect number of node_count in Rectangular Channel mesh");
+        assert_eq!(element_count, 176, "Incorrect number of elements in Rectangular Channel mesh");
+    }
+
+    #[test]
     fn test_triangle_basin_mesh_import() {
         let temp_file_path = "inputs/triangular_basin.msh2";
 
