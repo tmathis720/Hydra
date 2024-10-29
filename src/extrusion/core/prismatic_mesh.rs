@@ -8,7 +8,7 @@ use crate::extrusion::core::extrudable_mesh::ExtrudableMesh;
 ///
 /// # Example
 ///
-/// ```
+/// ```rust,ignore
 /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
 /// let cells = vec![vec![0, 1, 2]];
 /// let tri_mesh = TriangularMesh::new(vertices, cells);
@@ -38,7 +38,7 @@ impl TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
     /// let cells = vec![vec![0, 1, 2]];
     /// let tri_mesh = TriangularMesh::new(vertices, cells);
@@ -60,7 +60,7 @@ impl ExtrudableMesh for TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let tri_mesh = TriangularMesh::new(...);
     /// assert!(tri_mesh.is_valid_for_extrusion());
     /// ```
@@ -77,7 +77,7 @@ impl ExtrudableMesh for TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let vertices = tri_mesh.get_vertices();
     /// ```
     fn get_vertices(&self) -> Vec<[f64; 3]> {
@@ -92,7 +92,7 @@ impl ExtrudableMesh for TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let cells = tri_mesh.get_cells();
     /// ```
     fn get_cells(&self) -> Vec<Vec<usize>> {
@@ -108,7 +108,7 @@ impl ExtrudableMesh for TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let as_any = tri_mesh.as_any();
     /// ```
     fn as_any(&self) -> &dyn Any {

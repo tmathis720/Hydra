@@ -29,7 +29,7 @@ impl ExtrusionService {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let quad_mesh = QuadrilateralMesh::new(...);
     /// let depth = 5.0;
     /// let layers = 3;

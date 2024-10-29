@@ -116,7 +116,7 @@ The `QuadrilateralMesh` struct represents a 2D mesh composed of quadrilateral ce
 
 ##### Example Usage
 
-```rust
+```rust,ignore
 let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
 let cells = vec![vec![0, 1, 2, 3]];
 let quad_mesh = QuadrilateralMesh::new(vertices, cells);
@@ -149,7 +149,7 @@ The `TriangularMesh` struct represents a 2D mesh composed of triangular cells, i
 
 ##### Example Usage
 
-```rust
+```rust,ignore
 let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
 let cells = vec![vec![0, 1, 2]];
 let tri_mesh = TriangularMesh::new(vertices, cells);
@@ -199,7 +199,7 @@ The `MeshIO` structure is responsible for reading and writing mesh data, enablin
     - Mesh validation failures
   
   - **Example Usage**:
-    ```rust
+    ```rust,ignore
     let mesh = MeshIO::load_2d_mesh("inputs/rectangle_quad.msh2")?;
     assert!(mesh.is_quad_mesh());
     ```
@@ -218,7 +218,7 @@ The `MeshIO` structure is responsible for reading and writing mesh data, enablin
     Returns an error message if the file cannot be created or written to.
 
   - **Example Usage**:
-    ```rust
+    ```rust,ignore
     let mesh = Mesh::new();
     MeshIO::save_3d_mesh(&mesh, "outputs/extruded_mesh.msh")?;
     ```
@@ -249,7 +249,7 @@ The `Logger` structure provides configurable logging functionality for tracking 
     A new `Logger` instance or an `io::Error` if file creation fails.
 
   - **Example Usage**:
-    ```rust
+    ```rust,ignore
     let mut logger = Logger::new(Some("logs/extrusion.log"))?;
     ```
 
@@ -309,7 +309,7 @@ The `ExtrusionService` struct is the main entry point for initiating the extrusi
     Returns a string error message if the mesh type is unsupported or if type-casting to `QuadrilateralMesh` or `TriangularMesh` fails.
 
   - **Example Usage**:
-    ```rust
+    ```rust,ignore
     let quad_mesh = QuadrilateralMesh::new(...);
     let depth = 5.0;
     let layers = 3;
@@ -323,7 +323,7 @@ The `extrude_mesh` method first checks if the mesh is quadrilateral or triangula
 
 ##### Example Code for Quadrilateral Mesh
 
-```rust
+```rust,ignore
 let quad_mesh = QuadrilateralMesh::new(
     vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
     vec![vec![0, 1, 2, 3]],

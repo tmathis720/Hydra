@@ -39,7 +39,7 @@ pub trait ExtrudableMesh: Debug {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// assert!(some_mesh.is_quad_mesh());
     /// ```
     fn is_quad_mesh(&self) -> bool {
@@ -54,7 +54,7 @@ pub trait ExtrudableMesh: Debug {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// assert!(some_mesh.is_tri_mesh());
     /// ```
     fn is_tri_mesh(&self) -> bool {

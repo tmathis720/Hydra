@@ -11,7 +11,7 @@ use crate::domain::mesh::Mesh;
 ///
 /// # Example
 ///
-/// ```
+/// ```rust,ignore
 /// let mesh = QuadrilateralMesh::new(...);
 /// let depth = 5.0;
 /// let layers = 3;
@@ -39,7 +39,7 @@ impl ExtrudeMeshUseCase {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let quad_mesh = QuadrilateralMesh::new(...);
     /// let result = ExtrudeMeshUseCase::extrude_to_hexahedron(&quad_mesh, 10.0, 3);
     /// assert!(result.is_ok());
@@ -91,7 +91,7 @@ impl ExtrudeMeshUseCase {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let tri_mesh = TriangularMesh::new(...);
     /// let result = ExtrudeMeshUseCase::extrude_to_prism(&tri_mesh, 5.0, 2);
     /// assert!(result.is_ok());

@@ -6,7 +6,7 @@
 ///
 /// # Example
 ///
-/// ```
+/// ```rust,ignore
 /// let quad_cells = vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7]];
 /// let layers = 3;
 /// let extruded_cells = CellExtrusion::extrude_quadrilateral_cells(quad_cells, layers);
@@ -33,7 +33,7 @@ impl CellExtrusion {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let quad_cells = vec![vec![0, 1, 2, 3]];
     /// let layers = 2;
     /// let extruded_cells = CellExtrusion::extrude_quadrilateral_cells(quad_cells, layers);
@@ -79,7 +79,7 @@ impl CellExtrusion {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let tri_cells = vec![vec![0, 1, 2]];
     /// let layers = 2;
     /// let extruded_cells = CellExtrusion::extrude_triangular_cells(tri_cells, layers);

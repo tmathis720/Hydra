@@ -4,7 +4,7 @@
 ///
 /// # Example
 ///
-/// ```
+/// ```rust,ignore
 /// let vertices = vec![[1.0, 2.0, 0.0], [3.0, 4.0, 0.0]];
 /// let depth = 10.0;
 /// let layers = 5;
@@ -39,7 +39,7 @@ impl VertexExtrusion {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let vertices = vec![[1.0, 2.0, 0.0], [3.0, 4.0, 0.0]];
     /// let depth = 10.0;
     /// let layers = 2;

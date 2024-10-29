@@ -146,32 +146,32 @@ mod tests {
 
     #[test]
     fn test_parse_node() {
-        let line = "1 0.0 1.0 2.0";
+        let line = "3 5 8.66 0";
         let (id, coords) = GmshParser::parse_node(line).unwrap();
-        assert_eq!(id, 1);
-        assert_eq!(coords, [0.0, 1.0, 2.0]);
+        assert_eq!(id, 3);
+        assert_eq!(coords, [5.0, 8.66, 0.0]);
     }
 
     #[test]
     fn test_parse_element_triangle() {
-        let line = "1 2 3 0 36 39 41";
+        let line = "58 2 2 0 1 22 23 40";
         let result = GmshParser::parse_element(line).unwrap();
 
         assert!(result.is_some(), "Expected a valid element, but got None");
         let (id, nodes) = result.unwrap();
-        assert_eq!(id, 1);
-        assert_eq!(nodes, vec![36, 39, 41]); // Should be exactly 3 nodes for a triangle
+        assert_eq!(id, 58);
+        assert_eq!(nodes, vec![22, 23, 40]); // Should be exactly 3 nodes for a triangle
     }
 
     #[test]
     fn test_parse_element_quadrilateral() {
-        let line = "2 3 3 0 65 42 69 35";
+        let line = "60 3 2 0 1 11 12 65 35";
         let result = GmshParser::parse_element(line).unwrap();
 
         assert!(result.is_some(), "Expected a valid element, but got None");
         let (id, nodes) = result.unwrap();
-        assert_eq!(id, 2);
-        assert_eq!(nodes, vec![65, 42, 69, 35]); // Should be exactly 4 nodes for a quadrilateral
+        assert_eq!(id, 60);
+        assert_eq!(nodes, vec![11, 12, 65, 35]); // Should be exactly 4 nodes for a quadrilateral
     }
 
     #[test]

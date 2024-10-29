@@ -8,7 +8,7 @@ use crate::extrusion::core::extrudable_mesh::ExtrudableMesh;
 ///
 /// # Example
 ///
-/// ```
+/// ```rust,ignore
 /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
 /// let cells = vec![vec![0, 1, 2, 3]];
 /// let quad_mesh = QuadrilateralMesh::new(vertices, cells);
@@ -39,7 +39,7 @@ impl QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
     /// let cells = vec![vec![0, 1, 2, 3]];
     /// let quad_mesh = QuadrilateralMesh::new(vertices, cells);
@@ -61,7 +61,7 @@ impl ExtrudableMesh for QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let quad_mesh = QuadrilateralMesh::new(...);
     /// assert!(quad_mesh.is_valid_for_extrusion());
     /// ```
@@ -78,7 +78,7 @@ impl ExtrudableMesh for QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let vertices = quad_mesh.get_vertices();
     /// ```
     fn get_vertices(&self) -> Vec<[f64; 3]> {
@@ -93,7 +93,7 @@ impl ExtrudableMesh for QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let cells = quad_mesh.get_cells();
     /// ```
     fn get_cells(&self) -> Vec<Vec<usize>> {
@@ -109,7 +109,7 @@ impl ExtrudableMesh for QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,ignore
     /// let as_any = quad_mesh.as_any();
     /// ```
     fn as_any(&self) -> &dyn Any {
