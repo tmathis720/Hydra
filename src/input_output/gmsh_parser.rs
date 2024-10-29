@@ -12,8 +12,6 @@ impl GmshParser {
 
         let mut mesh = Mesh::new();
         let mut _sieve = Sieve::new();
-        let mut _node_coords = Vec::<f64>::new();
-
         let mut in_nodes_section = false;
         let mut in_elements_section = false;
 
@@ -63,14 +61,14 @@ impl GmshParser {
 
             // Parse individual elements
             if in_elements_section && current_element_line <= element_count {
-                let (element_id, node_ids) = Self::parse_element(&line)?;
-                let cell = MeshEntity::Cell(element_id);
-                mesh.add_entity(cell.clone());
-
-                // Add relationships between the cell and its vertices
-                for node_id in node_ids {
-                    let vertex = MeshEntity::Vertex(node_id);
-                    mesh.add_relationship(cell.clone(), vertex);
+                if let Some((element_id, node_ids)) = Self::parse_element(&line)? {
+                    let cell = MeshEntity::Cell(element_id);
+                    mesh.add_entity(cell.clone());
+            
+                    for node_id in node_ids {
+                        let vertex = MeshEntity::Vertex(node_id);
+                        mesh.add_relationship(cell.clone(), vertex);
+                    }
                 }
                 current_element_line += 1;
             }
@@ -91,23 +89,38 @@ impl GmshParser {
     }
 
     /// Parse an element from a line in the Gmsh file
-    fn parse_element(line: &str) -> Result<(usize, Vec<usize>), io::Error> {
+    fn parse_element(line: &str) -> Result<Option<(usize, Vec<usize>)>, io::Error> {
         let mut split = line.split_whitespace();
 
         let id: usize = Self::parse_next(&mut split, "Missing element ID")?;
-        let _element_type: u32 = Self::parse_next(&mut split, "Missing element type")?;
+        let element_type: u32 = Self::parse_next(&mut split, "Missing element type")?;
 
-        // Skip physical and geometrical tags
-        let _num_tags: u32 = Self::parse_next(&mut split, "Missing number of tags")?;
-        let _tags: u32 = Self::parse_next(&mut split, "Missing tag data")?;
+        // Only process triangular elements (type `2`) and quadrilateral elements (type `3`)
+        let expected_nodes = match element_type {
+            2 => 3, // Triangle has 3 nodes
+            3 => 4, // Quadrilateral has 4 nodes
+            _ => return Ok(None), // Skip unsupported element types
+        };
 
-        // Parse node IDs for the element
+        // Skip the number of tags and all tag data
+        let num_tags: u32 = Self::parse_next(&mut split, "Missing number of tags")?;
+        for _ in 0..num_tags {
+            let _ = Self::parse_next::<u32, _>(&mut split, "Missing tag data")?;
+        }
+
+        // Parse exactly `expected_nodes` node IDs
         let node_ids: Vec<usize> = split
+            .take(expected_nodes)
             .map(|s| s.parse::<usize>())
             .collect::<Result<Vec<_>, _>>()
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
 
-        Ok((id, node_ids))
+        // Check if the correct number of nodes were parsed
+        if node_ids.len() != expected_nodes {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Incorrect node count for element"));
+        }
+
+        Ok(Some((id, node_ids)))
     }
 
     /// Utility function to parse the next value from an iterator
@@ -125,6 +138,7 @@ impl GmshParser {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
 
@@ -139,11 +153,25 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_element() {
-        let line = "1 3 4 9 5 6 7";
-        let (id, nodes) = GmshParser::parse_element(line).unwrap();
+    fn test_parse_element_triangle() {
+        let line = "1 2 3 0 36 39 41";
+        let result = GmshParser::parse_element(line).unwrap();
+
+        assert!(result.is_some(), "Expected a valid element, but got None");
+        let (id, nodes) = result.unwrap();
         assert_eq!(id, 1);
-        assert_eq!(nodes, vec![5, 6, 7]);
+        assert_eq!(nodes, vec![36, 39, 41]); // Should be exactly 3 nodes for a triangle
+    }
+
+    #[test]
+    fn test_parse_element_quadrilateral() {
+        let line = "2 3 3 0 65 42 69 35";
+        let result = GmshParser::parse_element(line).unwrap();
+
+        assert!(result.is_some(), "Expected a valid element, but got None");
+        let (id, nodes) = result.unwrap();
+        assert_eq!(id, 2);
+        assert_eq!(nodes, vec![65, 42, 69, 35]); // Should be exactly 4 nodes for a quadrilateral
     }
 
     #[test]
@@ -153,7 +181,7 @@ mod tests {
         assert!(result.is_ok());
 
         let mesh = result.unwrap();
-        assert_eq!(mesh.get_cells().len(), 849);
+        assert_eq!(mesh.get_cells().len(), 780);
     }
 
     // Similar tests for other meshes, e.g., rectangular_channel.msh2, etc.

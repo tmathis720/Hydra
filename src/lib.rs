@@ -11,6 +11,8 @@ pub mod solver;
 pub mod time_stepping;
 pub mod linalg;
 pub mod input_output;
+
+#[doc=include_str!("extrusion/docs/about_extrusion.md")]
 pub mod extrusion;
 pub mod tests;
 

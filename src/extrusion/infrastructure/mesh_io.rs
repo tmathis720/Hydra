@@ -30,37 +30,62 @@ impl MeshIO {
         let mesh = GmshParser::from_gmsh_file(file_path).map_err(|e| {
             format!("Failed to parse Gmsh file {}: {}", file_path, e.to_string())
         })?;
-
-        // Verify mesh types to confirm it’s either all quads or all triangles
-        let mut is_quad_mesh = true;
-        let mut is_tri_mesh = true;
-        
-        for cell in mesh.get_cells() {
-            let cell_vertex_count = mesh.get_cell_vertices(&cell).len();
+    
+        let mut is_quad_mesh = false;
+        let mut is_tri_mesh = false;
+    
+        // Collect only cells that are quadrilaterals or triangles
+        let mut quad_cells: Vec<Vec<usize>> = Vec::new();
+        let mut tri_cells: Vec<Vec<usize>> = Vec::new();
+    
+        // Retrieve all cell vertex indices
+        let cell_vertex_indices = mesh.get_cell_vertex_indices();
+    
+        for cell_indices in cell_vertex_indices {
+            let cell_vertex_count = cell_indices.len();
+            
             if cell_vertex_count == 4 {
-                is_tri_mesh = false; // It has quads, so not a tri-mesh
+                is_quad_mesh = true;
+                quad_cells.push(cell_indices);
+                eprintln!("Adding a quadrilateral cell with {} vertices.", cell_vertex_count); // Debug log
             } else if cell_vertex_count == 3 {
-                is_quad_mesh = false; // It has triangles, so not a quad-mesh
+                is_tri_mesh = true;
+                tri_cells.push(cell_indices);
+                eprintln!("Adding a triangular cell with {} vertices.", cell_vertex_count); // Debug log
             } else {
-                return Err("Unsupported cell type: cells must be either quadrilateral or triangular.".to_string());
+                // Log unsupported cell types
+                eprintln!("Ignoring unsupported cell with {} vertices", cell_vertex_count);
+                continue;
             }
         }
-
-        // Instantiate appropriate mesh type
-        if is_quad_mesh {
-            Ok(Box::new(QuadrilateralMesh::new(
+    
+        // Based on the collected cells, decide the predominant mesh type
+        if is_quad_mesh && !is_tri_mesh {
+            let quad_mesh = QuadrilateralMesh::new(
                 mesh.get_vertices(),
-                mesh.get_cell_vertex_indices(),
-            )))
-        } else if is_tri_mesh {
-            Ok(Box::new(TriangularMesh::new(
+                quad_cells,
+            );
+            if quad_mesh.is_valid_for_extrusion() {
+                Ok(Box::new(quad_mesh))
+            } else {
+                Err("Invalid quadrilateral mesh structure".to_string())
+            }
+        } else if is_tri_mesh && !is_quad_mesh {
+            let tri_mesh = TriangularMesh::new(
                 mesh.get_vertices(),
-                mesh.get_cell_vertex_indices(),
-            )))
+                tri_cells,
+            );
+            if tri_mesh.is_valid_for_extrusion() {
+                Ok(Box::new(tri_mesh))
+            } else {
+                Err("Invalid triangular mesh structure".to_string())
+            }
         } else {
-            Err("Mesh must be exclusively quadrilateral or triangular.".to_string())
+            Err("Mesh contains mixed cell types; currently, only meshes with exclusively quadrilateral or triangular cells are supported.".to_string())
         }
     }
+    
+    
 
     /// Saves a 3D extruded mesh to a Gmsh-compatible file.
     ///
@@ -171,7 +196,7 @@ mod tests {
 
         match result {
             Ok(mesh) => {
-                assert!(mesh.is_quad_mesh(), "Loaded mesh should be quadrilateral");
+                assert!(mesh.is_quad_mesh(), "Loaded mesh should be recognized as a quadrilateral mesh");
             },
             Err(e) => {
                 eprintln!("Error loading mesh: {}", e);
@@ -181,14 +206,26 @@ mod tests {
     }
 
     #[test]
-    /// Validates loading of a triangular mesh from a Gmsh file and its conversion to a `TriangularMesh`.
     fn test_load_triangular_mesh() {
-        let file_path = "inputs/rectangular_channel.msh2";
+        let file_path = "inputs/triangular_basin.msh2";
+
+        assert!(
+            std::path::Path::new(file_path).exists(),
+            "File not found: {}",
+            file_path
+        );
+
         let result = MeshIO::load_2d_mesh(file_path);
 
-        assert!(result.is_ok(), "Expected successful loading of triangular mesh");
-        let mesh = result.unwrap();
-        assert!(mesh.is_tri_mesh(), "Loaded mesh should be recognized as a triangular mesh");
+        match result {
+            Ok(mesh) => {
+                assert!(mesh.is_tri_mesh(), "Loaded mesh should be recognized as a triangular mesh");
+            },
+            Err(e) => {
+                eprintln!("Error loading mesh: {}", e);
+                panic!("Expected successful loading of quadrilateral mesh");
+            }
+        }
     }
 
     #[test]

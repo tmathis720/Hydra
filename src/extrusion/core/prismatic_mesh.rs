@@ -65,6 +65,7 @@ impl ExtrudableMesh for TriangularMesh {
     /// assert!(tri_mesh.is_valid_for_extrusion());
     /// ```
     fn is_valid_for_extrusion(&self) -> bool {
+        // Ensure all cells have exactly 3 vertices
         self.cells.iter().all(|cell| cell.len() == 3)
     }
 

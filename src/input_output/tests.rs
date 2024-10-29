@@ -23,7 +23,7 @@ mod tests {
 
         // Check that the number of node_count matches the expected value
         assert_eq!(node_count, 424, "Incorrect number of node_count in circle mesh");
-        assert_eq!(element_count, 849, "Incorrect number of elements in circle mesh");
+        assert_eq!(element_count, 780, "Incorrect number of elements in circle mesh");
     }
 
     #[test]
@@ -44,7 +44,7 @@ mod tests {
 
         // Add specific tests based on expected structure
         assert_eq!(node_count, 1075, "Incorrect number of node_count in Coastal Island mesh");
-        assert_eq!(element_count, 2154, "Incorrect number of elements in Coastal Island mesh");
+        assert_eq!(element_count, 1996, "Incorrect number of elements in Coastal Island mesh");
     }
 
     #[test]
@@ -65,7 +65,7 @@ mod tests {
 
         // Further checks on expected properties
         assert_eq!(node_count, 848, "Incorrect number of node_count in Lagoon mesh");
-        assert_eq!(element_count, 1697, "Incorrect number of elements in Lagoon mesh");
+        assert_eq!(element_count, 1592, "Incorrect number of elements in Lagoon mesh");
     }
 
     #[test]
@@ -86,7 +86,7 @@ mod tests {
 
         // Further checks on the structure
         assert_eq!(node_count, 695, "Incorrect number of node_count in Meandering River mesh");
-        assert_eq!(element_count, 1386, "Incorrect number of elements in Meandering River mesh");
+        assert_eq!(element_count, 1264, "Incorrect number of elements in Meandering River mesh");
     }
 
     #[test]
@@ -107,7 +107,7 @@ mod tests {
 
         // Further checks on the structure
         assert_eq!(node_count, 469, "Incorrect number of node_count in Polygon Estuary mesh");
-        assert_eq!(element_count, 941, "Incorrect number of elements in Polygon Estuary mesh");
+        assert_eq!(element_count, 861, "Incorrect number of elements in Polygon Estuary mesh");
     }
 
     #[test]
@@ -128,7 +128,7 @@ mod tests {
 
         // Further checks on the structure
         assert_eq!(node_count, 78, "Incorrect number of node_count in Rectangle mesh");
-        assert_eq!(element_count, 158, "Incorrect number of elements in Rectangle mesh");
+        assert_eq!(element_count, 124, "Incorrect number of elements in Rectangle mesh");
     }
 
     #[test]
@@ -149,7 +149,7 @@ mod tests {
 
         // Further checks on the structure
         assert_eq!(node_count, 149, "Incorrect number of node_count in Rectangular Channel mesh");
-        assert_eq!(element_count, 300, "Incorrect number of elements in Rectangular Channel mesh");
+        assert_eq!(element_count, 246, "Incorrect number of elements in Rectangular Channel mesh");
     }
 
     #[test]
@@ -170,7 +170,7 @@ mod tests {
 
         // Further checks on the structure
         assert_eq!(node_count, 147, "Incorrect number of node_count in Rectangular Channel mesh");
-        assert_eq!(element_count, 176, "Incorrect number of elements in Rectangular Channel mesh");
+        assert_eq!(element_count, 120, "Incorrect number of elements in Rectangular Channel mesh");
     }
 
     #[test]
@@ -192,7 +192,7 @@ mod tests {
 
         // Further checks on the structure
         assert_eq!(node_count, 66, "Incorrect number of node_count in Triangular Basin mesh");
-        assert_eq!(element_count, 133, "Incorrect number of elements in Triangular Basin mesh");
+        assert_eq!(element_count, 100, "Incorrect number of elements in Triangular Basin mesh");
     }
 
     #[test]

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::extrusion::{
-        core::{hexahedral_mesh::QuadrilateralMesh, prismatic_mesh::TriangularMesh},
+        core::{extrudable_mesh::ExtrudableMesh, hexahedral_mesh::QuadrilateralMesh, prismatic_mesh::TriangularMesh},
         infrastructure::logger::Logger,
         interface_adapters::extrusion_service::ExtrusionService,
         use_cases::extrude_mesh::ExtrudeMeshUseCase,
@@ -24,24 +24,13 @@ mod tests {
         assert!(extruded_mesh.is_ok());
         let extruded_mesh = extruded_mesh.unwrap();
 
-        // The expected number of vertices should be (nx + 1) * (ny + 1) * (layers + 1)
-        let expected_vertices = 78 * (layers + 1); // 78 vertices in base 2D mesh
-        let num_vertices = extruded_mesh
-            .entities
-            .read().expect("Failed to acquire read lock")
-            .iter()
-            .filter(|e| matches!(e, MeshEntity::Vertex(_)))
-            .count();
+        // Verify the expected number of vertices and cells in the extruded mesh
+        let expected_vertices = quad_mesh.get_vertices().len() * (layers + 1);
+        let num_vertices = extruded_mesh.count_entities(&MeshEntity::Vertex(0));
         assert_eq!(num_vertices, expected_vertices, "Incorrect number of vertices in extruded hexahedron mesh");
 
-        // The expected number of cells should be nx * ny * layers
-        let expected_cells = 96 * layers; // 96 quadrilateral cells in base mesh
-        let num_cells = extruded_mesh
-            .entities
-            .read().expect("Failed to acquire read lock")
-            .iter()
-            .filter(|e| matches!(e, MeshEntity::Cell(_)))
-            .count();
+        let expected_cells = quad_mesh.get_cells().len() * layers;
+        let num_cells = extruded_mesh.count_entities(&MeshEntity::Cell(0));
         assert_eq!(num_cells, expected_cells, "Incorrect number of cells in extruded hexahedron mesh");
     }
 
@@ -60,24 +49,12 @@ mod tests {
         assert!(extruded_mesh.is_ok());
         let extruded_mesh = extruded_mesh.unwrap();
 
-        // The expected number of vertices should be num_vertices_2d * (layers + 1)
-        let expected_vertices = 66 * (layers + 1); // 66 vertices in base 2D triangular mesh
-        let num_vertices = extruded_mesh
-            .entities
-            .read().expect("Failed to acquire read lock")
-            .iter()
-            .filter(|e| matches!(e, MeshEntity::Vertex(_)))
-            .count();
+        let expected_vertices = tri_mesh.get_vertices().len() * (layers + 1);
+        let num_vertices = extruded_mesh.count_entities(&MeshEntity::Vertex(0));
         assert_eq!(num_vertices, expected_vertices, "Incorrect number of vertices in extruded prismatic mesh");
 
-        // The expected number of cells should be num_cells_2d * layers
-        let expected_cells = 133 * layers; // 133 triangular cells in base mesh
-        let num_cells = extruded_mesh
-            .entities
-            .read().expect("Failed to acquire read lock")
-            .iter()
-            .filter(|e| matches!(e, MeshEntity::Cell(_)))
-            .count();
+        let expected_cells = tri_mesh.get_cells().len() * layers;
+        let num_cells = extruded_mesh.count_entities(&MeshEntity::Cell(0));
         assert_eq!(num_cells, expected_cells, "Incorrect number of cells in extruded prismatic mesh");
     }
 
