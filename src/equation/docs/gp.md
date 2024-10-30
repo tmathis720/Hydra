@@ -64,3 +64,5 @@ These issues likely stem from a combination of data initialization and unexpecte
 ### Summary
 
 The `compute_gradient` function in Hydra’s `Gradient` struct is designed to calculate spatial gradients across mesh cells but is currently limited by errors related to incomplete mesh data, unsupported shapes, and unhandled boundary conditions. Future debugging should consider complete mesh initialization, additional error handling for geometry methods, and further validation steps to ensure each mesh entity has adequate spatial data before performing calculations. This will ensure the robustness of Hydra’s gradient computation process, a core component for simulating geophysical fluid flows accurately.
+
+---

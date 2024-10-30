@@ -4,32 +4,37 @@ use crate::geometry::{Geometry, CellShape, FaceShape};
 use dashmap::DashMap;
 
 impl Mesh {
-    /// Retrieves all the faces of a given cell.  
+    /// Retrieves all the faces of a given cell, filtering only face entities.
     ///
-    /// This method uses the `cone` function of the sieve to obtain all the faces  
-    /// connected to the given cell.  
-    ///
-    /// Returns a set of `MeshEntity` representing the faces of the cell, or  
-    /// `None` if the cell has no connected faces.  
+    /// Returns a set of `MeshEntity` representing the faces of the cell, or
+    /// `None` if the cell has no connected faces.
     ///
     pub fn get_faces_of_cell(&self, cell: &MeshEntity) -> Option<DashMap<MeshEntity, ()>> {
         self.sieve.cone(cell).map(|set| {
             let faces = DashMap::new();
-            set.into_iter().for_each(|face| { faces.insert(face, ()); });
+            set.into_iter()
+                .filter(|entity| matches!(entity, MeshEntity::Face(_)))
+                .for_each(|face| {
+                    faces.insert(face, ());
+                });
             faces
         })
     }
 
-    /// Retrieves all the cells that share the given face.  
+    /// Retrieves all the cells that share the given face, filtering only cell entities that are present in the mesh.
     ///
-    /// This method uses the `support` function of the sieve to obtain all the cells  
-    /// that are connected to the given face.  
-    ///
-    /// Returns a set of `MeshEntity` representing the neighboring cells.  
+    /// Returns a set of `MeshEntity` representing the neighboring cells.
     ///
     pub fn get_cells_sharing_face(&self, face: &MeshEntity) -> DashMap<MeshEntity, ()> {
         let cells = DashMap::new();
-        self.sieve.support(face).into_iter().for_each(|cell| { cells.insert(cell, ()); });
+        let entities = self.entities.read().unwrap();
+        self.sieve
+            .support(face)
+            .into_iter()
+            .filter(|entity| matches!(entity, MeshEntity::Cell(_)) && entities.contains(entity))
+            .for_each(|cell| {
+                cells.insert(cell, ());
+            });
         cells
     }
 
@@ -125,41 +130,41 @@ impl Mesh {
         }
     }
 
-    /// Retrieves the vertices of a cell and their coordinates.  
+    /// Retrieves the vertices of a cell and their coordinates, sorted by vertex ID.
     ///
     pub fn get_cell_vertices(&self, cell: &MeshEntity) -> Vec<[f64; 3]> {
-        let mut vertices = Vec::new();
-    
+        let mut vertex_ids_and_coords = Vec::new();
         if let Some(connected_entities) = self.sieve.cone(cell) {
             for entity in connected_entities {
                 if let MeshEntity::Vertex(vertex_id) = entity {
                     if let Some(coords) = self.get_vertex_coordinates(vertex_id) {
-                        vertices.push(coords);
+                        vertex_ids_and_coords.push((vertex_id, coords));
                     } else {
                         panic!("Coordinates for vertex {} not found", vertex_id);
                     }
                 }
             }
+            // Sort the vertices based on their IDs
+            vertex_ids_and_coords.sort_by_key(|&(vertex_id, _)| vertex_id);
         }
-
-        vertices.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        vertices.dedup();
-        vertices
+        vertex_ids_and_coords.into_iter().map(|(_, coords)| coords).collect()
     }
 
-    /// Retrieves the vertices of a face and their coordinates.  
+    /// Retrieves the vertices of a face and their coordinates, sorted by vertex ID.
     ///
     pub fn get_face_vertices(&self, face: &MeshEntity) -> Vec<[f64; 3]> {
-        let mut vertices = Vec::new();
+        let mut vertex_ids_and_coords = Vec::new();
         if let Some(connected_vertices) = self.sieve.cone(face) {
             for vertex in connected_vertices {
                 if let MeshEntity::Vertex(vertex_id) = vertex {
                     if let Some(coords) = self.get_vertex_coordinates(vertex_id) {
-                        vertices.push(coords);
+                        vertex_ids_and_coords.push((vertex_id, coords));
                     }
                 }
             }
+            // Sort the vertices based on their IDs
+            vertex_ids_and_coords.sort_by_key(|&(vertex_id, _)| vertex_id);
         }
-        vertices
+        vertex_ids_and_coords.into_iter().map(|(_, coords)| coords).collect()
     }
 }
