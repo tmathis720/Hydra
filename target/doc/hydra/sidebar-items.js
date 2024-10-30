@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["boundary","domain","geometry","input_output","linalg","solver","tests","time_stepping"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["entity_fill","mesh","mesh_entity","overlap","section","sieve","stratify"]};

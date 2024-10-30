@@ -1,3 +1,0 @@
-(function() {var implementors = {
-"faer":[["impl&lt;'n, T&gt; !<a class=\"trait\" href=\"https://doc.rust-lang.org/1.80.1/core/marker/trait.Sized.html\" title=\"trait core::marker::Sized\">Sized</a> for <a class=\"struct\" href=\"faer/utils/constrained/struct.Array.html\" title=\"struct faer::utils::constrained::Array\">Array</a>&lt;'n, T&gt;",1,["faer::utils::constrained::Array"]]]
-};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

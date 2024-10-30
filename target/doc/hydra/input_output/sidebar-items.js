@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["gmsh_parser","mesh_generation"]};

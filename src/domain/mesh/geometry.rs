@@ -58,7 +58,7 @@ impl Mesh {
         };
 
         let mut geometry = Geometry::new();
-        let face_id = face.id();
+        let face_id = face.get_id();
         geometry.compute_face_area(face_id, face_shape, &face_vertices)
     }
 

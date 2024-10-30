@@ -163,7 +163,7 @@ impl Mesh {
     /// Example usage:
     /// 
     ///    let properties = mesh.compute_properties(|entity| {  
-    ///        entity.id()  
+    ///        entity.get_id()  
     ///    });  
     ///
     pub fn compute_properties<F, PropertyType>(&self, compute_fn: F) -> FxHashMap<MeshEntity, PropertyType>
@@ -176,5 +176,31 @@ impl Mesh {
             .par_iter()
             .map(|entity| (*entity, compute_fn(entity)))
             .collect()
+    }
+
+    /// Retrieves the ordered neighboring cells for each cell in the mesh.
+    ///
+    /// This method is designed for use in flux computations and gradient reconstruction,
+    /// and returns the neighboring cells in a predetermined, consistent order.
+    ///
+    /// # Arguments
+    /// * `cell` - The cell entity for which neighbors are retrieved.
+    ///
+    /// # Returns
+    /// A vector of neighboring cells ordered for consistency in TVD calculations.
+    pub fn get_ordered_neighbors(&self, cell: &MeshEntity) -> Vec<MeshEntity> {
+        let mut neighbors = Vec::new();
+        if let Some(faces) = self.get_faces_of_cell(cell) {
+            for face in faces.iter() {
+                let cells_sharing_face = self.get_cells_sharing_face(&face.key());
+                for neighbor in cells_sharing_face.iter() {
+                    if *neighbor.key() != *cell {
+                        neighbors.push(*neighbor.key());
+                    }
+                }
+            }
+        }
+        neighbors.sort_by(|a, b| a.get_id().cmp(&b.get_id())); // Ensures consistent ordering by ID
+        neighbors
     }
 }

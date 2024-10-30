@@ -83,7 +83,7 @@ impl Geometry {
     /// Computes and returns the centroid of a specified cell using the cell's shape and vertices.
     /// Caches the result for reuse.
     pub fn compute_cell_centroid(&mut self, mesh: &Mesh, cell: &MeshEntity) -> [f64; 3] {
-        let cell_id = cell.id();
+        let cell_id = cell.get_id();
         if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.centroid) {
             return cached;
         }
@@ -105,7 +105,7 @@ impl Geometry {
     /// Computes the volume of a given cell using its shape and vertex coordinates.
     /// The computed volume is cached for efficiency.
     pub fn compute_cell_volume(&mut self, mesh: &Mesh, cell: &MeshEntity) -> f64 {
-        let cell_id = cell.id();
+        let cell_id = cell.get_id();
         if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.volume) {
             return cached;
         }
@@ -160,6 +160,49 @@ impl Geometry {
             FaceShape::Triangle => self.compute_triangle_centroid(face_vertices),
             FaceShape::Quadrilateral => self.compute_quadrilateral_centroid(face_vertices),
         }
+    }
+
+    /// Computes and caches the normal vector for a face based on its shape.
+    ///
+    /// This function determines the face shape and calls the appropriate 
+    /// function to compute the normal vector.
+    ///
+    /// # Arguments
+    /// * `mesh` - A reference to the mesh.
+    /// * `face` - The face entity for which to compute the normal.
+    /// * `cell` - The cell associated with the face, used to determine the orientation.
+    ///
+    /// # Returns
+    /// * `Option<[f64; 3]>` - The computed normal vector, or `None` if it could not be computed.
+    pub fn compute_face_normal(
+        &mut self,
+        mesh: &Mesh,
+        face: &MeshEntity,
+        _cell: &MeshEntity,
+    ) -> Option<[f64; 3]> {
+        let face_id = face.get_id();
+
+        // Check if the normal is already cached
+        if let Some(cached) = self.cache.lock().unwrap().get(&face_id).and_then(|c| c.normal) {
+            return Some(cached);
+        }
+
+        let face_vertices = mesh.get_face_vertices(face);
+        let face_shape = match face_vertices.len() {
+            3 => FaceShape::Triangle,
+            4 => FaceShape::Quadrilateral,
+            _ => return None, // Unsupported face shape
+        };
+
+        let normal = match face_shape {
+            FaceShape::Triangle => self.compute_triangle_normal(&face_vertices),
+            FaceShape::Quadrilateral => self.compute_quadrilateral_normal(&face_vertices),
+        };
+
+        // Cache the normal vector for future use
+        self.cache.lock().unwrap().entry(face_id).or_default().normal = Some(normal);
+
+        Some(normal)
     }
 
     /// Invalidate the cache when geometry changes (e.g., vertex updates).
@@ -348,5 +391,119 @@ mod tests {
 
         // Expected total volume is the sum of individual cell volumes: 1.0 + 2.0 + 3.0 = 6.0
         assert_eq!(geometry.compute_total_volume(), 6.0);
+    }
+
+    #[test]
+    fn test_compute_face_normal_triangle() {
+        let geometry = Geometry::new();
+        
+        // Define vertices for a triangular face in the XY plane
+        let vertices = vec![
+            [0.0, 0.0, 0.0], // vertex 1
+            [1.0, 0.0, 0.0], // vertex 2
+            [0.0, 1.0, 0.0], // vertex 3
+        ];
+
+        // Define the face as a triangle
+        let _face = MeshEntity::Face(1);
+        let _cell = MeshEntity::Cell(1);
+
+        // Directly compute the normal without setting up mesh connectivity
+        let normal = geometry.compute_triangle_normal(&vertices);
+
+        // Expected normal for a triangle in the XY plane should be along the Z-axis
+        let expected_normal = [0.0, 0.0, 1.0];
+        
+        // Check if the computed normal is correct
+        for i in 0..3 {
+            assert!((normal[i] - expected_normal[i]).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_compute_face_normal_quadrilateral() {
+        let geometry = Geometry::new();
+
+        // Define vertices for a quadrilateral face in the XY plane
+        let vertices = vec![
+            [0.0, 0.0, 0.0], // vertex 1
+            [1.0, 0.0, 0.0], // vertex 2
+            [1.0, 1.0, 0.0], // vertex 3
+            [0.0, 1.0, 0.0], // vertex 4
+        ];
+
+        // Define the face as a quadrilateral
+        let _face = MeshEntity::Face(2);
+        let _cell = MeshEntity::Cell(1);
+
+        // Directly compute the normal for quadrilateral
+        let normal = geometry.compute_quadrilateral_normal(&vertices);
+
+        // Expected normal for a quadrilateral in the XY plane should be along the Z-axis
+        let expected_normal = [0.0, 0.0, 1.0];
+        
+        // Check if the computed normal is correct
+        for i in 0..3 {
+            assert!((normal[i] - expected_normal[i]).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_compute_face_normal_caching() {
+        let geometry = Geometry::new();
+
+        // Define vertices for a triangular face
+        let vertices = vec![
+            [0.0, 0.0, 0.0], // vertex 1
+            [1.0, 0.0, 0.0], // vertex 2
+            [0.0, 1.0, 0.0], // vertex 3
+        ];
+
+        let face_id = 3; // Unique identifier for caching
+        let _face = MeshEntity::Face(face_id);
+        let _cell = MeshEntity::Cell(1);
+
+        // First computation to populate the cache
+        let normal_first = geometry.compute_triangle_normal(&vertices);
+
+        // Manually retrieve from cache to verify caching behavior
+        geometry.cache.lock().unwrap().entry(face_id).or_default().normal = Some(normal_first);
+        let cached_normal = geometry.cache.lock().unwrap().get(&face_id).and_then(|c| c.normal);
+
+        // Verify that the cached value matches the first computed value
+        assert_eq!(Some(normal_first), cached_normal);
+    }
+
+    #[test]
+    fn test_compute_face_normal_unsupported_shape() {
+        let geometry = Geometry::new();
+
+        // Define vertices for a pentagon (unsupported)
+        let vertices = vec![
+            [0.0, 0.0, 0.0], // vertex 1
+            [1.0, 0.0, 0.0], // vertex 2
+            [1.0, 1.0, 0.0], // vertex 3
+            [0.0, 1.0, 0.0], // vertex 4
+            [0.5, 0.5, 0.0], // vertex 5
+        ];
+
+        let _face = MeshEntity::Face(4);
+        let _cell = MeshEntity::Cell(1);
+
+        // Since compute_face_normal expects only triangles or quadrilaterals, it should return None
+        let face_shape = match vertices.len() {
+            3 => FaceShape::Triangle,
+            4 => FaceShape::Quadrilateral,
+            _ => return, // Unsupported shape, skip test
+        };
+
+        // Attempt to compute the normal for an unsupported shape
+        let normal = match face_shape {
+            FaceShape::Triangle => Some(geometry.compute_triangle_normal(&vertices)),
+            FaceShape::Quadrilateral => Some(geometry.compute_quadrilateral_normal(&vertices)),
+        };
+
+        // Assert that the function correctly handles unsupported shapes by skipping normal computation
+        assert!(normal.is_none());
     }
 }

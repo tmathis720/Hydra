@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"macro":["col","mat","row","unzipped","zipped"],"struct":["IdentityGroup"],"trait":["ComplexField","Conjugate","Entity","RealField","SimpleEntity"]};

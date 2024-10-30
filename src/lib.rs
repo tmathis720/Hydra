@@ -14,6 +14,8 @@ pub mod input_output;
 
 #[doc=include_str!("extrusion/docs/about_extrusion.md")]
 pub mod extrusion;
+
+pub mod equation;
 pub mod tests;
 
 pub use geometry::{Geometry, CellShape, FaceShape};

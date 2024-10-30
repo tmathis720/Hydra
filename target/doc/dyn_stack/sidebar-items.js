@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["mem"],"struct":["DynArray","DynStack","PodStack","SizeOverflow","StackReq"],"trait":["ReborrowMut"]};

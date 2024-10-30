@@ -99,7 +99,7 @@ impl<T> Section<T> {
     ///    value = 10;  
     ///    section.set_data(vertex, value);  
     ///
-    pub fn restrict_mut(&self, entity: &MeshEntity) -> Option<T>
+    pub fn restrict_data_mut(&self, entity: &MeshEntity) -> Option<T>
     where
         T: Clone,
     {
@@ -215,7 +215,7 @@ mod tests {
         let vertex = MeshEntity::Vertex(1);
 
         section.set_data(vertex, 5);
-        if let Some(mut value) = section.restrict_mut(&vertex) {
+        if let Some(mut value) = section.restrict_data_mut(&vertex) {
             value = 50;
             section.set_data(vertex, value);
         }

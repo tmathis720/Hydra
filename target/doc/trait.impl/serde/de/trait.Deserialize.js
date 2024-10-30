@@ -1,4 +1,0 @@
-(function() {var implementors = {
-"faer":[["impl&lt;'a, E&gt; <a class=\"trait\" href=\"serde/de/trait.Deserialize.html\" title=\"trait serde::de::Deserialize\">Deserialize</a>&lt;'a&gt; for <a class=\"struct\" href=\"faer/mat/struct.Mat.html\" title=\"struct faer::mat::Mat\">Mat</a>&lt;E&gt;<div class=\"where\">where\n    E: <a class=\"trait\" href=\"serde/de/trait.Deserialize.html\" title=\"trait serde::de::Deserialize\">Deserialize</a>&lt;'a&gt; + <a class=\"trait\" href=\"faer/trait.Entity.html\" title=\"trait faer::Entity\">Entity</a>,</div>"]],
-"serde":[]
-};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

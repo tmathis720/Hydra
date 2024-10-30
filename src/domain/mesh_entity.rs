@@ -13,9 +13,9 @@
 ///
 ///    let vertex = MeshEntity::Vertex(1);  
 ///    let edge = MeshEntity::Edge(2);  
-///    assert_eq!(vertex.id(), 1);  
-///    assert_eq!(vertex.entity_type(), "Vertex");  
-///    assert_eq!(edge.id(), 2);  
+///    assert_eq!(vertex.get_id(), 1);  
+///    assert_eq!(vertex..get_entity_type(), "Vertex");  
+///    assert_eq!(edge.get_id(), 2);  
 /// 
 #[derive(Debug, Hash, Eq, PartialEq, PartialOrd, Clone, Copy)]
 pub enum MeshEntity {
@@ -34,9 +34,9 @@ impl MeshEntity {
     /// Example usage:
     /// 
     ///    let vertex = MeshEntity::Vertex(3);  
-    ///    assert_eq!(vertex.id(), 3);  
+    ///    assert_eq!(vertex.get_id(), 3);  
     ///
-    pub fn id(&self) -> usize {
+    pub fn get_id(&self) -> usize {
         match *self {
             MeshEntity::Vertex(id) => id,
             MeshEntity::Edge(id) => id,
@@ -51,14 +51,26 @@ impl MeshEntity {
     /// Example usage:
     /// 
     ///    let face = MeshEntity::Face(1);  
-    ///    assert_eq!(face.entity_type(), "Face");  
+    ///    assert_eq!(face..get_entity_type(), "Face");  
     ///
-    pub fn entity_type(&self) -> &str {
+    pub fn get_entity_type(&self) -> &str {
         match *self {
             MeshEntity::Vertex(_) => "Vertex",
             MeshEntity::Edge(_) => "Edge",
             MeshEntity::Face(_) => "Face",
             MeshEntity::Cell(_) => "Cell",
+        }
+    }
+
+    /// Creates a new `MeshEntity` with a specified id for each variant type.
+    /// This is a pseudo-set function since enums require construction with
+    /// new data to update the id.
+    pub fn with_id(&self, new_id: usize) -> Self {
+        match *self {
+            MeshEntity::Vertex(_) => MeshEntity::Vertex(new_id),
+            MeshEntity::Edge(_) => MeshEntity::Edge(new_id),
+            MeshEntity::Face(_) => MeshEntity::Face(new_id),
+            MeshEntity::Cell(_) => MeshEntity::Cell(new_id),
         }
     }
 }
@@ -101,7 +113,7 @@ impl Arrow {
     /// 
     ///    let vertex = MeshEntity::Vertex(5);  
     ///    let entity = Arrow::add_entity(vertex);  
-    ///    assert_eq!(entity.id(), 5);  
+    ///    assert_eq!(entity.get_id(), 5);  
     ///
     pub fn add_entity<T: Into<MeshEntity>>(entity: T) -> MeshEntity {
         entity.into()
@@ -121,6 +133,16 @@ impl Arrow {
     pub fn get_relation(&self) -> (&MeshEntity, &MeshEntity) {
         (&self.from, &self.to)
     }
+
+    /// Sets the `from` entity in the `Arrow`.
+    pub fn set_from(&mut self, from: MeshEntity) {
+        self.from = from;
+    }
+
+    /// Sets the `to` entity in the `Arrow`.
+    pub fn set_to(&mut self, to: MeshEntity) {
+        self.to = to;
+    }
 }
 
 #[cfg(test)]
@@ -131,8 +153,8 @@ mod tests {
     /// Test that verifies the id and type of a `MeshEntity` are correctly returned.  
     fn test_entity_id_and_type() {
         let vertex = MeshEntity::Vertex(1);
-        assert_eq!(vertex.id(), 1);
-        assert_eq!(vertex.entity_type(), "Vertex");
+        assert_eq!(vertex.get_id(), 1);
+        assert_eq!(vertex.get_entity_type(), "Vertex");
     }
 
     #[test]
@@ -153,7 +175,15 @@ mod tests {
         let vertex = MeshEntity::Vertex(5);
         let added_entity = Arrow::add_entity(vertex);
 
-        assert_eq!(added_entity.id(), 5);
-        assert_eq!(added_entity.entity_type(), "Vertex");
+        assert_eq!(added_entity.get_id(), 5);
+        assert_eq!(added_entity.get_entity_type(), "Vertex");
+    }
+
+    #[test]
+    fn test_with_id() {
+        let edge = MeshEntity::Edge(5);
+        let new_edge = edge.with_id(10);
+        assert_eq!(new_edge.get_id(), 10);
+        assert_eq!(new_edge.get_entity_type(), "Edge");
     }
 }

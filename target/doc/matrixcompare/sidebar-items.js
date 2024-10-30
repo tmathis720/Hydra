@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Access","Entry","MatrixComparisonFailure"],"fn":["compare_matrices","compare_scalars"],"macro":["assert_matrix_eq","assert_scalar_eq"],"mod":["comparators","ulp"],"struct":["DimensionMismatch","ElementsMismatch","MatrixElementComparisonFailure","ScalarComparisonFailure"],"trait":["DenseAccess","Matrix","SparseAccess"],"type":["Coordinate"]};

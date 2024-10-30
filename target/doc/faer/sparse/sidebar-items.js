@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["CreationError","FaerError","FillMode"],"mod":["linalg","ops","solvers","utils"],"struct":["SparseColMat","SparseColMatMut","SparseColMatRef","SparseRowMat","SparseRowMatMut","SparseRowMatRef","SymbolicSparseColMat","SymbolicSparseColMatRef","SymbolicSparseRowMat","SymbolicSparseRowMatRef","ValuesOrder"]};
