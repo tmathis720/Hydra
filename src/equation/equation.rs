@@ -1,17 +1,33 @@
 // src/equation/equation.rs
 
-use crate::domain::{mesh::Mesh, MeshEntity, Section};
-use crate::equation::gradient::gradient_calc::Gradient;
+use crate::domain::{mesh::Mesh, Section};
 use crate::boundary::{bc_handler::BoundaryConditionHandler, bc_handler::BoundaryCondition};
 use crate::equation::reconstruction::reconstruct::reconstruct_face_value;
-use crate::geometry::Geometry;
+use crate::geometry::{FaceShape, Geometry};
+use crate::domain::mesh_entity::MeshEntity;
 
+/// `Equation` is a struct representing the primary fluid flow equations (momentum and continuity)
+/// for use in the finite volume method. It calculates fluxes at the faces of control volumes
+/// in the domain mesh, using methods such as TVD (Total Variation Diminishing) upwinding,
+/// to achieve stable and accurate flux approximations at cell interfaces.
 pub struct Equation {
-    // Define any necessary fields, such as parameters or constants
+    // Define any necessary fields, such as parameters or constants.
+    // Fields may include solver parameters, constants, or other data required by the equation.
 }
 
 impl Equation {
-    /// Calculates fluxes at cell faces using TVD upwinding
+    /// Calculates fluxes at each face of the cells in a mesh using TVD upwinding.
+    /// This method iterates over each face in the mesh and applies the upwinding scheme to compute
+    /// fluxes, which are stored in the `fluxes` section. For boundary faces, it applies the 
+    /// boundary conditions accordingly.
+    ///
+    /// # Parameters
+    /// - `domain`: Reference to the domain mesh, containing mesh geometry and topology.
+    /// - `field`: Section with scalar field values (e.g., pressure) for each cell in the mesh.
+    /// - `gradient`: Section with gradient vectors for each cell, aiding flux reconstruction.
+    /// - `velocity_field`: Section containing velocity vectors for each cell.
+    /// - `fluxes`: Mutable section to store computed flux values at each face.
+    /// - `boundary_handler`: Reference to boundary condition handler, managing BCs for faces.
     pub fn calculate_fluxes(
         &self,
         domain: &Mesh,
@@ -19,120 +35,138 @@ impl Equation {
         gradient: &Section<[f64; 3]>,
         velocity_field: &Section<[f64; 3]>,
         fluxes: &mut Section<f64>,
+        boundary_handler: &BoundaryConditionHandler,
     ) {
-        let mesh = &domain.mesh;
-        let boundary_handler = &domain.boundary_handler;
-        let geometry = Geometry::new();
+        let mut geometry = Geometry::new();
 
-        for face in mesh.get_faces() {
-            // Get the cells sharing this face
-            let neighbor_cells = mesh.get_cells_sharing_face(&face);
+        // Iterate only over face entities in the mesh
+        for face in domain.entities.read().unwrap().iter().filter_map(|e| {
+            if let MeshEntity::Face(_) = e {
+                Some(e)
+            } else {
+                None
+            }
+        }) {
+            // Identify cells sharing this face
+            let neighbor_cells = domain.get_cells_sharing_face(face);
             let cells: Vec<_> = neighbor_cells.iter().map(|entry| entry.key().clone()).collect();
 
-            // Get the face normal and area
-            let face_vertices = mesh.get_face_vertices(&face);
+            // Ensure face geometry is valid by checking vertex count
+            let face_vertices = domain.get_face_vertices(face);
             let face_shape = match face_vertices.len() {
-                3 => crate::FaceShape::Triangle,
-                4 => crate::FaceShape::Quadrilateral,
-                _ => continue, // Skip unsupported face shapes
+                3 => FaceShape::Triangle,
+                4 => FaceShape::Quadrilateral,
+                _ => continue, // Unsupported face shape; skip processing
             };
 
-            let face_normal = geometry.compute_face_normal(mesh, &face, &cells[0]).unwrap();
+            // Compute face normal and area for flux calculation
+            let face_normal = geometry.compute_face_normal(domain, face, &cells[0]).unwrap();
             let face_area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
 
-            // Compute the unit normal vector
+            // Normalize face normal vector for consistent flux computation
             let mut normal = face_normal;
             let normal_length = (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]).sqrt();
             for i in 0..3 {
                 normal[i] /= normal_length;
             }
 
-            // Initialize variables
+            // Initialize variables for flux computation at this face
             let mut left_value = 0.0;
             let mut right_value = 0.0;
             let mut velocity = 0.0;
 
-            // Handle internal faces
             if cells.len() == 2 {
+                // Internal face (shared by two cells)
                 let cell_left = &cells[0];
                 let cell_right = &cells[1];
 
-                // Get cell values and gradients
+                // Retrieve field values and gradients for left and right cells
                 let phi_left = field.restrict(cell_left).unwrap();
                 let grad_left = gradient.restrict(cell_left).unwrap();
                 let phi_right = field.restrict(cell_right).unwrap();
                 let grad_right = gradient.restrict(cell_right).unwrap();
 
-                // Get cell centers and face center
-                let cell_left_center = geometry.compute_cell_centroid(mesh, cell_left);
-                let cell_right_center = geometry.compute_cell_centroid(mesh, cell_right);
+                // Retrieve centers for left and right cells, and face center
+                let cell_left_center = geometry.compute_cell_centroid(domain, cell_left);
+                let cell_right_center = geometry.compute_cell_centroid(domain, cell_right);
                 let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
 
-                // Reconstruct face values from both sides
-                left_value = reconstruct_face_value(*phi_left, *grad_left, cell_left_center, face_center);
-                right_value = reconstruct_face_value(*phi_right, *grad_right, cell_right_center, face_center);
+                // Reconstruct face values from left and right cell data
+                left_value = reconstruct_face_value(phi_left, grad_left, cell_left_center, face_center);
+                right_value = reconstruct_face_value(phi_right, grad_right, cell_right_center, face_center);
 
-                // Compute velocity at the face (e.g., average of cell velocities)
+                // Compute normal component of velocity at the face by averaging
                 let vel_left = velocity_field.restrict(cell_left).unwrap();
                 let vel_right = velocity_field.restrict(cell_right).unwrap();
-
-                // Project velocity onto face normal to get normal component
                 let vel_normal_left = vel_left[0] * normal[0] + vel_left[1] * normal[1] + vel_left[2] * normal[2];
                 let vel_normal_right = vel_right[0] * normal[0] + vel_right[1] * normal[1] + vel_right[2] * normal[2];
 
-                // Average velocity normal component
+                // Average the normal component of velocity across the face
                 velocity = 0.5 * (vel_normal_left + vel_normal_right);
+
             } else if cells.len() == 1 {
-                // Boundary face
+                // Boundary face (shared by a single cell)
                 let cell_left = &cells[0];
                 let phi_left = field.restrict(cell_left).unwrap();
                 let grad_left = gradient.restrict(cell_left).unwrap();
-                let cell_left_center = geometry.compute_cell_centroid(mesh, cell_left);
+                let cell_left_center = geometry.compute_cell_centroid(domain, cell_left);
                 let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
 
-                // Reconstruct face value from inside the domain
-                left_value = reconstruct_face_value(*phi_left, *grad_left, cell_left_center, face_center);
+                // Reconstruct face value from internal cell data
+                left_value = reconstruct_face_value(phi_left, grad_left, cell_left_center, face_center);
 
-                // Handle boundary condition to get right_value
-                if let Some(bc) = boundary_handler.get_bc(&face) {
+                // Apply boundary condition on face to determine right value
+                if let Some(bc) = boundary_handler.get_bc(face) {
                     match bc {
                         BoundaryCondition::Dirichlet(value) => {
-                            right_value = *value;
+                            // Dirichlet BC: set the right value as the specified boundary value
+                            right_value = value;
                         }
                         BoundaryCondition::Neumann(_) => {
-                            // For Neumann BC, we need special handling (omitted for brevity)
-                            right_value = left_value; // Simplification; may need adjustment
+                            // Neumann BC: no flux adjustment here; assign left value as default
+                            right_value = left_value;
                         }
                         _ => {
-                            // Handle other boundary conditions as needed
-                            right_value = left_value; // Default to left_value
+                            // Other BCs not specifically handled default to left value
+                            right_value = left_value;
                         }
                     }
                 } else {
-                    // No boundary condition specified; default to left_value
+                    // Default if no boundary condition is specified
                     right_value = left_value;
                 }
 
-                // Get cell velocity and project onto face normal
+                // Calculate velocity normal component at face from left cell data
                 let vel_left = velocity_field.restrict(cell_left).unwrap();
                 velocity = vel_left[0] * normal[0] + vel_left[1] * normal[1] + vel_left[2] * normal[2];
             } else {
-                // No cells associated with face; skip
+                // Skip processing if no associated cells for the face
                 continue;
             }
 
-            // Compute upwind flux
+            // Compute the upwind flux value based on the velocity direction
             let upwind_value = Self::compute_upwind_flux(left_value, right_value, velocity);
 
-            // Compute flux (e.g., flux = upwind_value * velocity * face_area)
+            // Calculate the flux across the face as flux = upwind_value * velocity * area
             let flux = upwind_value * velocity * face_area;
 
-            // Store or accumulate fluxes as needed
+            // Store the computed flux in the `fluxes` section for this face
             fluxes.set_data(face.clone(), flux);
         }
     }
 
-    /// Computes the upwind flux based on the flow direction (velocity).
+    /// Determines the upwind flux based on the flow direction (sign of velocity).
+    /// If the velocity is positive, the upwind value is the `left_value` (upwind cell);
+    /// otherwise, it is the `right_value` (downwind cell). This method is central to
+    /// implementing the upwinding scheme, ensuring numerical stability.
+    ///
+    /// # Parameters
+    /// - `left_value`: The scalar field value from the upwind (left) cell.
+    /// - `right_value`: The scalar field value from the downwind (right) cell.
+    /// - `velocity`: The normal velocity component at the face.
+    ///
+    /// # Returns
+    /// The selected upwind flux value based on the flow direction.
     pub fn compute_upwind_flux(left_value: f64, right_value: f64, velocity: f64) -> f64 {
         if velocity >= 0.0 {
             left_value

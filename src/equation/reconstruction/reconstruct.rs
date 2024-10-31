@@ -1,21 +1,29 @@
 // src/equation/reconstruction/reconstruct.rs
 
-/// Reconstructs the solution at a face center using the cell value and gradient.
+/// Reconstructs the solution at a face center by extrapolating from the cell value 
+/// and its gradient. This approach is critical for finite volume methods as it
+/// provides a face-centered scalar value, which is essential for flux calculations.
 ///
 /// # Arguments
 ///
-/// * `cell_value` - The scalar field value at the cell center.
-/// * `gradient` - The gradient vector `[f64; 3]` of the scalar field within the cell.
-/// * `cell_center` - The coordinates `[f64; 3]` of the cell center.
-/// * `face_center` - The coordinates `[f64; 3]` of the face center.
+/// * `cell_value` - The scalar field value at the cell center, representing the primary
+///                  field quantity (e.g., temperature, pressure).
+/// * `gradient` - The gradient vector `[f64; 3]` representing the rate of change of the
+///                scalar field within the cell in each spatial direction. This gradient
+///                allows for a linear approximation of the field near the cell center.
+/// * `cell_center` - Coordinates `[f64; 3]` of the cell center, where `cell_value` and
+///                   `gradient` are defined.
+/// * `face_center` - Coordinates `[f64; 3]` of the face center where the scalar field 
+///                   value is to be reconstructed.
 ///
 /// # Returns
 ///
-/// * The reconstructed scalar field value at the face center.
+/// The reconstructed scalar field value at the face center, determined by linearly 
+/// extrapolating from the cell center using the gradient.
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// let cell_value = 1.0;
 /// let gradient = [2.0, 0.0, 0.0];
 /// let cell_center = [0.0, 0.0, 0.0];
@@ -37,8 +45,11 @@ pub fn reconstruct_face_value(
     cell_value + gradient[0] * delta[0] + gradient[1] * delta[1] + gradient[2] * delta[2]
 }
 
-// Test module
-
+/// Unit tests for `reconstruct_face_value`.
+///
+/// Tests a variety of scenarios to ensure correct reconstruction of values
+/// at face centers, verifying the linear extrapolation approach based on the
+/// provided gradient and cell/face positions.
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -15,6 +15,7 @@ pub mod input_output;
 #[doc=include_str!("extrusion/docs/about_extrusion.md")]
 pub mod extrusion;
 
+#[doc=include_str!("equation/docs/about_equation.md")]
 pub mod equation;
 pub mod tests;
 
