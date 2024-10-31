@@ -1,4 +1,6 @@
-This code introduces a structured approach to managing, processing, and analyzing complex boundary-fitted 3D meshes through the `Domain` module in Rust. Below is a detailed breakdown of the components, organized by their respective functionalities within the `Domain` module:
+The `Domain` module introduces a structured approach to managing, processing, and analyzing complex boundary-fitted 3D meshes. 
+
+Below is a detailed breakdown of the components, organized by their respective functionalities within the `Domain` module:
 
 ---
 

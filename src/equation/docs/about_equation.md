@@ -1,3 +1,5 @@
+The `Equation` module leverages Hydra’s `Mesh`, `BoundaryConditionHandler`, `Geometry`, and `Section` components to support a structured approach for storing state variables, handling boundary interactions, and performing gradient and flux calculations.
+
 ### Outline for `Equation` Module Documentation
 
 1. **Introduction to the `Equation` Module**

@@ -1,8 +1,6 @@
-# Detailed Report on the `src/time_stepping/` Module of the HYDRA Project
+The `src/time_stepping/` module of the HYDRA project is dedicated to implementing time-stepping methods for solving time-dependent problems, such as ordinary differential equations (ODEs) and partial differential equations (PDEs). 
 
-## Overview
-
-The `src/time_stepping/` module of the HYDRA project is dedicated to implementing time-stepping methods for solving time-dependent problems, such as ordinary differential equations (ODEs) and partial differential equations (PDEs). Time-stepping is a crucial aspect of numerical simulations involving dynamic systems, where the state of the system evolves over time according to certain laws.
+Time-stepping is a crucial aspect of numerical simulations involving dynamic systems, where the state of the system evolves over time according to certain laws.
 
 This module provides abstract interfaces and concrete implementations for time-stepping algorithms. By defining traits such as `TimeStepper` and `TimeDependentProblem`, the module allows for flexibility and extensibility in integrating various time-stepping schemes and problem definitions.
 

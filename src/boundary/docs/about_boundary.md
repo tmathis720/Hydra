@@ -1,3 +1,5 @@
+The `Boundary` module facilitates the application of boundary conditions to entities within a computational domain mesh.
+
 ### Outline of the `Boundary` Module
 
 1. **Module Overview**

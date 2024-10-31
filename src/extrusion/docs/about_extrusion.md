@@ -1,6 +1,6 @@
-### Extrusion Module Documentation Outline for the Hydra Project
+The `extrusion` module is responsible for transforming 2D geophysical meshes into 3D representations. 
 
-The `extrusion` module is responsible for transforming 2D geophysical meshes into 3D representations. It provides a structured and extendable system to handle extrusion of various cell types, such as quadrilaterals and triangles, into corresponding 3D volumetric cells (hexahedrons and prisms). This module is divided into four main sections, detailed below, each contributing a specific responsibility to the extrusion pipeline.
+It provides a structured and extendable system to handle extrusion of various cell types, such as quadrilaterals and triangles, into corresponding 3D volumetric cells (hexahedrons and prisms). This module is divided into four main sections, detailed below, each contributing a specific responsibility to the extrusion pipeline.
 
 ---
 

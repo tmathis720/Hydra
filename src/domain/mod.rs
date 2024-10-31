@@ -1,5 +1,3 @@
-
-
 pub mod mesh_entity;
 pub mod sieve;
 pub mod section;
@@ -14,11 +12,12 @@ pub mod mesh;
 /// structs directly when importing this module.  
 ///
 /// Example usage:
-///
-///    use crate::domain::{MeshEntity, Arrow, Sieve, Section};  
+///    ```rust
+///    use hydra::domain::{MeshEntity, Arrow, Sieve, Section};  
 ///    let entity = MeshEntity::Vertex(1);  
 ///    let sieve = Sieve::new();  
 ///    let section: Section<f64> = Section::new();  
+///    ```
 /// 
 pub use mesh_entity::{MeshEntity, Arrow};
 pub use sieve::Sieve;

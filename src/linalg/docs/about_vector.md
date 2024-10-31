@@ -1,4 +1,4 @@
-
+The `Vector` and `Matrix` modules are designed to provide a comprehensive, flexible interface for the vector and matrix operations essential to the Hydra framework.
 
 ### 1. **Overview**
    - Provide a high-level description of the `Vector` module.

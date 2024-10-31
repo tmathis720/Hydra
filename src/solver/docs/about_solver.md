@@ -1,8 +1,6 @@
-# Detailed Report on the `src/solver/` Module of the HYDRA Project
+The `Solver` module of the HYDRA project is dedicated to implementing numerical solvers for linear systems, particularly focusing on Krylov subspace methods and preconditioning techniques.
 
-## Overview
-
-The `src/solver/` module of the HYDRA project is dedicated to implementing numerical solvers for linear systems, particularly focusing on Krylov subspace methods and preconditioning techniques. These solvers are crucial for efficiently solving large, sparse linear systems that arise in discretized partial differential equations (PDEs) and other numerical simulations within HYDRA.
+These solvers are crucial for efficiently solving large, sparse linear systems that arise in discretized partial differential equations (PDEs) and other numerical simulations within HYDRA.
 
 This report provides a comprehensive analysis of the components within the `src/solver/` module, including their functionality, integration with other modules, usage within HYDRA, and potential future enhancements.
 

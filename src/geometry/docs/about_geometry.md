@@ -1,3 +1,5 @@
+The `Geometry` module in HYDRA serves as the core structure for handling geometric data and performing spatial calculations over complex, boundary-fitted 3D meshes.
+
 ### Detailed Outline for `Geometry` Module Documentation
 
 **1. Overview of the `Geometry` Module**

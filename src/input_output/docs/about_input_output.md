@@ -1,6 +1,8 @@
-### Outline and Enhancements for `src/input_output` Module
+The `input_output` module currently comprises two primary components: `gmsh_parser` and `mesh_generation`. 
 
-The `input_output` module currently comprises two primary components: `gmsh_parser` and `mesh_generation`. Together, these handle importing external mesh data and generating geometric mesh structures. Below is a detailed breakdown of each component, its purpose, and recommended improvements to enhance modularity, maintainability, and performance.
+Together, these handle importing external mesh data and generating geometric mesh structures. 
+
+Below is a detailed breakdown of each component, its purpose, and recommended improvements to enhance modularity, maintainability, and performance.
 
 ---
 
