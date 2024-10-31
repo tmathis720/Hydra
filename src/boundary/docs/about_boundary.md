@@ -211,22 +211,53 @@ The `BoundaryConditionHandler` struct is defined with a `DashMap` that associate
    - **Purpose of DashMap**: This choice of data structure enables efficient access and modification, supporting both single-threaded and parallel applications of boundary conditions across mesh entities.
 
 The handler is initialized with an empty map through its `new` method:
-   ```rust,ignore
-   pub fn new() -> Self {
-       Self {
-           conditions: DashMap::new(),
-       }
-   }
+
+   ```rust
+   # use hydra::MeshEntity;
+   # use faer::MatMut;
+   # use dashmap::DashMap;
+   # use hydra::boundary::bc_handler::BoundaryCondition;
+   # use hydra::boundary::dirichlet::DirichletBC;
+   # use hydra::boundary::neumann::NeumannBC;
+   # use hydra::boundary::robin::RobinBC;
+   # // Handler for managing boundary conditions on mesh entities.
+   # pub struct BoundaryConditionHandler {
+   #    conditions: DashMap<MeshEntity, BoundaryCondition>,
+   # }
+
+   # impl BoundaryConditionHandler {
+   #    // Creates a new `BoundaryConditionHandler`.
+      pub fn new() -> Self {
+         Self {
+               conditions: DashMap::new(),
+         }
+      }
+   # }
    ```
 This method creates a new, empty `BoundaryConditionHandler` instance, ready to store boundary conditions for mesh entities.
 
 #### 4.2 Setting Boundary Conditions
 
 The `set_bc` method in `BoundaryConditionHandler` associates a specific `BoundaryCondition` with a given `MeshEntity`. This method is crucial for configuring boundary conditions prior to simulation:
-   ```rust,ignore
-   pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
-       self.conditions.insert(entity, condition);
-   }
+   ```rust
+   # use hydra::MeshEntity;
+   # use faer::MatMut;
+   # use dashmap::DashMap;
+   # use hydra::boundary::bc_handler::BoundaryCondition;
+   # use hydra::boundary::dirichlet::DirichletBC;
+   # use hydra::boundary::neumann::NeumannBC;
+   # use hydra::boundary::robin::RobinBC;
+   # // Handler for managing boundary conditions on mesh entities.
+   # pub struct BoundaryConditionHandler {
+   #    conditions: DashMap<MeshEntity, BoundaryCondition>,
+   # }
+
+   # impl BoundaryConditionHandler {
+      // Sets a boundary condition for the specified mesh entity.
+      pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
+         self.conditions.insert(entity, condition);
+      }
+   # }
    ```
    - **Parameters**:
      - `entity`: The mesh entity to which the boundary condition applies (e.g., a vertex, edge, or face in the mesh).
@@ -238,10 +269,25 @@ The `set_bc` method enables flexible, per-entity configuration of boundary condi
 #### 4.3 Retrieving Boundary Conditions
 
 The `get_bc` method retrieves the boundary condition associated with a specified `MeshEntity`, returning `None` if no condition is set:
-   ```rust,ignore
-   pub fn get_bc(&self, entity: &MeshEntity) -> Option<BoundaryCondition> {
-       self.conditions.get(entity).map(|entry| entry.clone())
-   }
+   ```rust
+   # use hydra::MeshEntity;
+   # use faer::MatMut;
+   # use dashmap::DashMap;
+   # use hydra::boundary::bc_handler::BoundaryCondition;
+   # use hydra::boundary::dirichlet::DirichletBC;
+   # use hydra::boundary::neumann::NeumannBC;
+   # use hydra::boundary::robin::RobinBC;
+   # // Handler for managing boundary conditions on mesh entities.
+   # pub struct BoundaryConditionHandler {
+   #    conditions: DashMap<MeshEntity, BoundaryCondition>,
+   # }
+
+   # impl BoundaryConditionHandler {
+      // Gets the boundary condition for the specified mesh entity, if available.
+      pub fn get_bc(&self, entity: &MeshEntity) -> Option<BoundaryCondition> {
+         self.conditions.get(entity).map(|entry| entry.clone())
+      }
+   # }
    ```
    - **Parameters**:
      - `entity`: The mesh entity for which to retrieve the boundary condition.
@@ -253,47 +299,80 @@ This method enables the solver to determine boundary conditions dynamically, fac
 #### 4.4 Applying Boundary Conditions to Matrices and RHS Vectors
 
 The `apply_bc` method is the core of `BoundaryConditionHandler`, modifying the system matrices and RHS vector to enforce boundary conditions for each relevant entity:
-   ```rust,ignore
-   pub fn apply_bc(
-       &self,
-       matrix: &mut MatMut<f64>,
-       rhs: &mut MatMut<f64>,
-       boundary_entities: &[MeshEntity],
-       entity_to_index: &DashMap<MeshEntity, usize>,
-       time: f64,
-   ) {
-       for entity in boundary_entities {
-           if let Some(bc) = self.get_bc(entity) {
-               let index = *entity_to_index.get(entity).unwrap();
-               match bc {
-                   BoundaryCondition::Dirichlet(value) => {
-                       let dirichlet_bc = DirichletBC::new();
-                       dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
-                   }
-                   BoundaryCondition::Neumann(flux) => {
-                       let neumann_bc = NeumannBC::new();
-                       neumann_bc.apply_constant_neumann(rhs, index, flux);
-                   }
-                   BoundaryCondition::Robin { alpha, beta } => {
-                       let robin_bc = RobinBC::new();
-                       robin_bc.apply_robin(matrix, rhs, index, alpha, beta);
-                   }
-                   BoundaryCondition::DirichletFn(fn_bc) => {
-                       let coords = [0.0, 0.0, 0.0];
-                       let value = fn_bc(time, &coords);
-                       let dirichlet_bc = DirichletBC::new();
-                       dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
-                   }
-                   BoundaryCondition::NeumannFn(fn_bc) => {
-                       let coords = [0.0, 0.0, 0.0];
-                       let value = fn_bc(time, &coords);
-                       let neumann_bc = NeumannBC::new();
-                       neumann_bc.apply_constant_neumann(rhs, index, value);
-                   }
+   ```rust
+   # use hydra::MeshEntity;
+   # use faer::MatMut;
+   # use dashmap::DashMap;
+   # use hydra::boundary::bc_handler::BoundaryCondition;
+   # use hydra::boundary::dirichlet::DirichletBC;
+   # use hydra::boundary::neumann::NeumannBC;
+   # use hydra::boundary::robin::RobinBC;
+
+   # /// Handler for managing boundary conditions on mesh entities.
+   # pub struct BoundaryConditionHandler {
+   #    conditions: DashMap<MeshEntity, BoundaryCondition>,
+   # }
+
+   # impl BoundaryConditionHandler {
+   #    /// Creates a new `BoundaryConditionHandler`.
+   #    pub fn new() -> Self {
+   #       Self {
+   #             conditions: DashMap::new(),
+   #       }
+   #    }
+
+   #    /// Sets a boundary condition for the specified mesh entity.
+   #    pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
+   #       self.conditions.insert(entity, condition);
+   #    }
+
+   #    /// Gets the boundary condition for the specified mesh entity, if available.
+   #    pub fn get_bc(&self, entity: &MeshEntity) -> Option<BoundaryCondition> {
+   #       self.conditions.get(entity).map(|entry| entry.clone())
+   #    }
+
+      /// Applies the boundary conditions.
+      pub fn apply_bc(
+         &self,
+         matrix: &mut MatMut<f64>,
+         rhs: &mut MatMut<f64>,
+         boundary_entities: &[MeshEntity],
+         entity_to_index: &DashMap<MeshEntity, usize>,
+         time: f64,
+      ) {
+         for entity in boundary_entities {
+               if let Some(bc) = self.get_bc(entity) {
+                  let index = *entity_to_index.get(entity).unwrap();
+                  match bc {
+                     BoundaryCondition::Dirichlet(value) => {
+                           let dirichlet_bc = DirichletBC::new();
+                           dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
+                     }
+                     BoundaryCondition::Neumann(flux) => {
+                           let neumann_bc = NeumannBC::new();
+                           neumann_bc.apply_constant_neumann(rhs, index, flux);
+                     }
+                     BoundaryCondition::Robin { alpha, beta } => {
+                           let robin_bc = RobinBC::new();
+                           robin_bc.apply_robin(matrix, rhs, index, alpha, beta);
+                     }
+                     BoundaryCondition::DirichletFn(fn_bc) => {
+                           let coords = [0.0, 0.0, 0.0];
+                           let value = fn_bc(time, &coords);
+                           let dirichlet_bc = DirichletBC::new();
+                           dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
+                     }
+                     BoundaryCondition::NeumannFn(fn_bc) => {
+                           let coords = [0.0, 0.0, 0.0];
+                           let value = fn_bc(time, &coords);
+                           let neumann_bc = NeumannBC::new();
+                           neumann_bc.apply_constant_neumann(rhs, index, value);
+                     }
+                  }
                }
-           }
-       }
-   }
+         }
+      }
+   # }
    ```
    - **Parameters**:
      - `matrix`: Mutable reference to the system matrix, where entries will be modified according to the boundary condition type.
@@ -337,17 +416,92 @@ The `BoundaryConditionApply` trait enhances modularity by abstracting the applic
 #### 5.2 Trait Definition and Interface
 
 The `BoundaryConditionApply` trait defines a single method, `apply`, which takes as input the necessary data structures for modifying the system matrix and RHS vector based on the boundary condition:
-   ```rust,ignore
+   ```rust
+   # use hydra::MeshEntity;
+   # use faer::MatMut;
+   # use dashmap::DashMap;
+   # use hydra::boundary::bc_handler::BoundaryCondition;
+   # use hydra::boundary::dirichlet::DirichletBC;
+   # use hydra::boundary::neumann::NeumannBC;
+   # use hydra::boundary::robin::RobinBC;
+
+   # /// Handler for managing boundary conditions on mesh entities.
+   # pub struct BoundaryConditionHandler {
+   #    conditions: DashMap<MeshEntity, BoundaryCondition>,
+   # }
+
+   # impl BoundaryConditionHandler {
+   #    /// Creates a new `BoundaryConditionHandler`.
+   #    pub fn new() -> Self {
+   #       Self {
+   #             conditions: DashMap::new(),
+   #       }
+   #    }
+
+   #    /// Sets a boundary condition for the specified mesh entity.
+   #    pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
+   #       self.conditions.insert(entity, condition);
+   #    }
+
+   #    /// Gets the boundary condition for the specified mesh entity, if available.
+   #    pub fn get_bc(&self, entity: &MeshEntity) -> Option<BoundaryCondition> {
+   #      self.conditions.get(entity).map(|entry| entry.clone())
+   #   }
+
+   #   /// Applies the boundary conditions.
+   #   pub fn apply_bc(
+   #      &self,
+   #      matrix: &mut MatMut<f64>,
+   #      rhs: &mut MatMut<f64>,
+   #      boundary_entities: &[MeshEntity],
+   #      entity_to_index: &DashMap<MeshEntity, usize>,
+   #      time: f64,
+   #   ) {
+   #      for entity in boundary_entities {
+   #            if let Some(bc) = self.get_bc(entity) {
+   #               let index = *entity_to_index.get(entity).unwrap();
+   #               match bc {
+   #                  BoundaryCondition::Dirichlet(value) => {
+   #                        let dirichlet_bc = DirichletBC::new();
+   #                        dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
+   #                  }
+   #                  BoundaryCondition::Neumann(flux) => {
+   #                        let neumann_bc = NeumannBC::new();
+   #                        neumann_bc.apply_constant_neumann(rhs, index, flux);
+   #                  }
+   #                  BoundaryCondition::Robin { alpha, beta } => {
+   #                        let robin_bc = RobinBC::new();
+   #                        robin_bc.apply_robin(matrix, rhs, index, alpha, beta);
+   #                  }
+   #                  BoundaryCondition::DirichletFn(fn_bc) => {
+   #                        let coords = [0.0, 0.0, 0.0];
+   #                        let value = fn_bc(time, &coords);
+   #                        let dirichlet_bc = DirichletBC::new();
+   #                        dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
+   #                  }
+   #                  BoundaryCondition::NeumannFn(fn_bc) => {
+   #                        let coords = [0.0, 0.0, 0.0];
+   #                        let value = fn_bc(time, &coords);
+   #                        let neumann_bc = NeumannBC::new();
+   #                        neumann_bc.apply_constant_neumann(rhs, index, value);
+   #                  }
+   #               }
+   #            }
+   #      }
+   #   }
+   # }
+
    pub trait BoundaryConditionApply {
-       fn apply(
-           &self,
-           entity: &MeshEntity,
-           rhs: &mut MatMut<f64>,
-           matrix: &mut MatMut<f64>,
-           entity_to_index: &DashMap<MeshEntity, usize>,
-           time: f64,
-       );
+      fn apply(
+         &self,
+         entity: &MeshEntity,
+         rhs: &mut MatMut<f64>,
+         matrix: &mut MatMut<f64>,
+         entity_to_index: &DashMap<MeshEntity, usize>,
+         time: f64,
+      );
    }
+
    ```
    - **Parameters**:
      - `entity`: The `MeshEntity` to which the boundary condition applies, allowing the `apply` method to retrieve specific data or attributes from the entity if necessary.

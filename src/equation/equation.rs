@@ -92,8 +92,8 @@ impl Equation {
                 let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
 
                 // Reconstruct face values from left and right cell data
-                left_value = reconstruct_face_value(phi_left, grad_left, cell_left_center, face_center);
-                right_value = reconstruct_face_value(phi_right, grad_right, cell_right_center, face_center);
+                let mut _left_value = reconstruct_face_value(phi_left, grad_left, cell_left_center, face_center);
+                let mut _right_value = reconstruct_face_value(phi_right, grad_right, cell_right_center, face_center);
 
                 // Compute normal component of velocity at the face by averaging
                 let vel_left = velocity_field.restrict(cell_left).unwrap();
@@ -102,7 +102,7 @@ impl Equation {
                 let vel_normal_right = vel_right[0] * normal[0] + vel_right[1] * normal[1] + vel_right[2] * normal[2];
 
                 // Average the normal component of velocity across the face
-                velocity = 0.5 * (vel_normal_left + vel_normal_right);
+                let mut _velocity = 0.5 * (vel_normal_left + vel_normal_right);
 
             } else if cells.len() == 1 {
                 // Boundary face (shared by a single cell)
