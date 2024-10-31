@@ -1,8 +1,8 @@
-Below is a detailed outline for the Hydra Developers Guide, organized by primary elements and sectioning information from both internal knowledge and the uploaded files.
+# Hydra Developers Guide
 
 ---
 
-### Hydra Developers Guide
+## Table of Contents
 
 ---
 
@@ -114,6 +114,10 @@ Below is a detailed outline for the Hydra Developers Guide, organized by primary
      - Pseudocode and references for major algorithms implemented in Hydra.
    - **Appendix C: Troubleshooting Guide**  
      - Common issues and debugging techniques, particularly focusing on Rust's error handling.
+
+---
+
+## Main Body
 
 ---
 
@@ -578,6 +582,10 @@ Profiling and optimization are crucial for ensuring that Hydra operates efficien
    - **Memory Management**: Efficient memory usage is essential in high-resolution simulations. Hydra’s memory management strategies include allocating memory contiguously for vectors and matrices, reducing cache misses, and optimizing memory access patterns to minimize latency【42†source】.
 
 By combining profiling insights with targeted optimizations, Hydra’s framework ensures that simulations are both computationally efficient and scalable. Continuous profiling and optimization efforts enable Hydra to tackle increasingly complex simulations while maintaining high performance.
+
+---
+
+## Appendix
 
 ---
 
