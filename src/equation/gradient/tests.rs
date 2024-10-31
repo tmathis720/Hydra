@@ -8,7 +8,6 @@ use std::sync::Arc;
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     /// Creates a simple mesh used by all tests to ensure consistency.
     fn create_simple_mesh() -> Mesh {
@@ -76,14 +75,18 @@ mod tests {
 
         // Compute the gradient
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
-        assert!(result.is_ok(), "Gradient calculation failed with result: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Gradient calculation failed with result: {:?}",
+            result
+        );
 
         let grad_cell1 = gradient
             .restrict(&MeshEntity::Cell(1))
             .expect("Gradient not computed for cell1");
         println!("Computed gradient for cell1: {:?}", grad_cell1);
 
-        // Corrected expected gradient based on computed values
+        // Expected gradient based on computations
         let expected_grad = [0.0, 0.0, 3.0];
         for i in 0..3 {
             assert!(
@@ -109,25 +112,70 @@ mod tests {
         // Initialize gradient
         let mut gradient = Section::<[f64; 3]>::new();
         let boundary_handler = BoundaryConditionHandler::new();
-        boundary_handler.set_bc(
-            MeshEntity::Face(1),
-            BoundaryCondition::Dirichlet(2.0),
-        );
+        boundary_handler.set_bc(MeshEntity::Face(1), BoundaryCondition::Dirichlet(2.0));
 
         // Initialize gradient calculator
         let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
 
         // Compute the gradient
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
-        assert!(result.is_ok(), "Gradient calculation failed with result: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Gradient calculation failed with result: {:?}",
+            result
+        );
 
         let grad = gradient
             .restrict(&MeshEntity::Cell(1))
             .expect("Gradient not computed");
         println!("Computed gradient: {:?}", grad);
 
-        // Corrected expected gradient based on computed values
+        // Expected gradient based on computations
         let expected_grad = [0.0, 0.0, 3.0];
+        for i in 0..3 {
+            assert!(
+                (grad[i] - expected_grad[i]).abs() < 1e-6,
+                "Gradient component {} does not match expected value",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_gradient_neumann_boundary() {
+        let mesh = create_simple_mesh();
+
+        // Remove cell2 and its relationships to simulate a boundary
+        mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
+        mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
+
+        // Initialize field
+        let field = Section::<f64>::new();
+        field.set_data(MeshEntity::Cell(1), 1.0);
+
+        // Initialize gradient
+        let mut gradient = Section::<[f64; 3]>::new();
+        let boundary_handler = BoundaryConditionHandler::new();
+        boundary_handler.set_bc(MeshEntity::Face(1), BoundaryCondition::Neumann(2.0));
+
+        // Initialize gradient calculator
+        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
+
+        // Compute the gradient
+        let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
+        assert!(
+            result.is_ok(),
+            "Gradient calculation failed with result: {:?}",
+            result
+        );
+
+        let grad = gradient
+            .restrict(&MeshEntity::Cell(1))
+            .expect("Gradient not computed");
+        println!("Computed gradient: {:?}", grad);
+
+        // Corrected expected gradient based on computations
+        let expected_grad = [0.0, 0.0, 6.0];
         for i in 0..3 {
             assert!(
                 (grad[i] - expected_grad[i]).abs() < 1e-6,
@@ -162,14 +210,18 @@ mod tests {
 
         // Compute the gradient at time = 2.0
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 2.0);
-        assert!(result.is_ok(), "Gradient calculation failed with result: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Gradient calculation failed with result: {:?}",
+            result
+        );
 
         let grad = gradient
             .restrict(&MeshEntity::Cell(1))
             .expect("Gradient not computed");
         println!("Computed gradient: {:?}", grad);
 
-        // Corrected expected gradient based on computed values
+        // Expected gradient based on computations
         let expected_grad = [0.0, 0.0, 6.0];
         for i in 0..3 {
             assert!(
@@ -178,5 +230,67 @@ mod tests {
                 i
             );
         }
+    }
+
+    #[test]
+    fn test_gradient_missing_data() {
+        let mesh = Mesh::new();
+
+        // Create cell without any faces
+        let cell = MeshEntity::Cell(1);
+        mesh.add_entity(cell);
+
+        // Initialize empty field
+        let field = Section::<f64>::new();
+
+        // Initialize gradient
+        let mut gradient = Section::<[f64; 3]>::new();
+        let boundary_handler = BoundaryConditionHandler::new();
+        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
+
+        // Attempt to compute gradient
+        let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
+        assert!(
+            result.is_err(),
+            "Expected error due to missing field values"
+        );
+
+        println!("Expected error: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_gradient_unimplemented_robin_condition() {
+        let mesh = create_simple_mesh();
+
+        // Remove cell2 and its relationships to simulate a boundary
+        mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
+        mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
+
+        // Initialize field
+        let field = Section::<f64>::new();
+        field.set_data(MeshEntity::Cell(1), 1.0);
+
+        // Initialize gradient
+        let mut gradient = Section::<[f64; 3]>::new();
+        let boundary_handler = BoundaryConditionHandler::new();
+        boundary_handler.set_bc(
+            MeshEntity::Face(1),
+            BoundaryCondition::Robin {
+                alpha: 1.0,
+                beta: 2.0,
+            },
+        );
+
+        // Initialize gradient calculator
+        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
+
+        // Attempt to compute gradient
+        let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
+        assert!(
+            result.is_err(),
+            "Expected error due to unimplemented Robin condition"
+        );
+
+        println!("Expected error: {:?}", result.err());
     }
 }
