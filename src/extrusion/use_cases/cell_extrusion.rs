@@ -6,10 +6,12 @@
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// use hydra::extrusion::use_cases::cell_extrusion::CellExtrusion;
 /// let quad_cells = vec![vec![0, 1, 2, 3], vec![4, 5, 6, 7]];
 /// let layers = 3;
 /// let extruded_cells = CellExtrusion::extrude_quadrilateral_cells(quad_cells, layers);
+/// assert_eq!(extruded_cells.len(), 6); // 2 quadrilateral cells * 3 layers
 /// ```
 pub struct CellExtrusion;
 
@@ -33,11 +35,11 @@ impl CellExtrusion {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::extrusion::use_cases::cell_extrusion::CellExtrusion;
     /// let quad_cells = vec![vec![0, 1, 2, 3]];
     /// let layers = 2;
     /// let extruded_cells = CellExtrusion::extrude_quadrilateral_cells(quad_cells, layers);
-    ///
     /// assert_eq!(extruded_cells.len(), 2); // Two layers of hexahedral cells
     /// ```
     pub fn extrude_quadrilateral_cells(cells: Vec<Vec<usize>>, layers: usize) -> Vec<Vec<usize>> {
@@ -79,11 +81,11 @@ impl CellExtrusion {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::extrusion::use_cases::cell_extrusion::CellExtrusion;
     /// let tri_cells = vec![vec![0, 1, 2]];
     /// let layers = 2;
     /// let extruded_cells = CellExtrusion::extrude_triangular_cells(tri_cells, layers);
-    ///
     /// assert_eq!(extruded_cells.len(), 2); // Two layers of prismatic cells
     /// ```
     pub fn extrude_triangular_cells(cells: Vec<Vec<usize>>, layers: usize) -> Vec<Vec<usize>> {

@@ -8,7 +8,9 @@ use crate::extrusion::core::extrudable_mesh::ExtrudableMesh;
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+/// use hydra::extrusion::core::prismatic_mesh::TriangularMesh;
 /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
 /// let cells = vec![vec![0, 1, 2]];
 /// let tri_mesh = TriangularMesh::new(vertices, cells);
@@ -38,7 +40,9 @@ impl TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::prismatic_mesh::TriangularMesh;
     /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
     /// let cells = vec![vec![0, 1, 2]];
     /// let tri_mesh = TriangularMesh::new(vertices, cells);
@@ -60,8 +64,12 @@ impl ExtrudableMesh for TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let tri_mesh = TriangularMesh::new(...);
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::prismatic_mesh::TriangularMesh;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2]];
+    /// let tri_mesh = TriangularMesh::new(vertices, cells);
     /// assert!(tri_mesh.is_valid_for_extrusion());
     /// ```
     fn is_valid_for_extrusion(&self) -> bool {
@@ -77,8 +85,13 @@ impl ExtrudableMesh for TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let vertices = tri_mesh.get_vertices();
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::prismatic_mesh::TriangularMesh;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2]];
+    /// let tri_mesh = TriangularMesh::new(vertices.clone(), cells);
+    /// assert_eq!(tri_mesh.get_vertices(), vertices);
     /// ```
     fn get_vertices(&self) -> Vec<[f64; 3]> {
         self.vertices.clone()
@@ -92,8 +105,13 @@ impl ExtrudableMesh for TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let cells = tri_mesh.get_cells();
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::prismatic_mesh::TriangularMesh;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2]];
+    /// let tri_mesh = TriangularMesh::new(vertices, cells.clone());
+    /// assert_eq!(tri_mesh.get_cells(), cells);
     /// ```
     fn get_cells(&self) -> Vec<Vec<usize>> {
         self.cells.clone()
@@ -108,7 +126,12 @@ impl ExtrudableMesh for TriangularMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::prismatic_mesh::TriangularMesh;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2]];
+    /// let tri_mesh = TriangularMesh::new(vertices, cells);
     /// let as_any = tri_mesh.as_any();
     /// ```
     fn as_any(&self) -> &dyn Any {

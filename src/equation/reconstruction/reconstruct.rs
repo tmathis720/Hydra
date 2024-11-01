@@ -23,11 +23,14 @@
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// use hydra::equation::reconstruction::reconstruct::reconstruct_face_value;
+///
 /// let cell_value = 1.0;
 /// let gradient = [2.0, 0.0, 0.0];
 /// let cell_center = [0.0, 0.0, 0.0];
 /// let face_center = [0.5, 0.0, 0.0];
+///
 /// let reconstructed_value = reconstruct_face_value(cell_value, gradient, cell_center, face_center);
 /// assert_eq!(reconstructed_value, 2.0);
 /// ```

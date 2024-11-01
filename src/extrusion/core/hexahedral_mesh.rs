@@ -8,12 +8,13 @@ use crate::extrusion::core::extrudable_mesh::ExtrudableMesh;
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+/// use hydra::extrusion::core::hexahedral_mesh::QuadrilateralMesh;
 /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
 /// let cells = vec![vec![0, 1, 2, 3]];
 /// let quad_mesh = QuadrilateralMesh::new(vertices, cells);
 /// assert!(quad_mesh.is_valid_for_extrusion());
-/// 
 /// ```
 #[derive(Debug)]
 pub struct QuadrilateralMesh {
@@ -39,7 +40,9 @@ impl QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::hexahedral_mesh::QuadrilateralMesh;
     /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
     /// let cells = vec![vec![0, 1, 2, 3]];
     /// let quad_mesh = QuadrilateralMesh::new(vertices, cells);
@@ -61,8 +64,12 @@ impl ExtrudableMesh for QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let quad_mesh = QuadrilateralMesh::new(...);
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::hexahedral_mesh::QuadrilateralMesh;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2, 3]];
+    /// let quad_mesh = QuadrilateralMesh::new(vertices, cells);
     /// assert!(quad_mesh.is_valid_for_extrusion());
     /// ```
     fn is_valid_for_extrusion(&self) -> bool {
@@ -78,8 +85,13 @@ impl ExtrudableMesh for QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let vertices = quad_mesh.get_vertices();
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::hexahedral_mesh::QuadrilateralMesh;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2, 3]];
+    /// let quad_mesh = QuadrilateralMesh::new(vertices.clone(), cells);
+    /// assert_eq!(quad_mesh.get_vertices(), vertices);
     /// ```
     fn get_vertices(&self) -> Vec<[f64; 3]> {
         self.vertices.clone()
@@ -93,8 +105,13 @@ impl ExtrudableMesh for QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let cells = quad_mesh.get_cells();
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::hexahedral_mesh::QuadrilateralMesh;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2, 3]];
+    /// let quad_mesh = QuadrilateralMesh::new(vertices, cells.clone());
+    /// assert_eq!(quad_mesh.get_cells(), cells);
     /// ```
     fn get_cells(&self) -> Vec<Vec<usize>> {
         self.cells.clone()
@@ -109,7 +126,12 @@ impl ExtrudableMesh for QuadrilateralMesh {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::extrusion::core::extrudable_mesh::ExtrudableMesh;
+    /// use hydra::extrusion::core::hexahedral_mesh::QuadrilateralMesh;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2, 3]];
+    /// let quad_mesh = QuadrilateralMesh::new(vertices, cells);
     /// let as_any = quad_mesh.as_any();
     /// ```
     fn as_any(&self) -> &dyn Any {

@@ -32,20 +32,24 @@ pub trait Vector: Send + Sync {
     /// Computes the dot product of `self` with another vector `other`.
     ///
     /// # Example
-    /// ```
-    /// //let vec1 = vec![1.0, 2.0, 3.0];
-    /// //let vec2 = vec![4.0, 5.0, 6.0];
-    /// //let dot_product = vec1.dot(&vec2);
+    /// 
+    /// ```rust
+    /// use hydra::linalg::vector::traits::Vector;
+    /// let vec1: Vec<f64> = vec![1.0, 2.0, 3.0];
+    /// let vec2: Vec<f64> = vec![4.0, 5.0, 6.0];
+    /// let dot_product = vec1.dot(&vec2);
+    /// assert_eq!(dot_product, 32.0);
     /// ```
     fn dot(&self, other: &dyn Vector<Scalar = Self::Scalar>) -> Self::Scalar;
 
     /// Computes the Euclidean norm (L2 norm) of the vector.
     ///
     /// # Example
-    /// ```
-    /// //let vec = vec![3.0, 4.0];
-    /// //let norm = vec.norm();
-    /// //assert_eq!(norm, 5.0);
+    /// ```rust
+    /// use hydra::linalg::vector::traits::Vector;
+    /// let vec: Vec<f64> = vec![3.0, 4.0];
+    /// let norm = vec.norm();
+    /// assert_eq!(norm, 5.0);
     /// ```
     fn norm(&self) -> Self::Scalar;
 

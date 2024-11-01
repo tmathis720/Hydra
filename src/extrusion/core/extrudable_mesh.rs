@@ -39,7 +39,14 @@ pub trait ExtrudableMesh: Debug {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::extrusion::core::{extrudable_mesh::ExtrudableMesh, hexahedral_mesh::QuadrilateralMesh};
+    ///
+    /// let some_mesh = QuadrilateralMesh::new(
+    ///     vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
+    ///     vec![vec![0, 1, 2, 3]],
+    /// );
+    ///
     /// assert!(some_mesh.is_quad_mesh());
     /// ```
     fn is_quad_mesh(&self) -> bool {
@@ -54,7 +61,14 @@ pub trait ExtrudableMesh: Debug {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::extrusion::core::{extrudable_mesh::ExtrudableMesh, prismatic_mesh::TriangularMesh};
+    ///
+    /// let some_mesh = TriangularMesh::new(
+    ///     vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]],
+    ///     vec![vec![0, 1, 2]],
+    /// );
+    ///
     /// assert!(some_mesh.is_tri_mesh());
     /// ```
     fn is_tri_mesh(&self) -> bool {

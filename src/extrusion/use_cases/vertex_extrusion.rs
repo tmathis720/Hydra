@@ -4,7 +4,8 @@
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// use hydra::extrusion::use_cases::vertex_extrusion::VertexExtrusion;
 /// let vertices = vec![[1.0, 2.0, 0.0], [3.0, 4.0, 0.0]];
 /// let depth = 10.0;
 /// let layers = 5;
@@ -39,7 +40,8 @@ impl VertexExtrusion {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::extrusion::use_cases::vertex_extrusion::VertexExtrusion;
     /// let vertices = vec![[1.0, 2.0, 0.0], [3.0, 4.0, 0.0]];
     /// let depth = 10.0;
     /// let layers = 2;

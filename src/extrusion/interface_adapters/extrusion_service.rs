@@ -29,11 +29,20 @@ impl ExtrusionService {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let quad_mesh = QuadrilateralMesh::new(...);
-    /// let depth = 5.0;
-    /// let layers = 3;
-    /// let result = ExtrusionService::extrude_mesh(&quad_mesh, depth, layers);
+    /// ```rust
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///  use hydra::extrusion::core::hexahedral_mesh::QuadrilateralMesh;
+    ///  use hydra::extrusion::interface_adapters::extrusion_service::ExtrusionService;
+    ///  
+    ///  let quad_mesh = QuadrilateralMesh::new(
+    ///      vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
+    ///      vec![vec![0, 1, 2, 3]],
+    ///  );
+    ///  let depth = 5.0;
+    ///  let layers = 3;
+    ///  let extruded_mesh = ExtrusionService::extrude_mesh(&quad_mesh, depth, layers)?;
+    ///  Ok(())
+    /// # }
     /// ```
     pub fn extrude_mesh(mesh: &dyn ExtrudableMesh, depth: f64, layers: usize) -> Result<Mesh, String> {
         if mesh.is_quad_mesh() {

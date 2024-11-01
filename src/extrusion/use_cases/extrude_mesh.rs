@@ -11,11 +11,16 @@ use crate::domain::mesh::Mesh;
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// let mesh = QuadrilateralMesh::new(...);
+/// ```rust
+/// use hydra::extrusion::core::hexahedral_mesh::QuadrilateralMesh;
+/// use hydra::extrusion::use_cases::extrude_mesh::ExtrudeMeshUseCase;
+/// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
+/// let cells = vec![vec![0, 1, 2, 3]];
+/// let mesh = QuadrilateralMesh::new(vertices, cells);
 /// let depth = 5.0;
 /// let layers = 3;
 /// let extruded_mesh = ExtrudeMeshUseCase::extrude_to_hexahedron(&mesh, depth, layers);
+/// assert!(extruded_mesh.is_ok());
 /// ```
 pub struct ExtrudeMeshUseCase;
 
@@ -39,8 +44,12 @@ impl ExtrudeMeshUseCase {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let quad_mesh = QuadrilateralMesh::new(...);
+    /// ```rust
+    /// use hydra::extrusion::core::hexahedral_mesh::QuadrilateralMesh;
+    /// use hydra::extrusion::use_cases::extrude_mesh::ExtrudeMeshUseCase;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2, 3]];
+    /// let quad_mesh = QuadrilateralMesh::new(vertices, cells);
     /// let result = ExtrudeMeshUseCase::extrude_to_hexahedron(&quad_mesh, 10.0, 3);
     /// assert!(result.is_ok());
     /// ```
@@ -91,8 +100,12 @@ impl ExtrudeMeshUseCase {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
-    /// let tri_mesh = TriangularMesh::new(...);
+    /// ```rust
+    /// use hydra::extrusion::core::prismatic_mesh::TriangularMesh;
+    /// use hydra::extrusion::use_cases::extrude_mesh::ExtrudeMeshUseCase;
+    /// let vertices = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
+    /// let cells = vec![vec![0, 1, 2]];
+    /// let tri_mesh = TriangularMesh::new(vertices, cells);
     /// let result = ExtrudeMeshUseCase::extrude_to_prism(&tri_mesh, 5.0, 2);
     /// assert!(result.is_ok());
     /// ```

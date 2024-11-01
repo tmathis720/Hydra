@@ -17,7 +17,8 @@ impl Geometry {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::geometry::Geometry;
     /// let geometry = Geometry::new();
     /// let vertices = vec![
     ///     [0.0, 0.0, 0.0],
@@ -66,7 +67,8 @@ impl Geometry {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use hydra::geometry::Geometry;
     /// let geometry = Geometry::new();
     /// let vertices = vec![
     ///     [0.0, 0.0, 0.0],
