@@ -66,7 +66,7 @@ impl CauchyBC {
         matrix: &mut MatMut<f64>,
         rhs: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
-        time: f64,
+        _time: f64,
     ) {
         for entry in self.conditions.iter() {
             let (entity, condition) = entry.pair();
@@ -90,7 +90,7 @@ impl BoundaryConditionApply for CauchyBC {
     /// - `time`: Current time, allowing for time-dependent boundary conditions.
     fn apply(
         &self,
-        entity: &MeshEntity,
+        _entity: &MeshEntity,
         rhs: &mut MatMut<f64>,
         matrix: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
