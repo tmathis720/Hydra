@@ -1,10 +1,6 @@
-Here’s the revised documentation for the `extrusion` module, formatted for readability and ease of understanding. Each section is clear and concise, with updated code examples ready for direct testing.
+The `extrusion` module in HYDRA is designed to transform 2D geophysical meshes into 3D volumetric meshes. It provides a system for extruding 2D cells, like quadrilaterals and triangles, into 3D volumes such as hexahedrons and prisms. 
 
----
-
-# `extrusion` Module
-
-The `extrusion` module in HYDRA is designed to transform 2D geophysical meshes into 3D volumetric meshes. It provides a system for extruding 2D cells, like quadrilaterals and triangles, into 3D volumes such as hexahedrons and prisms. The module is structured into four main sections:
+The module is structured into four main sections:
 
 ---
 

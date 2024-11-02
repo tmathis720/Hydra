@@ -13,6 +13,7 @@ faer = { version = "0.19", features = ["rayon"] }
 rayon = "1.5"
 crossbeam = "0.8.4"
 dashmap = "5.1"
+approx = "0.5"
 
 [dev-dependencies]
 criterion = "0.4"

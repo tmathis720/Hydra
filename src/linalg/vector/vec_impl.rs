@@ -21,6 +21,10 @@ impl Vector for Vec<f64> {
         &self
     }
 
+    fn as_mut_slice(&mut self) -> &mut [f64] {
+        &mut self[..]
+    }
+
     fn dot(&self, other: &dyn Vector<Scalar = f64>) -> f64 {
         self.iter().zip(other.as_slice()).map(|(x, y)| x * y).sum()
     }

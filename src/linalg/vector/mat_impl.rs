@@ -25,6 +25,13 @@ impl Vector for Mat<f64> {
             .expect("Column is not contiguous") // Handle the potential `None` case
     }
 
+    fn as_mut_slice(&mut self) -> &mut [f64] {
+        self.as_mut()
+            .col_mut(0)
+            .try_as_slice_mut()
+            .expect("Column is not contiguous")
+    }
+
     fn dot(&self, other: &dyn Vector<Scalar = f64>) -> f64 {
         let mut sum = 0.0;
         for i in 0..self.len() {

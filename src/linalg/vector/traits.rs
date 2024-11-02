@@ -29,6 +29,9 @@ pub trait Vector: Send + Sync {
     /// Provides a slice of the underlying data.
     fn as_slice(&self) -> &[f64];
 
+    /// Provides a mutable slice of the underlying data.
+    fn as_mut_slice(&mut self) -> &mut [Self::Scalar];
+
     /// Computes the dot product of `self` with another vector `other`.
     ///
     /// # Example

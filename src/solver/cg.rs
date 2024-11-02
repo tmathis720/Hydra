@@ -1,6 +1,7 @@
 use crate::solver::ksp::{KSP, SolverResult};
 use crate::solver::preconditioner::Preconditioner;
 use crate::linalg::{Matrix, Vector};
+use rayon::prelude::*;
 
 pub struct ConjugateGradient {
     pub max_iter: usize,
@@ -38,12 +39,15 @@ impl KSP for ConjugateGradient {
 
         // Compute initial residual r = b - A * x
         a.mat_vec(x, &mut temp_vec as &mut dyn Vector<Scalar = f64>); // temp_vec = A * x
-        for i in 0..n {
-            r[i] = b.get(i) - temp_vec[i];
-        }
+        r.par_iter_mut()
+            .zip(b.as_slice())
+            .zip(temp_vec.as_slice())
+            .for_each(|((r_i, &b_i), &temp_i)| {
+                *r_i = b_i - temp_i;
+            });
 
+        // Calculate the initial residual norm and check for convergence
         let mut residual_norm = euclidean_norm(&r as &dyn Vector<Scalar = f64>);
-
         if residual_norm <= self.tol {
             return SolverResult {
                 converged: true,
@@ -63,26 +67,23 @@ impl KSP for ConjugateGradient {
             z.copy_from_slice(&r);
         }
 
+        // Initialize search direction vector p with preconditioned residual
         p.copy_from_slice(&z);
 
-        let mut rho = dot_product(
-            &r as &dyn Vector<Scalar = f64>,
-            &z as &dyn Vector<Scalar = f64>,
-        );
-
+        // Initialize rho as the dot product of r and z
+        let mut rho = dot_product(&r as &dyn Vector<Scalar = f64>, &z as &dyn Vector<Scalar = f64>);
         let mut iterations = 0;
 
+        // Start the main CG iteration loop
         while iterations < self.max_iter && residual_norm > self.tol {
+            // Compute A * p and store in q
             a.mat_vec(
                 &p as &dyn Vector<Scalar = f64>,
                 &mut q as &mut dyn Vector<Scalar = f64>,
             );
 
-            let pq = dot_product(
-                &p as &dyn Vector<Scalar = f64>,
-                &q as &dyn Vector<Scalar = f64>,
-            );
-
+            // Compute alpha = rho / (p^T * q)
+            let pq = dot_product(&p as &dyn Vector<Scalar = f64>, &q as &dyn Vector<Scalar = f64>);
             if pq.abs() < 1e-12 {
                 // Handle potential division by zero
                 return SolverResult {
@@ -91,21 +92,25 @@ impl KSP for ConjugateGradient {
                     residual_norm,
                 };
             }
-
             let alpha = rho / pq;
 
-            // Update x = x + alpha * p
-            for i in 0..n {
-                x.set(i, x.get(i) + alpha * p[i]);
-            }
+            // Update solution vector x = x + alpha * p
+            let x_slice = x.as_mut_slice();
+            x_slice.par_iter_mut()
+                .zip(&p)
+                .for_each(|(x_i, &p_i)| {
+                    *x_i += alpha * p_i;
+                });
 
-            // Update r = r - alpha * q
-            for i in 0..n {
-                r[i] -= alpha * q[i];
-            }
+            // Update residual vector r = r - alpha * q
+            r.par_iter_mut()
+                .zip(&q)
+                .for_each(|(r_i, &q_i)| {
+                    *r_i -= alpha * q_i;
+                });
 
+            // Recalculate residual norm and check for convergence
             residual_norm = euclidean_norm(&r as &dyn Vector<Scalar = f64>);
-
             if residual_norm <= self.tol {
                 break;
             }
@@ -121,18 +126,17 @@ impl KSP for ConjugateGradient {
                 z.copy_from_slice(&r);
             }
 
-            let rho_new = dot_product(
-                &r as &dyn Vector<Scalar = f64>,
-                &z as &dyn Vector<Scalar = f64>,
-            );
-
+            // Update rho and calculate beta for the next iteration
+            let rho_new = dot_product(&r as &dyn Vector<Scalar = f64>, &z as &dyn Vector<Scalar = f64>);
             let beta = rho_new / rho;
             rho = rho_new;
 
-            // Update p = z + beta * p
-            for i in 0..n {
-                p[i] = z[i] + beta * p[i];
-            }
+            // Update search direction vector p = z + beta * p
+            p.par_iter_mut()
+                .zip(&z)
+                .for_each(|(p_i, &z_i)| {
+                    *p_i = z_i + beta * *p_i;
+                });
 
             iterations += 1;
         }
@@ -145,18 +149,36 @@ impl KSP for ConjugateGradient {
     }
 }
 
-// Helper functions
+// Parallelized Helper Functions
+
+/// Computes the dot product of two vectors `u` and `v` in parallel, using `rayon`.
+///
+/// # Arguments
+/// - `u`: First vector.
+/// - `v`: Second vector.
+///
+/// # Returns
+/// - The dot product of `u` and `v`.
 fn dot_product(u: &dyn Vector<Scalar = f64>, v: &dyn Vector<Scalar = f64>) -> f64 {
     u.as_slice()
-        .iter()
-        .zip(v.as_slice().iter())
+        .par_iter()
+        .zip(v.as_slice().par_iter())
         .map(|(&ui, &vi)| ui * vi)
         .sum()
 }
 
+/// Calculates the Euclidean norm of a vector `u` in parallel, returning `sqrt(sum(u_i^2))`.
+///
+/// # Arguments
+/// - `u`: Vector for which to calculate the norm.
+///
+/// # Returns
+/// - Euclidean (L2) norm of `u`.
 fn euclidean_norm(u: &dyn Vector<Scalar = f64>) -> f64 {
-    u.as_slice().iter().map(|&ui| ui * ui).sum::<f64>().sqrt()
+    u.as_slice().par_iter().map(|&ui| ui * ui).sum::<f64>().sqrt()
 }
+
+
 
 #[cfg(test)]
 mod tests {
@@ -166,15 +188,17 @@ mod tests {
     use faer::mat;
     use faer::Mat;
 
+    /// Test CG solver without a preconditioner on a small SPD matrix.
+    /// Ensures convergence within tolerance and verifies the computed solution.
     #[test]
     fn test_cg_solver_no_preconditioner() {
-        // SPD matrix A
+        // Define a small SPD matrix A
         let a = mat![
             [4.0, 1.0],
             [1.0, 3.0],
         ];
 
-        // RHS vector b
+        // Right-hand side vector b
         let b = mat![
             [1.0],
             [2.0],
@@ -183,20 +207,19 @@ mod tests {
         // Initial guess x0
         let mut x = Mat::<f64>::zeros(2, 1);
 
-        // Expected solution x = [0.09090909, 0.63636364]
+        // Expected solution for reference
         let expected_x = mat![
             [0.09090909],
             [0.63636364],
         ];
 
         let mut cg = ConjugateGradient::new(100, 1e-6);
-
         let result = cg.solve(&a, &b, &mut x);
 
         println!("CG Solver Result: {:?}", result);
         println!("Computed solution x = {:?}", x);
 
-        // Verify the result
+        // Verify computed solution against expected values
         for i in 0..x.nrows() {
             assert!(
                 (x.read(i, 0) - expected_x.read(i, 0)).abs() < 1e-5,
@@ -208,15 +231,17 @@ mod tests {
         }
     }
 
+    /// Test CG solver with a Jacobi preconditioner on a small SPD matrix.
+    /// Ensures that the solver with preconditioning achieves convergence and accuracy.
     #[test]
     fn test_cg_solver_with_jacobi_preconditioner() {
-        // SPD matrix A
+        // Define a small SPD matrix A
         let a = mat![
             [4.0, 1.0],
             [1.0, 3.0],
         ];
 
-        // RHS vector b
+        // Right-hand side vector b
         let b = mat![
             [1.0],
             [2.0],
@@ -225,7 +250,7 @@ mod tests {
         // Initial guess x0
         let mut x = Mat::<f64>::zeros(2, 1);
 
-        // Expected solution x = [0.09090909, 0.63636364]
+        // Expected solution for reference
         let expected_x = mat![
             [0.09090909],
             [0.63636364],
@@ -242,7 +267,7 @@ mod tests {
         println!("CG Solver Result with Jacobi Preconditioner: {:?}", result);
         println!("Computed solution x = {:?}", x);
 
-        // Verify the result
+        // Verify computed solution against expected values
         for i in 0..x.nrows() {
             assert!(
                 (x.read(i, 0) - expected_x.read(i, 0)).abs() < 1e-5,
