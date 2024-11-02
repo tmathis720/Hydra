@@ -4,6 +4,8 @@ use crate::domain::mesh_entity::MeshEntity;
 use crate::boundary::dirichlet::DirichletBC;
 use crate::boundary::neumann::NeumannBC;
 use crate::boundary::robin::RobinBC;
+use crate::boundary::mixed::MixedBC;
+use crate::boundary::cauchy::CauchyBC;
 use faer::MatMut;
 
 pub type BoundaryConditionFn = Arc<dyn Fn(f64, &[f64]) -> f64 + Send + Sync>;
@@ -15,6 +17,8 @@ pub enum BoundaryCondition {
     Dirichlet(f64),
     Neumann(f64),
     Robin { alpha: f64, beta: f64 },
+    Mixed { gamma: f64, delta: f64 },
+    Cauchy { lambda: f64, mu: f64 },
     DirichletFn(BoundaryConditionFn),
     NeumannFn(BoundaryConditionFn),
 }
@@ -80,6 +84,14 @@ impl BoundaryConditionHandler {
                         let neumann_bc = NeumannBC::new();
                         neumann_bc.apply_constant_neumann(rhs, index, value);
                     }
+                    BoundaryCondition::Mixed { gamma, delta } => {
+                        let mixed_bc = MixedBC::new();
+                        mixed_bc.apply_mixed(matrix, rhs, index, gamma, delta);
+                    }
+                    BoundaryCondition::Cauchy { lambda, mu } => {
+                        let cauchy_bc = CauchyBC::new();
+                        cauchy_bc.apply_cauchy(matrix, rhs, index, lambda, mu);
+                    }
                 }
             }
         }
@@ -133,6 +145,14 @@ impl BoundaryConditionApply for BoundaryCondition {
                 let value = fn_bc(time, &coords);
                 let neumann_bc = NeumannBC::new();
                 neumann_bc.apply_constant_neumann(rhs, index, value);
+            }
+            BoundaryCondition::Mixed { gamma, delta } => {
+                let mixed_bc = MixedBC::new();
+                mixed_bc.apply_mixed(matrix, rhs, index, *gamma, *delta);
+            }
+            BoundaryCondition::Cauchy { lambda, mu } => {
+                let cauchy_bc = CauchyBC::new();
+                cauchy_bc.apply_cauchy(matrix, rhs, index, *lambda, *mu);
             }
         }
     }
