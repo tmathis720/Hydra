@@ -154,6 +154,14 @@ impl Mesh {
             .collect()
     }
 
+    /// Retrieves the vertices of the given face.
+    pub fn get_vertices_of_face(&self, face: &MeshEntity) -> Vec<MeshEntity> {
+        self.sieve.cone(face).unwrap_or_default()
+            .into_iter()
+            .filter(|e| matches!(e, MeshEntity::Vertex(_)))
+            .collect()
+    }
+
     /// Computes properties for each entity in the mesh in parallel,  
     /// returning a map of `MeshEntity` to the computed property.  
     ///

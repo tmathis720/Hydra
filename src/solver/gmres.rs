@@ -2,6 +2,7 @@ use crate::solver::ksp::{KSP, SolverResult};
 use crate::solver::preconditioner::Preconditioner;
 use crate::linalg::{Matrix, Vector};
 use rayon::prelude::*;
+use std::sync::Arc;
 
 /// Generalized Minimal Residual Solver (GMRES) for solving sparse linear systems using Krylov subspace methods.
 /// GMRES is particularly effective for non-symmetric or non-positive-definite systems.
@@ -13,13 +14,11 @@ use rayon::prelude::*;
 /// - `tol`: Convergence tolerance for the residual norm.
 /// - `restart`: Number of iterations before restarting GMRES (helps with convergence in some systems).
 /// - `preconditioner`: Optional preconditioner to improve convergence by altering the system's condition number.
-///
-/// For a comprehensive overview of GMRES and its components, see Chapter 6, "Krylov Subspace Methods," in Saad's *Iterative Methods for Sparse Linear Systems* (2003).
 pub struct GMRES {
     pub max_iter: usize,
     pub tol: f64,
     pub restart: usize,
-    pub preconditioner: Option<Box<dyn Preconditioner>>,
+    pub preconditioner: Option<Arc<dyn Preconditioner>>,
 }
 
 impl GMRES {
@@ -39,12 +38,11 @@ impl GMRES {
     }
 
     /// Sets the preconditioner for the solver. Preconditioners can improve convergence by
-    /// altering the system’s condition, making it more favorable for iterative solution.
+    /// altering the system's condition, making it more favorable for iterative solution.
     ///
     /// # Arguments
-    /// - `preconditioner`: Preconditioner that implements the `Preconditioner` trait, providing methods
-    /// for transforming the system.
-    pub fn set_preconditioner(&mut self, preconditioner: Box<dyn Preconditioner>) {
+    /// - `preconditioner`: A shared preconditioner that implements the `Preconditioner` trait.
+    pub fn set_preconditioner(&mut self, preconditioner: Arc<dyn Preconditioner>) {
         self.preconditioner = Some(preconditioner);
     }
 }
@@ -66,17 +64,17 @@ impl KSP for GMRES {
         x: &mut dyn Vector<Scalar = f64>,
     ) -> SolverResult {
         let n = b.len();
-        let epsilon = 1e-12;  // Machine epsilon for numerical stability
+        let epsilon = 1e-12; // Tolerance for numerical stability
 
-        // Initial residual vectors and scratch space for computations.
+        // Initial residual vectors and workspace for computation
         let mut r = vec![0.0; n];
         let mut temp_vec = vec![0.0; n];
         let mut preconditioned_vec = vec![0.0; n];
 
-        // Compute the initial residual, r = b - Ax.
+        // Compute initial residual r = b - Ax
         compute_initial_residual(a, b, x, &mut temp_vec, &mut r);
-        
-        // Apply the preconditioner if available.
+
+        // Apply the preconditioner if available
         if let Some(preconditioner) = &self.preconditioner {
             preconditioner.apply(
                 a,
@@ -86,10 +84,10 @@ impl KSP for GMRES {
             r.copy_from_slice(&preconditioned_vec);
         }
 
-        // Calculate the initial residual norm.
+        // Calculate initial residual norm
         let mut residual_norm = euclidean_norm(&r as &dyn Vector<Scalar = f64>);
 
-        // Check if the initial residual meets termination criteria.
+        // Check initial convergence conditions
         if should_terminate_initial_residual(residual_norm, &r, x) {
             return SolverResult {
                 converged: false,
@@ -98,18 +96,18 @@ impl KSP for GMRES {
             };
         }
 
-        // Define variables for Krylov basis vectors and upper Hessenberg matrix H.
+        // Initialize variables for GMRES iterations
         let mut iterations = 0;
-        let mut v = vec![vec![0.0; n]; self.restart + 1];
-        let mut h = vec![vec![0.0; self.restart]; self.restart + 1];
-        let mut g = vec![0.0; self.restart + 1];
+        let mut v = vec![vec![0.0; n]; self.restart + 1]; // Krylov basis vectors
+        let mut h = vec![vec![0.0; self.restart]; self.restart + 1]; // Hessenberg matrix
+        let mut g = vec![0.0; self.restart + 1]; // Residual projections
 
-        // Variables for Givens rotations (cosines and sines).
+        // Variables for Givens rotations (cosines and sines)
         let mut cosines = vec![0.0; self.restart];
         let mut sines = vec![0.0; self.restart];
 
         loop {
-            // Normalize initial residual to form the first Krylov vector `v[0]`.
+            // Normalize the initial residual to form the first Krylov vector v[0]
             if !normalize_residual_and_init_krylov(&r, &mut v[0], epsilon) {
                 return SolverResult {
                     converged: false,
@@ -118,49 +116,46 @@ impl KSP for GMRES {
                 };
             }
 
-            // Initialize the g vector with the current residual norm.
+            // Initialize g with the current residual norm
             g[0] = residual_norm;
-
             let mut inner_iterations = 0;
 
-            // Start Arnoldi iterations to build the Krylov subspace and the Hessenberg matrix `H`.
+            // Arnoldi process for generating the Krylov subspace and filling Hessenberg matrix
             for k in 0..self.restart {
                 inner_iterations = k;
-
-                // Perform Arnoldi process to generate orthogonal Krylov basis and fill `H`.
                 if let Some(result) = arnoldi_process(
                     k,
                     a,
                     &mut v,
                     &mut temp_vec,
                     &mut preconditioned_vec,
-                    &self.preconditioner,
+                    &self.preconditioner, // Pass &Option<Arc<...>>
                     &mut h,
                     epsilon,
                 ) {
                     return result;
                 }
 
-                // Apply Givens rotations to maintain upper Hessenberg structure.
+                // Apply Givens rotations to maintain upper Hessenberg structure
                 apply_givens_rotations(&mut h, &mut g, &mut cosines, &mut sines, k);
 
-                // Check for convergence.
+                // Check convergence after each step
                 residual_norm = g[k + 1].abs();
                 if residual_norm < self.tol {
                     break;
                 }
             }
 
-            // Solve least squares problem by back substitution to update `y` in `x = V*y`.
+            // Solve least-squares problem to update y in x = V * y
             let m = inner_iterations + 1;
             let mut y = vec![0.0; m];
             back_substitution(&h, &g, &mut y, m);
 
-            // Update the solution vector `x`.
+            // Update solution vector x
             update_solution(x, &v, &y, n);
             iterations += m;
 
-            // Recompute residual for the next iteration if restart is needed.
+            // Recompute the residual for restart
             compute_residual(a, b, x, &mut temp_vec, &mut r);
             if let Some(preconditioner) = &self.preconditioner {
                 preconditioner.apply(
@@ -172,7 +167,7 @@ impl KSP for GMRES {
             }
             residual_norm = euclidean_norm(&r as &dyn Vector<Scalar = f64>);
 
-            // Check for numerical issues and final convergence.
+            // Check for numerical stability issues
             if residual_norm.is_nan() || residual_norm.is_infinite() {
                 return SolverResult {
                     converged: false,
@@ -181,13 +176,14 @@ impl KSP for GMRES {
                 };
             }
 
+            // Final convergence check
             if iterations >= self.max_iter || residual_norm <= self.tol {
                 break;
             }
         }
 
         SolverResult {
-            converged: residual_norm <= self.tol && !x.as_slice().iter().any(|&xi| xi.is_nan()),
+            converged: residual_norm <= self.tol,
             iterations,
             residual_norm,
         }
@@ -294,7 +290,7 @@ fn arnoldi_process(
     v: &mut Vec<Vec<f64>>,
     temp_vec: &mut Vec<f64>,
     preconditioned_vec: &mut Vec<f64>,
-    preconditioner: &Option<Box<dyn Preconditioner>>,
+    preconditioner: &Option<Arc<dyn Preconditioner>>, // Change from Box to Arc
     h: &mut Vec<Vec<f64>>,
     epsilon: f64,
 ) -> Option<SolverResult> {
@@ -556,7 +552,7 @@ mod tests {
 
         // Instantiate GMRES solver with Jacobi preconditioner
         let mut gmres = GMRES::new(100, 1e-6, 2);
-        let preconditioner = Box::new(Jacobi::default());
+        let preconditioner = Arc::new(Jacobi::default());
         gmres.set_preconditioner(preconditioner);
 
         // Run the GMRES solver with preconditioning

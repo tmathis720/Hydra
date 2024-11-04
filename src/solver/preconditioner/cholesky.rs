@@ -1,5 +1,7 @@
 // src/solver/preconditioner/cholesky.rs
 use faer::{mat::Mat, solvers::{Cholesky, SpSolver}, Side}; // Import Side for cholesky method argument
+use crate::{linalg::Matrix, Vector};
+use crate::solver::preconditioner::Preconditioner;
 use std::error::Error;
 
 /// `CholeskyPreconditioner` holds the Cholesky decomposition result to
@@ -35,10 +37,23 @@ impl CholeskyPreconditioner {
     /// # Returns
     ///
     /// * `Ok(Mat<f64>)` containing the preconditioned solution, or an error if solving fails.
+    /// Applies the preconditioner to a given vector `rhs` and returns the solution.
+    ///
+    /// # Arguments
+    /// * `rhs` - The right-hand side vector as a `Mat<f64>`.
     pub fn apply(&self, rhs: &Mat<f64>) -> Result<Mat<f64>, Box<dyn Error>> {
-        // Directly return the result of solve
-        let preconditioned_solution = self.l_factor.solve(rhs);
-        Ok(preconditioned_solution)
+        Ok(self.l_factor.solve(rhs))
+    }
+}
+
+impl Preconditioner for CholeskyPreconditioner {
+    fn apply(&self, _a: &dyn Matrix<Scalar = f64>, r: &dyn Vector<Scalar = f64>, z: &mut dyn Vector<Scalar = f64>) {
+        let rhs_mat = Mat::from_fn(r.len(), 1, |i, _| r.get(i));
+        if let Ok(solution) = self.apply(&rhs_mat) {
+            for i in 0..z.len() {
+                z.set(i, solution[(i, 0)]);
+            }
+        }
     }
 }
 

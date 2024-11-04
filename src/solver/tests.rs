@@ -1,5 +1,7 @@
 // src/solver/tests.rs
 
+use std::sync::Arc;
+
 use crate::solver::{ConjugateGradient, GMRES, KSP};
 use crate::solver::preconditioner::{Jacobi, LU, ILU};
 use faer::mat;
@@ -101,7 +103,7 @@ fn test_gmres_solver_with_lu_preconditioner() {
     let mut x = Mat::<f64>::zeros(2, 1);
 
     let mut gmres = GMRES::new(100, TOLERANCE, 2);
-    gmres.set_preconditioner(Box::new(LU::new(&a)));
+    gmres.set_preconditioner(Arc::new(LU::new(&a)));
     let result = gmres.solve(&a, &b, &mut x);
 
     assert!(result.converged, "GMRES with LU preconditioner did not converge.");
