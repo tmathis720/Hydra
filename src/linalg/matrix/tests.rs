@@ -532,5 +532,161 @@ mod tests {
         // Check that the slice contains the expected values
         assert_eq!(slice, expected_slice);
     }
+
+    #[test]
+    fn test_thread_safety2() {
+        use std::thread;
+
+        let data = vec![
+            vec![1.0, 2.0, 3.0],
+            vec![4.0, 5.0, 6.0],
+            vec![7.0, 8.0, 9.0],
+        ];
+        let mat = create_faer_matrix(data);
+        let mat_ref = Arc::new(mat);
+
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                let mat_clone = Arc::clone(&mat_ref);
+                thread::spawn(move || {
+                    // Define vector x using Vec<f64>
+                    let x = vec![1.0, 0.0, -1.0];
+                    let x_ref: &dyn Vector<Scalar = f64> = &x;
+
+                    // Initialize vector y using Vec<f64>
+                    let mut y = vec![0.0; mat_clone.nrows()];
+                    let y_ref: &mut dyn Vector<Scalar = f64> = &mut y;
+
+                    // Perform y = A * x
+                    mat_clone.mat_vec(x_ref, y_ref);
+
+                    // Expected result is [-2.0, -2.0, -2.0]
+                    let expected = vec![-2.0, -2.0, -2.0];
+
+                    for (i, &val) in expected.iter().enumerate() {
+                        assert!(
+                            (y[i] - val).abs() < 1e-10,
+                            "y[{}] = {}, expected {}",
+                            i,
+                            y[i],
+                            val
+                        );
+                    }
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            handle.join().expect("Thread panicked");
+        }
+    }
+
+    #[test]
+    fn test_trace2() {
+        // Define a square matrix
+        let data_square = vec![
+            vec![1.0, 2.0, 3.0],
+            vec![4.0, 5.0, 6.0],
+            vec![7.0, 8.0, 9.0],
+        ];
+        let mat_square = create_faer_matrix(data_square);
+        let mat_ref_square: &dyn Matrix<Scalar = f64> = &mat_square;
+
+        // Expected trace: 1.0 + 5.0 + 9.0 = 15.0
+        let expected_trace_square = 15.0;
+        let computed_trace_square = mat_ref_square.trace();
+        assert!(
+            (computed_trace_square - expected_trace_square).abs() < 1e-10,
+            "Trace of square matrix: expected {}, got {}",
+            expected_trace_square,
+            computed_trace_square
+        );
+
+        // Define a non-square matrix (2x3)
+        let data_non_square = vec![
+            vec![10.0, 20.0, 30.0],
+            vec![40.0, 50.0, 60.0],
+        ];
+        let mat_non_square = create_faer_matrix(data_non_square);
+        let mat_ref_non_square: &dyn Matrix<Scalar = f64> = &mat_non_square;
+
+        // Expected trace: 10.0 + 50.0 = 60.0 (min(nrows, ncols) = 2)
+        let expected_trace_non_square = 60.0;
+        let computed_trace_non_square = mat_ref_non_square.trace();
+        assert!(
+            (computed_trace_non_square - expected_trace_non_square).abs() < 1e-10,
+            "Trace of non-square matrix: expected {}, got {}",
+            expected_trace_non_square,
+            computed_trace_non_square
+        );
+    }
+
+    #[test]
+    fn test_frobenius_norm2() {
+        // Define a square matrix
+        let data_square = vec![
+            vec![1.0, 2.0, 3.0],
+            vec![4.0, 5.0, 6.0],
+            vec![7.0, 8.0, 9.0],
+        ];
+        let mat_square = create_faer_matrix(data_square);
+        let mat_ref_square: &dyn Matrix<Scalar = f64> = &mat_square;
+
+        // Expected Frobenius norm: sqrt(1^2 + 2^2 + ... + 9^2)
+        let expected_fro_norm_square = 16.881943016134134;
+        let computed_fro_norm_square = mat_ref_square.frobenius_norm();
+        assert!(
+            (computed_fro_norm_square - expected_fro_norm_square).abs() < 1e-5,
+            "Frobenius norm of square matrix: expected {}, got {}",
+            expected_fro_norm_square,
+            computed_fro_norm_square
+        );
+
+        // Define a non-square matrix (2x3)
+        let data_non_square = vec![
+            vec![10.0, 20.0, 30.0],
+            vec![40.0, 50.0, 60.0],
+        ];
+        let mat_non_square = create_faer_matrix(data_non_square);
+        let mat_ref_non_square: &dyn Matrix<Scalar = f64> = &mat_non_square;
+
+        // Expected Frobenius norm: sqrt(10^2 + 20^2 + ... + 60^2)
+        let expected_fro_norm_non_square = 95.39392014169457;
+        let computed_fro_norm_non_square = mat_ref_non_square.frobenius_norm();
+        assert!(
+            (computed_fro_norm_non_square - expected_fro_norm_non_square).abs() < 1e-5,
+            "Frobenius norm of non-square matrix: expected {}, got {}",
+            expected_fro_norm_non_square,
+            computed_fro_norm_non_square
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_get_out_of_bounds_row2() {
+        let data = vec![
+            vec![1.0, 2.0],
+            vec![3.0, 4.0],
+        ];
+        let mat = create_faer_matrix(data);
+        let mat_ref: &dyn Matrix<Scalar = f64> = &mat;
+
+        // Accessing out-of-bounds row should panic
+        mat_ref.get(2, 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_get_out_of_bounds_column2() {
+        let data = vec![
+            vec![1.0, 2.0],
+            vec![3.0, 4.0],
+        ];
+        let mat = create_faer_matrix(data);
+        let mat_ref: &dyn Matrix<Scalar = f64> = &mat;
+
+        // Accessing out-of-bounds column should panic
+        mat_ref.get(1, 2);
+    }
 }
 

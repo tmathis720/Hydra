@@ -1,6 +1,6 @@
 use crate::linalg::Vector;
 use faer::Mat;
-use super::traits::Matrix;
+use super::traits::{Matrix, MatrixOperations};
 
 // Implement Matrix trait for faer_core::Mat
 impl Matrix for Mat<f64> {
@@ -77,5 +77,24 @@ impl Matrix for Mat<f64> {
             }
         }
         data.into_boxed_slice()
+    }
+}
+
+// Implement MatrixOperations trait for faer_core::Mat
+impl MatrixOperations for Mat<f64> {
+    fn construct(rows: usize, cols: usize) -> Self {
+        Mat::<f64>::zeros(rows, cols) // Construct a matrix initialized to zeros
+    }
+
+    fn set_value(&mut self, row: usize, col: usize, value: f64) {
+        self.write(row, col, value); // Safely set a value at the given position
+    }
+
+    fn get_value(&self, row: usize, col: usize) -> f64 {
+        self.read(row, col) // Retrieve the value at the specified position
+    }
+
+    fn size(&self) -> (usize, usize) {
+        (self.nrows(), self.ncols()) // Return the dimensions of the matrix
     }
 }

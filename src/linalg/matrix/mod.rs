@@ -2,6 +2,7 @@
 
 pub mod traits;
 pub mod mat_impl;
+pub mod matrix_builder;
 
 pub use traits::Matrix;
 

@@ -28,3 +28,11 @@ pub trait Matrix: Send + Sync {
 
     fn as_slice_mut(&mut self) -> Box<[Self::Scalar]>;
 }
+
+/// Trait defining the functions for solver integration.
+pub trait MatrixOperations {
+    fn construct(rows: usize, cols: usize) -> Self;
+    fn set_value(&mut self, row: usize, col: usize, value: f64);
+    fn get_value(&self, row: usize, col: usize) -> f64;
+    fn size(&self) -> (usize, usize);
+}

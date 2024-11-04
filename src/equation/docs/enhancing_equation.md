@@ -32,11 +32,10 @@ These additions will substantially extend the capability of the `Equation` modul
 
 This roadmap is organized to ensure modular development, with each phase building on a tested foundation to achieve overall stability, accuracy, and computational efficiency.
 
-### 1. **Phase 1: Solver Integration with Krylov Subspace Methods**
-   - **Objective**: Implement Krylov methods such as GMRES and Conjugate Gradient (CG) for sparse, large-scale linear systems.
+### 1. **Phase 1: KSP Integration with Krylov Subspace Methods**
+   - **Objective**: Use the `KSP` module Krylov methods such as GMRES and Conjugate Gradient (CG) for sparse, large-scale linear systems.
    - **Implementation Steps**:
-     - Add a `Solver` trait within the `equation` module to abstract the solver interface, supporting GMRES for non-symmetric matrices and CG for symmetric matrices.
-     - Integrate preconditioning options (e.g., Incomplete LU (ILU) and Algebraic Multigrid (AMG)), as outlined in *Iterative Methods for Sparse Linear Systems*【21†source】, to improve convergence rates.
+     - Use the `KSP` trait within the `equation` module to abstract the solver interface, supporting GMRES for non-symmetric matrices and CG for symmetric matrices, including optional pre-conditioners.
      - Update `Equation::calculate_fluxes` to interface with these solvers for solving linear systems that arise during flux calculation steps.
    - **Testing and Validation**:
      - Cross-reference the validation with test cases from the HYDRA knowledge base in *test_driven_development.md* for sparse matrix systems, ensuring the iterative methods' output accuracy.
