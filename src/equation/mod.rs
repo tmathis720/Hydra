@@ -1,6 +1,6 @@
 use fields::{Fields, Fluxes};
 
-use crate::{boundary::bc_handler::BoundaryConditionHandler, Mesh, Section};
+use crate::{boundary::bc_handler::BoundaryConditionHandler, Mesh};
 
 pub mod equation;
 pub mod reconstruction;
@@ -10,7 +10,7 @@ pub mod flux_limiter;
 pub mod fields;
 pub mod manager;
 pub mod energy_equation;
-pub mod turbulence_models;
+/* pub mod turbulence_models; */
 pub mod momentum_equation;
 
 // src/equation/mod.rs
