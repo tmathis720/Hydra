@@ -94,7 +94,7 @@ mod tests {
         let mut x = Mat::<f64>::zeros(2, 1);
 
         // Initialize CG solver and solver manager
-        let mut cg_solver = ConjugateGradient::new(100, 1e-6);
+        let cg_solver = ConjugateGradient::new(100, 1e-6);
         let mut solver_manager = SolverManager::new(Box::new(cg_solver));
 
         // Set Jacobi preconditioner

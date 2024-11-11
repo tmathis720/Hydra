@@ -25,10 +25,8 @@ impl EnergyEquation {
         boundary_handler: &BoundaryConditionHandler,
     ) {
         let mut geometry = Geometry::new();
-
-        // Iterate over all faces in the mesh
+    
         for face in domain.get_faces() {
-            // Obtain cell data to reconstruct face-centered values
             let face_vertices = domain.get_face_vertices(&face);
             let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
@@ -36,70 +34,79 @@ impl EnergyEquation {
                 _ => panic!("Unsupported face shape with {} vertices", face_vertices.len()),
             };
             let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
-
-            // Retrieve the cells sharing the face
+    
             let cells = domain.get_cells_sharing_face(&face);
             let cell_a = cells.iter().next().map(|entry| entry.key().clone()).expect("Face should have at least one associated cell.");
-
-            // Temperature and gradient at cell center
+    
             let temp_a = temperature_field.restrict(&cell_a).expect("Temperature not found for cell");
             let grad_temp_a = temperature_gradient.restrict(&cell_a).expect("Temperature gradient not found for cell");
-
-            // Reconstruct temperature at the face center
+    
             let face_temperature = reconstruct_face_value(
                 temp_a,
                 grad_temp_a,
                 geometry.compute_cell_centroid(domain, &cell_a),
                 face_center,
             );
-
-            // Calculate face-centered velocity
+    
+            println!(
+                "Face: {:?}, Cell: {:?}, Temp: {}, Grad Temp: {:?}, Face Temp: {}",
+                face, cell_a, temp_a, grad_temp_a, face_temperature
+            );
+    
             let velocity = velocity_field.restrict(&face).expect("Velocity not found at face");
-
-            // Calculate conductive flux: -κ * ∇T · n
             let face_normal = geometry.compute_face_normal(domain, &face, &cell_a).expect("Normal not found for face");
+    
+            println!(
+                "Face: {:?}, Normal: {:?}, Velocity: {:?}",
+                face, face_normal, velocity
+            );
+    
             let conductive_flux = -self.thermal_conductivity * (
                 grad_temp_a[0] * face_normal[0] +
                 grad_temp_a[1] * face_normal[1] +
                 grad_temp_a[2] * face_normal[2]
             );
-
-            // Calculate convective flux: ρ * u * T * (u · n)
-            let rho = 1.0; // Assuming a constant density
+    
+            let rho = 1.0;
             let convective_flux = rho * face_temperature * (
                 velocity[0] * face_normal[0] +
                 velocity[1] * face_normal[1] +
                 velocity[2] * face_normal[2]
             );
-
-            // Total flux on the face
+    
+            println!(
+                "Face: {:?}, Conductive Flux: {}, Convective Flux: {}",
+                face, conductive_flux, convective_flux
+            );
+    
             let face_area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
             let mut total_flux = (conductive_flux + convective_flux) * face_area;
-
-            // Apply boundary conditions if the face is at a boundary
-            if cells.len() == 1 { // Indicates a boundary face
+    
+            if cells.len() == 1 { // Boundary face
                 if let Some(bc) = boundary_handler.get_bc(&face) {
+                    println!("Applying boundary condition on face {:?}", face);
                     total_flux = match bc {
-                        BoundaryCondition::Dirichlet(value) => value,
-                        BoundaryCondition::Neumann(flux) => total_flux + flux,
+                        BoundaryCondition::Dirichlet(value) => {
+                            println!("Dirichlet condition, setting flux to {}", value);
+                            value // Enforce Dirichlet directly
+                        }
+                        BoundaryCondition::Neumann(flux) => {
+                            println!("Neumann condition, adding flux {}", flux);
+                            total_flux + flux // Add Neumann adjustment
+                        }
                         BoundaryCondition::Robin { alpha, beta } => {
-                            alpha * face_temperature + beta * total_flux
+                            println!("Robin condition, alpha: {}, beta: {}", alpha, beta);
+                            alpha * face_temperature + beta * total_flux // Robin modification
                         }
-                        BoundaryCondition::Mixed { gamma, delta } => {
-                            gamma * total_flux + delta
-                        }
-                        BoundaryCondition::Cauchy { lambda, mu } => {
-                            lambda * total_flux + mu * face_temperature
-                        }
-                        _ => total_flux, // Default to total_flux if no special condition
+                        _ => total_flux, // No change for other conditions
                     };
                 }
             }
-
-            // Store the computed flux in the energy flux section
+    
+            println!("Storing total flux: {} for face {:?}", total_flux, face);
             energy_fluxes.set_data(face, total_flux);
         }
-    }
+    }        
 }
 
 
@@ -237,6 +244,7 @@ mod tests {
         temperature_gradient.set_data(cell2, [10.0, 0.0, 0.0]);
         velocity_field.set_data(face, [2.0, 0.0, 0.0]);
 
+        // Apply a Dirichlet boundary condition on the face with a fixed value
         boundary_handler.set_bc(face, BoundaryCondition::Dirichlet(100.0));
 
         let energy_eq = EnergyEquation::new(0.5);
@@ -249,6 +257,7 @@ mod tests {
             &boundary_handler,
         );
 
+        // Verify that the calculated flux on the boundary matches the Dirichlet value
         let calculated_flux = energy_fluxes.restrict(&face).expect("Flux not calculated.");
         assert_eq!(calculated_flux, 100.0, "Flux should match Dirichlet boundary value.");
     }
@@ -274,6 +283,7 @@ mod tests {
         temperature_gradient.set_data(cell2, [10.0, 0.0, 0.0]);
         velocity_field.set_data(face, [2.0, 0.0, 0.0]);
 
+        // Apply a Neumann boundary condition with a flux increment of 50.0
         boundary_handler.set_bc(face, BoundaryCondition::Neumann(50.0));
 
         let energy_eq = EnergyEquation::new(0.5);
@@ -286,8 +296,9 @@ mod tests {
             &boundary_handler,
         );
 
+        // Verify that the Neumann boundary condition adjusted the flux
         let calculated_flux = energy_fluxes.restrict(&face).expect("Flux not calculated.");
-        assert!(calculated_flux > 0.0, "Flux should be adjusted by Neumann boundary.");
+        assert!(calculated_flux > 0.0, "Flux should be adjusted by Neumann boundary condition.");
     }
 
     #[test]
@@ -311,6 +322,7 @@ mod tests {
         temperature_gradient.set_data(cell2, [10.0, 0.0, 0.0]);
         velocity_field.set_data(face, [2.0, 0.0, 0.0]);
 
+        // Apply a Robin boundary condition with parameters alpha and beta
         boundary_handler.set_bc(face, BoundaryCondition::Robin { alpha: 0.3, beta: 0.7 });
 
         let energy_eq = EnergyEquation::new(0.5);
@@ -323,6 +335,7 @@ mod tests {
             &boundary_handler,
         );
 
+        // Verify that the Robin boundary condition affected the flux
         let calculated_flux = energy_fluxes.restrict(&face).expect("Flux not calculated.");
         assert!(calculated_flux != 0.0, "Flux should be affected by Robin boundary conditions.");
     }
@@ -348,16 +361,22 @@ mod tests {
             turbulence_fluxes: Section::new(),
         };
 
-        let cell = MeshEntity::Cell(1);
+        let cell1 = MeshEntity::Cell(1);
+        let cell2 = MeshEntity::Cell(2);
         let face = MeshEntity::Face(1);
 
-        fields.temperature_field.set_data(cell, 300.0);
-        fields.temperature_gradient.set_data(cell, [10.0, 0.0, 0.0]);
+        // Set values for temperature, gradient, and velocity for cells and face
+        fields.temperature_field.set_data(cell1, 300.0);
+        fields.temperature_field.set_data(cell2, 310.0);
+        fields.temperature_gradient.set_data(cell1, [10.0, 0.0, 0.0]);
+        fields.temperature_gradient.set_data(cell2, [10.0, 0.0, 0.0]);
         fields.velocity_field.set_data(face, [2.0, 0.0, 0.0]);
 
         let energy_eq = EnergyEquation::new(0.5);
         energy_eq.assemble(&mesh, &fields, &mut fluxes, &boundary_handler);
 
+        // Verify that energy fluxes were computed and stored for the face
         assert!(fluxes.energy_fluxes.restrict(&face).is_some(), "Energy fluxes should be computed and stored.");
     }
+
 }
