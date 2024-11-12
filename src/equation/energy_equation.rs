@@ -36,77 +36,174 @@ impl EnergyEquation {
             let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
     
             let cells = domain.get_cells_sharing_face(&face);
-            let cell_a = cells.iter().next().map(|entry| entry.key().clone()).expect("Face should have at least one associated cell.");
+            let cell_a = cells
+                .iter()
+                .next()
+                .map(|entry| entry.key().clone())
+                .expect("Face should have at least one associated cell.");
     
-            let temp_a = temperature_field.restrict(&cell_a).expect("Temperature not found for cell");
-            let grad_temp_a = temperature_gradient.restrict(&cell_a).expect("Temperature gradient not found for cell");
+            let temp_a = temperature_field
+                .restrict(&cell_a)
+                .expect("Temperature not found for cell");
+            let grad_temp_a = temperature_gradient
+                .restrict(&cell_a)
+                .expect("Temperature gradient not found for cell");
     
-            let face_temperature = reconstruct_face_value(
+            let mut face_temperature = reconstruct_face_value(
                 temp_a,
                 grad_temp_a,
                 geometry.compute_cell_centroid(domain, &cell_a),
                 face_center,
             );
     
-            println!(
-                "Face: {:?}, Cell: {:?}, Temp: {}, Grad Temp: {:?}, Face Temp: {}",
-                face, cell_a, temp_a, grad_temp_a, face_temperature
-            );
-    
-            let velocity = velocity_field.restrict(&face).expect("Velocity not found at face");
-            let face_normal = geometry.compute_face_normal(domain, &face, &cell_a).expect("Normal not found for face");
-    
-            println!(
-                "Face: {:?}, Normal: {:?}, Velocity: {:?}",
-                face, face_normal, velocity
-            );
-    
-            let conductive_flux = -self.thermal_conductivity * (
-                grad_temp_a[0] * face_normal[0] +
-                grad_temp_a[1] * face_normal[1] +
-                grad_temp_a[2] * face_normal[2]
-            );
-    
-            let rho = 1.0;
-            let convective_flux = rho * face_temperature * (
-                velocity[0] * face_normal[0] +
-                velocity[1] * face_normal[1] +
-                velocity[2] * face_normal[2]
-            );
-    
-            println!(
-                "Face: {:?}, Conductive Flux: {}, Convective Flux: {}",
-                face, conductive_flux, convective_flux
-            );
+            let velocity = velocity_field
+                .restrict(&face)
+                .expect("Velocity not found at face");
+            let face_normal = geometry
+                .compute_face_normal(domain, &face, &cell_a)
+                .expect("Normal not found for face");
     
             let face_area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
-            let mut total_flux = (conductive_flux + convective_flux) * face_area;
     
-            if cells.len() == 1 { // Boundary face
+            let total_flux;
+    
+            if cells.len() == 1 {
+                // Boundary face
                 if let Some(bc) = boundary_handler.get_bc(&face) {
                     println!("Applying boundary condition on face {:?}", face);
-                    total_flux = match bc {
+                    match bc {
                         BoundaryCondition::Dirichlet(value) => {
-                            println!("Dirichlet condition, setting flux to {}", value);
-                            value // Enforce Dirichlet directly
+                            println!(
+                                "Dirichlet condition, setting face temperature to {}",
+                                value
+                            );
+                            face_temperature = value; // Enforce Dirichlet on face temperature
+            
+                            // Recompute conductive flux based on temperature difference
+                            let cell_centroid = geometry.compute_cell_centroid(domain, &cell_a);
+                            let distance =
+                                Geometry::compute_distance(&cell_centroid, &face_center);
+            
+                            let temp_gradient_normal = (face_temperature - temp_a) / distance;
+                            let face_normal_length = face_normal
+                                .iter()
+                                .map(|n| n * n)
+                                .sum::<f64>()
+                                .sqrt();
+            
+                            let conductive_flux = -self.thermal_conductivity
+                                * temp_gradient_normal
+                                * face_normal_length;
+            
+                            // Compute convective flux
+                            let vel_dot_n = velocity
+                                .iter()
+                                .zip(&face_normal)
+                                .map(|(v, n)| v * n)
+                                .sum::<f64>();
+                            let rho = 1.0;
+                            let convective_flux = rho * face_temperature * vel_dot_n;
+            
+                            total_flux = (conductive_flux + convective_flux) * face_area;
                         }
                         BoundaryCondition::Neumann(flux) => {
-                            println!("Neumann condition, adding flux {}", flux);
-                            total_flux + flux // Add Neumann adjustment
+                            println!("Neumann condition, setting total flux to {}", flux);
+                            total_flux = flux * face_area; // Enforce Neumann directly over the face area
                         }
                         BoundaryCondition::Robin { alpha, beta } => {
-                            println!("Robin condition, alpha: {}, beta: {}", alpha, beta);
-                            alpha * face_temperature + beta * total_flux // Robin modification
+                            println!(
+                                "Robin condition, alpha: {}, beta: {}",
+                                alpha, beta
+                            );
+                            // For Robin boundary condition, the flux is defined by:
+                            // q = alpha * (face_temperature - beta)
+                            // where:
+                            // - alpha is the heat transfer coefficient
+                            // - beta is the ambient temperature
+                            // We compute the conductive flux accordingly.
+            
+                            // Compute conductive flux based on Robin condition
+                            let conductive_flux = -alpha * (face_temperature - beta);
+            
+                            // Compute convective flux as before
+                            let vel_dot_n = velocity
+                                .iter()
+                                .zip(&face_normal)
+                                .map(|(v, n)| v * n)
+                                .sum::<f64>();
+                            let rho = 1.0;
+                            let convective_flux = rho * face_temperature * vel_dot_n;
+            
+                            total_flux = (conductive_flux + convective_flux) * face_area;
                         }
-                        _ => total_flux, // No change for other conditions
-                    };
+                        _ => {
+                            // Default behavior if no specific boundary condition is matched
+                            // Proceed with normal calculation
+                            total_flux = self.compute_flux(
+                                temp_a,
+                                face_temperature,
+                                &grad_temp_a,
+                                &face_normal,
+                                &velocity,
+                                face_area,
+                            );
+                        }
+                    }
+                } else {
+                    // No boundary condition specified; proceed with normal calculation
+                    total_flux = self.compute_flux(
+                        temp_a,
+                        face_temperature,
+                        &grad_temp_a,
+                        &face_normal,
+                        &velocity,
+                        face_area,
+                    );
                 }
+            } else {
+                // Internal face
+                total_flux = self.compute_flux(
+                    temp_a,
+                    face_temperature,
+                    &grad_temp_a,
+                    &face_normal,
+                    &velocity,
+                    face_area,
+                );
             }
+            
     
             println!("Storing total flux: {} for face {:?}", total_flux, face);
             energy_fluxes.set_data(face, total_flux);
         }
-    }        
+    }
+    
+    // Helper function to compute flux
+    fn compute_flux(
+        &self,
+        temp_a: f64,
+        face_temperature: f64,
+        grad_temp_a: &[f64; 3],
+        face_normal: &[f64; 3],
+        velocity: &[f64; 3],
+        face_area: f64,
+    ) -> f64 {
+        let _ = temp_a;
+        let conductive_flux = -self.thermal_conductivity
+            * (grad_temp_a[0] * face_normal[0]
+                + grad_temp_a[1] * face_normal[1]
+                + grad_temp_a[2] * face_normal[2]);
+    
+        let rho = 1.0;
+        let convective_flux = rho
+            * face_temperature
+            * (velocity[0] * face_normal[0]
+                + velocity[1] * face_normal[1]
+                + velocity[2] * face_normal[2]);
+    
+        (conductive_flux + convective_flux) * face_area
+    }
+            
 }
 
 
@@ -161,6 +258,7 @@ mod tests {
         mesh.add_relationship(face.clone(), vertex1);
         mesh.add_relationship(face.clone(), vertex2);
         mesh.add_relationship(face.clone(), vertex3);
+        mesh.add_relationship(face.clone(), vertex4);
     
         // Create cells and connect each cell to the face and vertices
         let cell1 = MeshEntity::Cell(1);
@@ -179,6 +277,43 @@ mod tests {
         mesh
     }
     
+    fn create_simple_mesh_with_boundary_face() -> Mesh {
+        let mut mesh = Mesh::new();
+    
+        // Define vertices with distinct coordinates
+        let vertex1 = MeshEntity::Vertex(1);
+        let vertex2 = MeshEntity::Vertex(2);
+        let vertex3 = MeshEntity::Vertex(3);
+        let vertex4 = MeshEntity::Vertex(4);
+    
+        // Add vertices to mesh and set coordinates
+        mesh.add_entity(vertex1);
+        mesh.add_entity(vertex2);
+        mesh.add_entity(vertex3);
+        mesh.add_entity(vertex4);
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
+        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]);
+    
+        // Create a face and associate it with vertices (e.g., vertices 1, 2, and 3)
+        let face = MeshEntity::Face(1);
+        mesh.add_entity(face);
+        mesh.add_relationship(face.clone(), vertex1);
+        mesh.add_relationship(face.clone(), vertex2);
+        mesh.add_relationship(face.clone(), vertex3);
+    
+        // Create a cell and connect it to the face and vertices
+        let cell1 = MeshEntity::Cell(1);
+        mesh.add_entity(cell1);
+        mesh.add_relationship(cell1, face.clone());
+        // Connect cell to all vertices
+        for &vertex in &[vertex1, vertex2, vertex3, vertex4] {
+            mesh.add_relationship(cell1, vertex);
+        }
+    
+        mesh
+    }
     
 
     #[test]
@@ -225,7 +360,7 @@ mod tests {
 
     #[test]
     fn test_flux_calculation_with_dirichlet_boundary_condition() {
-        let mesh = create_simple_mesh_with_faces();
+        let mesh = create_simple_mesh_with_boundary_face();
         let boundary_handler = BoundaryConditionHandler::new();
 
         let temperature_field = Section::new();
@@ -234,17 +369,14 @@ mod tests {
         let mut energy_fluxes = Section::new();
 
         let cell1 = MeshEntity::Cell(1);
-        let cell2 = MeshEntity::Cell(2);
         let face = MeshEntity::Face(1);
 
-        // Set temperature and gradient data for both cells associated with the face
+        // Set temperature and gradient data for the cell associated with the face
         temperature_field.set_data(cell1, 300.0);
-        temperature_field.set_data(cell2, 310.0);
         temperature_gradient.set_data(cell1, [10.0, 0.0, 0.0]);
-        temperature_gradient.set_data(cell2, [10.0, 0.0, 0.0]);
         velocity_field.set_data(face, [2.0, 0.0, 0.0]);
 
-        // Apply a Dirichlet boundary condition on the face with a fixed value
+        // Apply a Dirichlet boundary condition on the face with a fixed temperature value
         boundary_handler.set_bc(face, BoundaryCondition::Dirichlet(100.0));
 
         let energy_eq = EnergyEquation::new(0.5);
@@ -257,10 +389,60 @@ mod tests {
             &boundary_handler,
         );
 
-        // Verify that the calculated flux on the boundary matches the Dirichlet value
+        // Retrieve the calculated flux
         let calculated_flux = energy_fluxes.restrict(&face).expect("Flux not calculated.");
-        assert_eq!(calculated_flux, 100.0, "Flux should match Dirichlet boundary value.");
+
+        // Manually compute the expected flux using the Dirichlet temperature
+        let mut geometry = Geometry::new();
+        let face_vertices = mesh.get_face_vertices(&face);
+        let face_shape = FaceShape::Triangle;
+        let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
+        let face_area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
+        let face_normal = geometry.compute_face_normal(&mesh, &face, &cell1).unwrap();
+
+        // Use the boundary temperature for face_temperature
+        let face_temperature = 100.0;
+        let temp_a = 300.0;
+
+        // Compute the distance between cell centroid and face centroid
+        let cell_centroid = geometry.compute_cell_centroid(&mesh, &cell1);
+        let distance = Geometry::compute_distance(&cell_centroid, &face_center);
+
+        // Ensure distance is not zero
+        assert!(
+            distance > 0.0,
+            "Distance between cell centroid and face centroid should be greater than zero."
+        );
+
+        // Compute the temperature gradient normal to the face
+        let temp_gradient_normal = (face_temperature - temp_a) / distance;
+
+        // Compute the magnitude of the face normal vector
+        let face_normal_length = face_normal.iter().map(|n| n * n).sum::<f64>().sqrt();
+
+        // Compute conductive flux based on the temperature difference
+        let conductive_flux = -energy_eq.thermal_conductivity * temp_gradient_normal * face_normal_length;
+
+        // Compute convective flux
+        let velocity = velocity_field.restrict(&face).unwrap();
+        let vel_dot_n = velocity.iter().zip(&face_normal).map(|(v, n)| v * n).sum::<f64>();
+        let rho = 1.0;
+        let convective_flux = rho * face_temperature * vel_dot_n;
+
+        // Total expected flux
+        let expected_flux = (conductive_flux + convective_flux) * face_area;
+
+        // Check that calculated_flux matches expected_flux within tolerance
+        assert!(
+            (calculated_flux - expected_flux).abs() < 1e-6,
+            "Calculated flux {} does not match expected flux {}.",
+            calculated_flux,
+            expected_flux
+        );
     }
+
+
+
 
     #[test]
     fn test_flux_calculation_with_neumann_boundary_condition() {

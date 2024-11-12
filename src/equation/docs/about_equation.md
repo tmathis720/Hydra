@@ -1,8 +1,4 @@
-# Detailed Report on Integrating Expanded Equations into the Hydra Program
-
-## Introduction
-
-The Hydra program is designed as a general framework for simulating fluid dynamics using the Finite Volume Method (FVM) on unstructured meshes. The `Equation` module plays a central role in formulating and solving the governing equations, such as momentum, continuity, energy conservation, and turbulence models.
+The `Equation` module plays a central role in formulating and solving the governing equations, such as momentum, continuity, energy conservation, and turbulence models.
 
 This report provides a comprehensive overview of the `Equation` module's current structure and outlines a detailed plan for integrating additional components—specifically the energy equation and turbulence models—into the Hydra program. The goal is to extend the program's capabilities to support a broader range of physical phenomena while maintaining modularity and scalability.
 
@@ -20,10 +16,10 @@ The `Equation` module encapsulates the mathematical representation of physical l
 
 ### Key Responsibilities
 
-- **Flux Computation**: Calculating fluxes at cell faces using appropriate numerical schemes.
+- **Flux Computation**: Calculating fluxes at cell faces using appropriate numerical schemes, including the correct application of boundary conditions.
 - **Gradient Calculation**: Estimating gradients of scalar and vector fields within cells.
 - **Equation Assembly**: Building the discrete equations that form the global system to be solved.
-- **Boundary Condition Application**: Incorporating boundary conditions into the equations.
+- **Boundary Condition Application**: Incorporating boundary conditions into the equations, ensuring accurate representation of physical constraints.
 
 ---
 
@@ -53,6 +49,7 @@ The `Equation` module is organized into several sub-modules and files, each hand
 - **`Fields` Struct**: Holds all field variables needed for simulations, including primary variables like pressure and additional fields for energy and turbulence.
 
   ```rust,ignore
+  // Assuming the necessary types are defined elsewhere in the program
   pub struct Fields {
       pub field: Section<f64>,
       pub gradient: Section<[f64; 3]>,
@@ -78,7 +75,7 @@ The `Equation` module is organized into several sub-modules and files, each hand
 
 - **`Equation` Struct**: Handles momentum and continuity equations, providing methods to calculate fluxes using upwinding schemes.
 
-- **`EnergyEquation` Struct**: Manages the energy conservation equation, including thermal conductivity effects.
+- **`EnergyEquation` Struct**: Manages the energy conservation equation, including thermal conductivity effects and correct application of boundary conditions.
 
 - **`KEpsilonModel` Struct**: Implements the k-epsilon turbulence model, calculating turbulence parameters.
 
@@ -100,7 +97,7 @@ pub struct EquationManager {
 
 The integration involves adding new structs and methods to support additional equations:
 
-- **Energy Equation**: Represented by `EnergyEquation`, incorporating thermal effects.
+- **Energy Equation**: Represented by `EnergyEquation`, incorporating thermal effects and accurate boundary condition handling.
 - **Turbulence Models**: Implemented in `turbulence_models.rs`, starting with the k-epsilon model.
 
 ### 3.2. Implementing the `PhysicalEquation` Trait
@@ -133,15 +130,17 @@ impl PhysicalEquation for EnergyEquation {
 The `EquationManager` dynamically assembles all equations added to it:
 
 ```rust,ignore
-pub fn assemble_all(
-    &self,
-    domain: &Mesh,
-    fields: &Fields,
-    fluxes: &mut Fluxes,
-    boundary_handler: &BoundaryConditionHandler,
-) {
-    for equation in &self.equations {
-        equation.assemble(domain, fields, fluxes, boundary_handler);
+impl EquationManager {
+    pub fn assemble_all(
+        &self,
+        domain: &Mesh,
+        fields: &Fields,
+        fluxes: &mut Fluxes,
+        boundary_handler: &BoundaryConditionHandler,
+    ) {
+        for equation in &self.equations {
+            equation.assemble(domain, fields, fluxes, boundary_handler);
+        }
     }
 }
 ```
@@ -164,9 +163,9 @@ Users can configure simulations to include only the necessary equations. For ins
 
 The `EquationManager` orchestrates the assembly of all equations, maintaining a unified workflow for:
 
-- **Flux Calculations**: Using appropriate numerical schemes for each equation.
+- **Flux Calculations**: Using appropriate numerical schemes for each equation, including accurate boundary condition application.
 - **Gradient Computations**: Sharing gradient calculations where possible to avoid redundant computations.
-- **Boundary Conditions**: Applying consistent boundary conditions across equations.
+- **Boundary Conditions**: Applying consistent boundary conditions across equations, ensuring physical accuracy.
 
 ### 4.4. Scalability
 
@@ -192,7 +191,38 @@ The structure supports scalability to large, complex simulations by:
   }
   ```
 
-- **Flux Calculation**: `calculate_energy_fluxes` method computes energy fluxes similarly to momentum fluxes but includes conductive heat transfer.
+- **Flux Calculation**: The `calculate_energy_fluxes` method computes energy fluxes, accurately handling both internal and boundary faces. It correctly applies Dirichlet, Neumann, and Robin boundary conditions by adjusting the face temperature and recalculating the fluxes accordingly.
+
+  ```rust,ignore
+  impl EnergyEquation {
+      pub fn calculate_energy_fluxes(
+          &self,
+          domain: &Mesh,
+          temperature_field: &Section<f64>,
+          temperature_gradient: &Section<[f64; 3]>,
+          velocity_field: &Section<[f64; 3]>,
+          energy_fluxes: &mut Section<f64>,
+          boundary_handler: &BoundaryConditionHandler,
+      ) {
+          // Implementation details...
+      }
+
+      // Helper function to compute flux
+      fn compute_flux(
+          &self,
+          temp_a: f64,
+          face_temperature: f64,
+          grad_temp_a: &[f64; 3],
+          face_normal: &[f64; 3],
+          velocity: &[f64; 3],
+          face_area: f64,
+      ) -> f64 {
+          // Flux calculation implementation...
+      }
+  }
+  ```
+
+- **Mesh Validation**: Ensuring that the mesh geometry is valid is critical. Zero distances between cell centroids and face centroids are avoided to prevent division by zero in flux calculations.
 
 ### 5.2. Turbulence Model Integration
 
@@ -209,21 +239,21 @@ The structure supports scalability to large, complex simulations by:
   }
   ```
 
-- **Parameter Calculation**: `calculate_turbulence_parameters` method computes turbulent kinetic energy and dissipation rate.
+- **Parameter Calculation**: The `calculate_turbulence_parameters` method computes turbulent kinetic energy and dissipation rate, properly handling boundary conditions and mesh geometry.
 
 ### 5.3. Gradient Calculations
 
 **`gradient/gradient_calc.rs`**
 
-- **Gradient Struct**: Manages the calculation of gradients across the mesh.
+- **Gradient Struct**: Manages the calculation of gradients across the mesh, incorporating boundary conditions to ensure accuracy at domain boundaries.
 
-- **Boundary Condition Handling**: Incorporates boundary conditions when computing gradients, ensuring accuracy at domain boundaries.
+- **Boundary Condition Handling**: Adjusts gradient calculations near boundaries, especially for Dirichlet conditions, by considering the specified field values at the boundaries.
 
 ### 5.4. Flux Reconstruction
 
 **`reconstruction/reconstruct.rs`**
 
-- **Linear Extrapolation**: `reconstruct_face_value` method performs linear extrapolation from cell centers to face centers.
+- **Linear Extrapolation**: The `reconstruct_face_value` method performs linear extrapolation from cell centers to face centers, ensuring accurate estimation of field values at faces.
 
 - **Usage in Flux Calculations**: Used within flux calculation methods to estimate values at face centers, essential for accurate flux computations.
 
@@ -233,13 +263,13 @@ The structure supports scalability to large, complex simulations by:
 
 - **Minmod and Superbee Limiters**: Implemented to prevent numerical oscillations and maintain Total Variation Diminishing (TVD) properties.
 
-- **Integration in Flux Calculations**: Flux limiters are applied during flux computations to adjust reconstructed values.
+- **Integration in Flux Calculations**: Flux limiters are applied during flux computations to adjust reconstructed values, ensuring stability and accuracy.
 
 ### 5.6. Fields and Fluxes Management
 
 **`fields.rs`**
 
-- **Shared Data Structures**: `Fields` and `Fluxes` structs hold all necessary variables, reducing data duplication.
+- **Shared Data Structures**: `Fields` and `Fluxes` structs hold all necessary variables, reducing data duplication and facilitating efficient data access.
 
 - **Extension for New Equations**: Fields specific to energy and turbulence are added, ensuring all equations have access to required data.
 
@@ -247,13 +277,15 @@ The structure supports scalability to large, complex simulations by:
 
 - **Mesh Entity Handling**: Methods are provided to retrieve cells, faces, and vertices, facilitating geometry-based calculations.
 
-- **Geometry Calculations**: `Geometry` struct provides methods for computing volumes, areas, normals, and centroids.
+- **Geometry Calculations**: The `Geometry` struct provides methods for computing volumes, areas, normals, and centroids, ensuring accurate geometric properties.
+
+- **Mesh Validation**: Checks are incorporated to validate the mesh geometry, avoiding situations like zero distances that could lead to computational errors.
 
 ### 5.8. Boundary Condition Integration
 
 - **`BoundaryConditionHandler`**: Manages various types of boundary conditions, including Dirichlet, Neumann, and Robin conditions.
 
-- **Application in Equations**: Boundary conditions are applied within gradient and flux calculations, ensuring they influence the solution appropriately.
+- **Application in Equations**: Boundary conditions are applied within gradient and flux calculations, ensuring they influence the solution appropriately. Special attention is given to correctly recomputing fluxes when boundary conditions are applied.
 
 ---
 
@@ -262,28 +294,44 @@ The structure supports scalability to large, complex simulations by:
 ### 6.1. Unit Testing
 
 - **Coverage**: Ensure all new methods, especially in `energy_equation.rs` and `turbulence_models.rs`, have corresponding unit tests.
-- **Test Cases**: Use simple, analytically solvable problems to verify correctness.
+
+- **Test Cases**: Use simple, analytically solvable problems to verify correctness. For example, test the energy equation with a known temperature distribution and boundary conditions.
+
+- **Boundary Conditions Testing**: Include tests for all types of boundary conditions (Dirichlet, Neumann, Robin) to ensure they are correctly implemented and applied.
 
 ### 6.2. Integration Testing
 
-- **Combined Equations**: Test the integration of multiple equations working together.
-- **Boundary Conditions**: Validate that boundary conditions are correctly applied across different equations.
+- **Combined Equations**: Test the integration of multiple equations working together, verifying that data is correctly shared via `Fields` and `Fluxes`.
+
+- **Mesh Geometry Validation**: Ensure that the mesh used in tests has valid geometry, avoiding zero distances between centroids.
+
+- **Boundary Conditions**: Validate that boundary conditions are correctly applied across different equations, and that flux calculations adjust accordingly.
 
 ### 6.3. Benchmarking
 
 - **Standard Benchmarks**: Compare simulation results against canonical benchmarks from *Computational Fluid Dynamics* by T.J. Chung.
+
   - **Laminar Flow with Heat Transfer**: Validate energy equation implementation.
+
   - **Turbulent Flow Over a Flat Plate**: Assess turbulence model accuracy.
 
 ### 6.4. Validation with Analytical Solutions
 
-- **Manufactured Solutions**: Use method of manufactured solutions to test the code's ability to reproduce known solutions.
+- **Manufactured Solutions**: Use the method of manufactured solutions to test the code's ability to reproduce known solutions.
+
 - **Error Analysis**: Perform convergence studies to verify that the numerical error decreases at the expected rate with mesh refinement.
 
 ### 6.5. Performance Testing
 
 - **Scalability**: Test the code's performance on larger meshes to ensure efficiency.
+
 - **Profiling**: Identify and optimize any bottlenecks, particularly in flux and gradient calculations.
+
+### 6.6. Mesh Validation Tests
+
+- **Zero Distance Checks**: Include tests to ensure that no zero distances exist between cell centroids and face centroids, preventing division by zero errors.
+
+- **Geometry Integrity**: Test that geometry calculations (areas, volumes, normals) produce expected results for simple mesh configurations.
 
 ---
 
@@ -292,21 +340,28 @@ The structure supports scalability to large, complex simulations by:
 ### 7.1. Additional Turbulence Models
 
 - **Large Eddy Simulation (LES)**: Implement LES models for high-fidelity turbulence simulations.
+
 - **Reynolds Stress Models (RSM)**: Incorporate RSM for more complex turbulence modeling.
 
 ### 7.2. Multiphysics Integration
 
 - **Species Transport**: Add equations for chemical species to simulate reactive flows.
+
 - **Electromagnetics**: Integrate electromagnetic equations for magnetohydrodynamics (MHD) simulations.
 
 ### 7.3. Adaptive Mesh Refinement (AMR)
 
 - **Dynamic Mesh Refinement**: Implement AMR to improve resolution in areas with high gradients.
 
+- **Mesh Quality Checks**: Enhance mesh validation routines to support AMR.
+
 ### 7.4. User Interface Enhancements
 
 - **Configuration Files**: Allow users to specify simulation parameters and equations through configuration files.
+
 - **Visualization Tools**: Integrate with visualization libraries to provide real-time feedback.
+
+- **Error Reporting**: Improve error messages and warnings, especially related to mesh geometry issues.
 
 ---
 
@@ -314,7 +369,7 @@ The structure supports scalability to large, complex simulations by:
 
 The proposed integration plan enhances the Hydra program by extending its capabilities to solve a wider range of fluid dynamics problems, including energy conservation and turbulence modeling. The modular design ensures that the program remains flexible and maintainable, facilitating future expansions and adaptations.
 
-By following the detailed implementation steps and recommendations provided, the Hydra program will evolve into a more powerful and versatile tool for computational fluid dynamics simulations, suitable for complex geophysical applications and beyond.
+By carefully handling boundary conditions, validating mesh geometry, and following best practices in computational fluid dynamics software development, the Hydra program will evolve into a more powerful and versatile tool for simulations, suitable for complex geophysical applications and beyond.
 
 ---
 
@@ -335,21 +390,23 @@ By following the detailed implementation steps and recommendations provided, the
 let mut equation_manager = EquationManager::new();
 
 // Add momentum and continuity equation
-equation_manager.add_equation(Equation::new());
+equation_manager.add_equation(Box::new(Equation::new()));
 
 // Conditionally add energy equation
 if simulation_requires_energy {
-    equation_manager.add_equation(EnergyEquation::new(thermal_conductivity));
+    equation_manager.add_equation(Box::new(EnergyEquation::new(thermal_conductivity)));
 }
 
 // Conditionally add turbulence model
 if simulation_requires_turbulence {
-    equation_manager.add_equation(KEpsilonModel::new());
+    equation_manager.add_equation(Box::new(KEpsilonModel::new()));
 }
 
 // Assemble all equations
 equation_manager.assemble_all(&mesh, &fields, &mut fluxes, &boundary_handler);
 ```
+
+*Note: In this example, `simulation_requires_energy` and `simulation_requires_turbulence` are boolean variables that determine whether the energy equation and turbulence model are included in the simulation. The necessary types (`EquationManager`, `Equation`, `EnergyEquation`, `KEpsilonModel`, etc.) are assumed to be defined and imported appropriately in the actual code.*
 
 #### A.2. Implementing a New Turbulence Model
 
@@ -366,12 +423,7 @@ impl PhysicalEquation for LESModel {
         fluxes: &mut Fluxes,
         boundary_handler: &BoundaryConditionHandler,
     ) {
-        self.calculate_les_parameters(
-            domain,
-            &fields.velocity_field,
-            &mut fluxes.turbulence_fluxes,
-            boundary_handler,
-        );
+        // Implementation of LES parameter calculations
     }
 }
 ```
@@ -383,36 +435,46 @@ impl PhysicalEquation for LESModel {
 #### B.1. Energy Equation Validation Test
 
 ```rust,ignore
-#[test]
-fn test_energy_equation_fluxes() {
-    // Set up mesh, fields, and boundary conditions
-    let mesh = Mesh::new();
-    let boundary_handler = BoundaryConditionHandler::new();
-    let energy_equation = EnergyEquation::new(thermal_conductivity);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // Import necessary modules and structs
 
-    // Initialize fields and fluxes
-    let mut temperature_field = Section::new();
-    let mut temperature_gradient = Section::new();
-    let velocity_field = Section::new();
-    let mut energy_fluxes = Section::new();
+    #[test]
+    fn test_flux_calculation_with_dirichlet_boundary_condition() {
+        // Set up mesh, fields, and boundary conditions
+        let mesh = create_simple_mesh_with_boundary_face();
+        let boundary_handler = BoundaryConditionHandler::new();
 
-    // Populate fields with test data
-    // ...
+        let mut temperature_field = Section::new();
+        let mut temperature_gradient = Section::new();
+        let mut velocity_field = Section::new();
+        let mut energy_fluxes = Section::new();
 
-    // Call the flux calculation
-    energy_equation.calculate_energy_fluxes(
-        &mesh,
-        &temperature_field,
-        &temperature_gradient,
-        &velocity_field,
-        &mut energy_fluxes,
-        &boundary_handler,
-    );
+        // Initialize fields with test data
+        // ...
 
-    // Assert expected results
-    // ...
+        // Apply Dirichlet boundary condition
+        // ...
+
+        // Call the flux calculation
+        let energy_eq = EnergyEquation::new(0.5);
+        energy_eq.calculate_energy_fluxes(
+            &mesh,
+            &temperature_field,
+            &temperature_gradient,
+            &velocity_field,
+            &mut energy_fluxes,
+            &boundary_handler,
+        );
+
+        // Retrieve and check the calculated flux
+        // ...
+    }
 }
 ```
+
+*Note: The test function above is simplified to focus on the structure rather than specific implementation details. The actual test would include detailed setup and assertions to verify correctness.*
 
 ---
 
@@ -440,4 +502,4 @@ Consider integrating with libraries like **ParaView** or **VisIt** for post-proc
 
 ---
 
-By carefully integrating the expanded equations and following best practices in computational fluid dynamics software development, the Hydra program will provide robust and flexible simulation capabilities to users, supporting advanced research and engineering applications.
+By carefully integrating the expanded equations, handling boundary conditions correctly, validating mesh geometry, and following best practices in computational fluid dynamics software development, the Hydra program will provide robust and flexible simulation capabilities to users, supporting advanced research and engineering applications.
