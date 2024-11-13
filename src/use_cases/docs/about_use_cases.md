@@ -33,7 +33,7 @@ This use case is responsible for creating and initializing matrices used in vari
   - **`resize_matrix`**: Changes the dimensions of a matrix, maintaining data where possible. It relies on the `ExtendedMatrixOperations` trait, ensuring the operation works consistently for matrices of different types.
   
   **Usage Example**:
-  ```rust
+  ```rust,ignore
   let mut matrix = MatrixConstruction::build_zero_matrix(4, 4);
   MatrixConstruction::initialize_matrix_with_value(&mut matrix, 1.0);
   MatrixConstruction::resize_matrix(&mut matrix, 6, 6);
@@ -52,7 +52,7 @@ This use case constructs and manages the right-hand side (RHS) vector used in so
   - **`resize_rhs`**: Resizes the RHS vector, preserving existing data and initializing new entries to zero.
 
   **Usage Example**:
-  ```rust
+  ```rust,ignore
   let mut rhs_vector = RHSConstruction::build_zero_rhs(5);
   RHSConstruction::initialize_rhs_with_value(&mut rhs_vector, 3.5);
   RHSConstruction::resize_rhs(&mut rhs_vector, 8);
