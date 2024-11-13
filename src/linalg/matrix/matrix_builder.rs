@@ -16,8 +16,6 @@ impl MatrixBuilder {
     /// A matrix of type `T` initialized to the specified dimensions.
     pub fn build_matrix<T: MatrixOperations>(rows: usize, cols: usize) -> T {
         let matrix = T::construct(rows, cols);
-        // Optionally, initialize the matrix to zero or other values if needed.
-        // `initialize_zero` can be defined as part of T's implementation if required.
         matrix
     }
 
@@ -43,8 +41,8 @@ impl MatrixBuilder {
         preconditioner: &P,
         matrix: &dyn Matrix<Scalar = f64>,
     ) {
-        let input_vector = Vec::new(); // Replace with correct vector initialization.
-        let mut result_vector = Vec::new(); // Initialize a separate vector for mutable use.
+        let input_vector = vec![0.0; matrix.ncols()]; // Initialize input vector with zeros.
+        let mut result_vector = vec![0.0; matrix.nrows()]; // Initialize result vector with zeros.
         
         preconditioner.apply(matrix, &input_vector, &mut result_vector);
     }
@@ -107,14 +105,16 @@ mod tests {
                     cols,
                 }
             }
-            fn set_value(&mut self, row: usize, col: usize, value: f64) {
-                self.data[row][col] = value;
-            }
-            fn get_value(&self, row: usize, col: usize) -> f64 {
-                self.data[row][col]
-            }
             fn size(&self) -> (usize, usize) {
                 (self.rows, self.cols)
+            }
+            
+            fn set(&mut self, row: usize, col: usize, value: f64) {
+                self.data[row][col] = value;
+            }
+            
+            fn get(&self, row: usize, col: usize) -> f64 {
+                self.data[row][col]
             }
         }
 
@@ -127,7 +127,7 @@ mod tests {
         // Ensure matrix is initialized with zeros.
         for i in 0..rows {
             for j in 0..cols {
-                assert_eq!(matrix.get_value(i, j), 0.0, "Matrix should be initialized to zero.");
+                assert_eq!(matrix.get(i, j), 0.0, "Matrix should be initialized to zero.");
             }
         }
     }

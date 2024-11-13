@@ -14,25 +14,6 @@ impl Matrix for Mat<f64> {
         self.ncols() // Return the number of columns in the matrix
     }
 
-    fn mat_vec(&self, x: &dyn Vector<Scalar = f64>, y: &mut dyn Vector<Scalar = f64>) {
-        // Perform matrix-vector multiplication
-        // Utilizing optimized `faer` routines for better performance
-        // Assuming that `faer` provides an optimized mat_vec, but since it's not used here,
-        // we keep the manual implementation as per original code
-
-        for i in 0..self.nrows() {
-            let mut sum = 0.0;
-            for j in 0..self.ncols() {
-                sum += self.read(i, j) * x.get(j);
-            }
-            y.set(i, sum);
-        }
-    }
-
-    fn get(&self, i: usize, j: usize) -> f64 {
-        self.read(i, j) // Read the matrix element at position (i, j)
-    }
-
     fn trace(&self) -> f64 {
         let min_dim = usize::min(self.nrows(), self.ncols());
         let mut trace_sum = 0.0;
@@ -53,8 +34,6 @@ impl Matrix for Mat<f64> {
         sum_sq.sqrt()
     }
 
-    // Implement the as_slice method by copying data to a Vec
-    // Updated `as_slice` to return a `Box<[f64]>`
     fn as_slice(&self) -> Box<[f64]> {
         let mut data = Vec::new();
         let nrows = self.nrows();
@@ -78,6 +57,26 @@ impl Matrix for Mat<f64> {
         }
         data.into_boxed_slice()
     }
+
+    fn mat_vec(&self, x: &dyn Vector<Scalar = f64>, y: &mut dyn Vector<Scalar = f64>) {
+        // Multiply the matrix with vector x and store the result in vector y.
+        let nrows = self.nrows();
+        let ncols = self.ncols();
+
+        // Assuming y has been properly sized
+        for i in 0..nrows {
+            let mut sum = 0.0;
+            for j in 0..ncols {
+                sum += self.read(i, j) * x.get(j);
+            }
+            y.set(i, sum);
+        }
+    }
+
+    fn get(&self, i: usize, j: usize) -> Self::Scalar {
+        // Safely fetches the element at (i, j)
+        self.read(i, j)
+    }
 }
 
 // Implement MatrixOperations trait for faer_core::Mat
@@ -86,15 +85,17 @@ impl MatrixOperations for Mat<f64> {
         Mat::<f64>::zeros(rows, cols) // Construct a matrix initialized to zeros
     }
 
-    fn set_value(&mut self, row: usize, col: usize, value: f64) {
-        self.write(row, col, value); // Safely set a value at the given position
-    }
-
-    fn get_value(&self, row: usize, col: usize) -> f64 {
-        self.read(row, col) // Retrieve the value at the specified position
-    }
-
     fn size(&self) -> (usize, usize) {
         (self.nrows(), self.ncols()) // Return the dimensions of the matrix
+    }
+
+    fn set(&mut self, row: usize, col: usize, value: f64) {
+        // Set the element at (row, col) to value
+        self.write(row, col, value);
+    }
+
+    fn get(&self, row: usize, col: usize) -> f64 {
+        // Fetches the element at (row, col)
+        self.read(row, col)
     }
 }

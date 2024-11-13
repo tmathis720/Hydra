@@ -32,15 +32,18 @@ impl VectorBuilder {
 }
 
 pub trait VectorOperations {
-    fn construct(size: usize) -> Self;
+    fn construct(size: usize) -> Self
+    where
+        Self: Sized;
     fn set_value(&mut self, index: usize, value: f64);
     fn get_value(&self, index: usize) -> f64;
     fn size(&self) -> usize;
 }
 
 pub trait ExtendedVectorOperations: VectorOperations {
-    /// Dynamically resizes the vector.
-    fn resize(&mut self, new_size: usize);
+    fn resize(&mut self, new_size: usize)
+    where
+        Self: Sized;
 }
 
 impl VectorOperations for Vec<f64> {

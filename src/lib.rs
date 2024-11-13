@@ -26,6 +26,12 @@ pub mod extrusion;
 // equation module
 pub mod equation;
 
+// interface adapters
+pub mod interface_adapters;
+
+// use cases
+pub mod use_cases;
+
 // test module
 pub mod tests;
 
