@@ -1,57 +1,78 @@
-To add robustness to the `Mesh` structure by implementing a topology validation framework, we should focus on verifying various properties before the solution process. Let's follow a test-driven development (TDD) approach and ensure clean architecture principles are in place for easy testing and future maintainability. Here’s a roadmap based on these principles:
+Generate a detailed outline for a users guide for the `Domain` module for Hydra. The outline should provide high level details which can later be fleshed out. I am going to provide the code for all of the parts of the `Domain` module below, and you can analyze and build the detailed outline based on this version of the source code. Retain the details of your analysis for later as we will be going through the outline in detail throughout this conversation and refining it.
 
-### 1. **Outline of Validation Checks**
-   - **Boundary Condition Validation**: Ensure boundary conditions are consistently applied across the mesh.
-   - **Overlap and Delta Validations**: For distributed/partitioned meshes, validate overlaps and transformation data (`Delta`) across partitions.
+Here is the source tree for the `Domain` module:
+```bash
+C:.
+│   entity_fill.rs
+│   mesh_entity.rs
+│   mod.rs
+│   overlap.rs
+│   section.rs
+│   sieve.rs
+│   stratify.rs
+│
+└───mesh
+        boundary.rs
+        boundary_validation.rs
+        entities.rs
+        geometry.rs
+        geometry_validation.rs
+        hierarchical.rs
+        mod.rs
+        reordering.rs
+        tests.rs
+        topology.rs
+```
 
-### 2. **Modular Test Structure**
-   Create test modules within `Mesh`, `Sieve`, and boundary condition components. This test-driven approach will confirm each function independently and collaboratively maintains expected outcomes. Here’s an outline for each module:
+I will provide the source code in the order provided above, but the organization of the detailed outline should follow logically from overall structure of the source code firstly.
 
-#### `BoundaryValidation` Module
-   - **Responsibilities**:
-     - Confirm that boundary conditions are only applied to entities tagged as boundaries.
-     - Ensure compatibility of boundary data across partitioned entities.
-   
-   - **Key Tests**:
-     - `test_boundary_condition_application`: Check boundary condition application on each boundary entity.
-     - `test_boundary_data_synchronization`: Verify that boundary data sent via channels is consistent across partitions.
+Here is `src/domain/entity_fill.rs` :
 
-#### `OverlapValidation` and `DeltaValidation` Modules
-   - **Responsibilities**:
-     - Validate that `local_entities` and `ghost_entities` are correctly partitioned and synchronized across overlaps.
-     - Ensure `Delta` values for transformations are correctly assigned and consistent across all `MeshEntity` instances.
+```rust
+use crate::domain::mesh_entity::MeshEntity;
+use crate::domain::sieve::Sieve;
+use dashmap::DashMap;
 
-   - **Key Tests**:
-     - `test_overlap_partitioning`: Check that each entity belongs to the correct partition.
-     - `test_delta_synchronization`: Validate the synchronization of transformation data (`Delta`) for overlapping entities.
+impl Sieve {
+    /// Infers and adds missing edges (in 2D) or faces (in 3D) based on existing cells and vertices.  
+    /// 
+    /// For 2D meshes, this method generates edges by connecting vertices of a cell.  
+    /// These edges are then associated with the corresponding vertices in the sieve.  
+    ///
+    /// Example usage:
+    /// 
+    ///    sieve.fill_missing_entities();  
+    ///
+    pub fn fill_missing_entities(&self) {
+        // Use DashMap instead of FxHashSet for concurrent access.
+        let edge_set: DashMap<(MeshEntity, MeshEntity), ()> = DashMap::new();
 
-### 3. **Implementation Approach with Clean Architecture Principles**
+        // Loop through each cell and infer its edges (for 2D meshes)
+        self.adjacency.iter().for_each(|entry| {
+            let cell = entry.key();
+            if let MeshEntity::Cell(_) = cell {
+                let vertices: Vec<_> = entry.value().iter().map(|v| v.key().clone()).collect();
+                // Connect each vertex with its neighboring vertex to form edges.
+                for i in 0..vertices.len() {
+                    let v1 = vertices[i].clone();
+                    let v2 = vertices[(i + 1) % vertices.len()].clone();
+                    let edge = if v1 < v2 { (v1, v2) } else { (v2, v1) };
+                    edge_set.insert(edge, ());
+                }
+            }
+        });
 
-Each module should expose a minimal public interface:
-   - **Encapsulation**: Keep utility functions within modules private unless they’re widely reusable.
-   - **Dependency Injection**: Use dependency injection to facilitate testing by injecting mock data and functions where applicable.
-   - **Test Isolation**: Design tests to isolate specific functionalities (e.g., connectivity, geometry) so they can be independently verified and debugged.
-
-### 4. **Matrix and Solver Integrations**
-   - **Matrix Operations**: Use `Faer` for matrix manipulations, ensuring efficient sparse matrix storage and solver performance for geometric and boundary computations.
-   - **Solver Approaches**: For more complex geometries and connectivity checks, leverage iterative solvers like GMRES, which can effectively handle large sparse systems that arise from validating the mesh structure.
-
-### 5. **Test-Driven Development Process**
-
-For each validation aspect:
-   - Write unit tests covering expected and edge cases.
-   - Implement the corresponding functions to pass the tests.
-   - Refactor as needed, ensuring clean architecture adherence.
-
-Each test will serve as a continuous validation to reinforce mesh integrity across any future modifications or enhancements to the mesh structure.
-
----
-
-# Present Instructions
-
-We will develop the BoundaryValidation struct similar to the GeometryValidation struct we just successfully developed and tested.
-
-Below is the relevant source code to provide details and appropriate context to facilitate you can generate accurate code in response to this prompt.
+        // Add the deduced edges to the sieve.
+        let edge_count = self.adjacency.len();
+        edge_set.into_iter().enumerate().for_each(|(index, ((v1, v2), _))| {
+            // Generate a unique ID for the new edge.
+            let edge = MeshEntity::Edge(edge_count + index);
+            self.add_arrow(v1, edge.clone());
+            self.add_arrow(v2, edge);
+        });
+    }
+}
+```
 
 ---
 
@@ -251,156 +272,164 @@ mod tests {
 
 ---
 
-`src/domain/sieve.rs`
+`src/domain/mod.rs`
+
+```rust
+pub mod mesh_entity;
+pub mod sieve;
+pub mod section;
+pub mod overlap;
+pub mod stratify;
+pub mod entity_fill;
+pub mod mesh;
+
+
+/// Re-exports key components from the `mesh_entity`, `sieve`, and `section` modules.  
+/// 
+/// This allows the user to access the `MeshEntity`, `Arrow`, `Sieve`, and `Section`  
+/// structs directly when importing this module.  
+///
+/// Example usage:
+///    ```rust
+///    use hydra::domain::{MeshEntity, Arrow, Sieve, Section};  
+///    let entity = MeshEntity::Vertex(1);  
+///    let sieve = Sieve::new();  
+///    let section: Section<f64> = Section::new();  
+///    ```
+/// 
+pub use mesh_entity::{MeshEntity, Arrow};
+pub use sieve::Sieve;
+pub use section::Section;
+```
+
+---
+
+`src/domain/overlap.rs`
 
 ```rust
 use dashmap::DashMap;
-use rayon::prelude::*;
+use std::sync::Arc;
 use crate::domain::mesh_entity::MeshEntity;
 
-/// A `Sieve` struct that manages the relationships (arrows) between `MeshEntity`  
-/// elements, organized in an adjacency map.
-///
-/// The adjacency map tracks directed relations between entities in the mesh.  
-/// It supports operations such as adding relationships, querying direct  
-/// relations (cones), and computing closure and star sets for entities.
-#[derive(Clone, Debug)]
-pub struct Sieve {
-    /// A thread-safe adjacency map where each key is a `MeshEntity`,  
-    /// and the value is a set of `MeshEntity` objects related to the key.  
-    pub adjacency: DashMap<MeshEntity, DashMap<MeshEntity, ()>>,
+/// The `Overlap` struct manages two sets of `MeshEntity` elements:  
+/// - `local_entities`: Entities that are local to the current partition.
+/// - `ghost_entities`: Entities that are shared with other partitions.
+pub struct Overlap {
+    /// A thread-safe set of local entities.  
+    pub local_entities: Arc<DashMap<MeshEntity, ()>>,
+    /// A thread-safe set of ghost entities.  
+    pub ghost_entities: Arc<DashMap<MeshEntity, ()>>,
 }
 
-impl Sieve {
-    /// Creates a new empty `Sieve` instance with an empty adjacency map.
+impl Overlap {
+    /// Creates a new `Overlap` with empty sets for local and ghost entities.
     pub fn new() -> Self {
-        Sieve {
-            adjacency: DashMap::new(),
+        Overlap {
+            local_entities: Arc::new(DashMap::new()),
+            ghost_entities: Arc::new(DashMap::new()),
         }
     }
 
-    /// Adds a directed relationship (arrow) between two `MeshEntity` elements.  
-    /// The relationship is stored in the adjacency map from the `from` entity  
-    /// to the `to` entity.
-    pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
-        self.adjacency
-            .entry(from)
-            .or_insert_with(DashMap::new)
-            .insert(to, ());
+    /// Adds a `MeshEntity` to the set of local entities.
+    pub fn add_local_entity(&self, entity: MeshEntity) {
+        self.local_entities.insert(entity, ());
     }
 
-    /// Retrieves all entities directly related to the given entity (`point`).  
-    /// This operation is referred to as retrieving the cone of the entity.  
-    /// Returns `None` if there are no related entities.
-    pub fn cone(&self, point: &MeshEntity) -> Option<Vec<MeshEntity>> {
-        self.adjacency.get(point).map(|cone| {
-            cone.iter().map(|entry| entry.key().clone()).collect()
-        })
+    /// Adds a `MeshEntity` to the set of ghost entities.
+    pub fn add_ghost_entity(&self, entity: MeshEntity) {
+        self.ghost_entities.insert(entity, ());
     }
 
-    /// Computes the closure of a given `MeshEntity`.  
-    /// The closure includes the entity itself and all entities it covers (cones) recursively.
-    pub fn closure(&self, point: &MeshEntity) -> DashMap<MeshEntity, ()> {
-        let result = DashMap::new();
-        let stack = DashMap::new();
-        stack.insert(point.clone(), ());
-
-        while !stack.is_empty() {
-            let keys: Vec<MeshEntity> = stack.iter().map(|entry| entry.key().clone()).collect();
-            for p in keys {
-                if result.insert(p.clone(), ()).is_none() {
-                    if let Some(cones) = self.cone(&p) {
-                        for q in cones {
-                            stack.insert(q, ());
-                        }
-                    }
-                }
-                stack.remove(&p);
-            }
-        }
-        result
+    /// Checks if a `MeshEntity` is a local entity.
+    pub fn is_local(&self, entity: &MeshEntity) -> bool {
+        self.local_entities.contains_key(entity)
     }
 
-    /// Computes the star of a given `MeshEntity`.  
-    /// The star includes the entity itself and all entities that directly cover it (supports).
-    pub fn star(&self, point: &MeshEntity) -> DashMap<MeshEntity, ()> {
-        let result = DashMap::new();
-        result.insert(point.clone(), ());
-        let supports = self.support(point);
-        for support in supports {
-            result.insert(support, ());
-        }
-        result
+    /// Checks if a `MeshEntity` is a ghost entity.
+    pub fn is_ghost(&self, entity: &MeshEntity) -> bool {
+        self.ghost_entities.contains_key(entity)
     }
 
-    /// Retrieves all entities that support the given entity (`point`).  
-    /// These are the entities that have an arrow pointing to `point`.
-    pub fn support(&self, point: &MeshEntity) -> Vec<MeshEntity> {
-        let mut supports = Vec::new();
-        self.adjacency.iter().for_each(|entry| {
-            let from = entry.key();
-            if entry.value().contains_key(point) {
-                supports.push(from.clone());
-            }
-        });
-        supports
+    /// Retrieves a clone of all local entities.
+    pub fn local_entities(&self) -> Vec<MeshEntity> {
+        self.local_entities.iter().map(|entry| entry.key().clone()).collect()
     }
 
-    /// Computes the meet operation for two entities, `p` and `q`.  
-    /// This is the intersection of their closures.
-    pub fn meet(&self, p: &MeshEntity, q: &MeshEntity) -> DashMap<MeshEntity, ()> {
-        let closure_p = self.closure(p);
-        let closure_q = self.closure(q);
-        let result = DashMap::new();
+    /// Retrieves a clone of all ghost entities.
+    pub fn ghost_entities(&self) -> Vec<MeshEntity> {
+        self.ghost_entities.iter().map(|entry| entry.key().clone()).collect()
+    }
 
-        closure_p.iter().for_each(|entry| {
-            let key = entry.key();
-            if closure_q.contains_key(key) {
-                result.insert(key.clone(), ());
-            }
+    /// Merges another `Overlap` instance into this one, combining local  
+    /// and ghost entities from both overlaps.
+    pub fn merge(&self, other: &Overlap) {
+        other.local_entities.iter().for_each(|entry| {
+            self.local_entities.insert(entry.key().clone(), ());
         });
 
-        result
-    }
-
-    /// Computes the join operation for two entities, `p` and `q`.  
-    /// This is the union of their stars.
-    pub fn join(&self, p: &MeshEntity, q: &MeshEntity) -> DashMap<MeshEntity, ()> {
-        let star_p = self.star(p);
-        let star_q = self.star(q);
-        let result = DashMap::new();
-
-        star_p.iter().for_each(|entry| {
-            result.insert(entry.key().clone(), ());
-        });
-        star_q.iter().for_each(|entry| {
-            result.insert(entry.key().clone(), ());
-        });
-
-        result
-    }
-
-    /// Applies a given function in parallel to all adjacency map entries.  
-    /// This function is executed concurrently over each entity and its  
-    /// corresponding set of related entities.
-    pub fn par_for_each_adjacent<F>(&self, func: F)
-    where
-        F: Fn((&MeshEntity, Vec<MeshEntity>)) + Sync + Send,
-    {
-        // Collect entries from DashMap to avoid borrow conflicts
-        let entries: Vec<_> = self.adjacency.iter().map(|entry| {
-            let key = entry.key().clone();
-            let values: Vec<MeshEntity> = entry.value().iter().map(|e| e.key().clone()).collect();
-            (key, values)
-        }).collect();
-
-        // Execute in parallel over collected entries
-        entries.par_iter().for_each(|entry| {
-            func((&entry.0, entry.1.clone()));
+        other.ghost_entities.iter().for_each(|entry| {
+            self.ghost_entities.insert(entry.key().clone(), ());
         });
     }
 }
 
+/// The `Delta` struct manages transformation data for `MeshEntity` elements  
+/// in overlapping regions. It is used to store and apply data transformations  
+/// across entities in distributed environments.
+pub struct Delta<T> {
+    /// A thread-safe map storing transformation data associated with `MeshEntity` objects.  
+    pub data: Arc<DashMap<MeshEntity, T>>,  // Transformation data over overlapping regions
+}
+
+impl<T> Delta<T> {
+    /// Creates a new, empty `Delta`.
+    pub fn new() -> Self {
+        Delta {
+            data: Arc::new(DashMap::new()),
+        }
+    }
+
+    /// Sets the transformation data for a specific `MeshEntity`.
+    pub fn set_data(&self, entity: MeshEntity, value: T) {
+        self.data.insert(entity, value);
+    }
+
+    /// Retrieves the transformation data associated with a specific `MeshEntity`.
+    pub fn get_data(&self, entity: &MeshEntity) -> Option<T>
+    where
+        T: Clone,
+    {
+        self.data.get(entity).map(|entry| entry.clone())
+    }
+
+    /// Removes the transformation data associated with a specific `MeshEntity`.
+    pub fn remove_data(&self, entity: &MeshEntity) -> Option<T> {
+        self.data.remove(entity).map(|(_, value)| value)
+    }
+
+    /// Checks if there is transformation data for a specific `MeshEntity`.
+    pub fn has_data(&self, entity: &MeshEntity) -> bool {
+        self.data.contains_key(entity)
+    }
+
+    /// Applies a function to all entities in the delta.
+    pub fn apply<F>(&self, mut func: F)
+    where
+        F: FnMut(&MeshEntity, &T),
+    {
+        self.data.iter().for_each(|entry| func(entry.key(), entry.value()));
+    }
+
+    /// Merges another `Delta` instance into this one, combining data from both deltas.
+    pub fn merge(&self, other: &Delta<T>)
+    where
+        T: Clone,
+    {
+        other.data.iter().for_each(|entry| {
+            self.data.insert(entry.key().clone(), entry.value().clone());
+        });
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -408,100 +437,74 @@ mod tests {
     use crate::domain::mesh_entity::MeshEntity;
 
     #[test]
-    /// Test that verifies adding an arrow between two entities and querying  
-    /// the cone of an entity works as expected.
-    fn test_add_arrow_and_cone() {
-        let sieve = Sieve::new();
-        let vertex = MeshEntity::Vertex(1);
-        let edge = MeshEntity::Edge(1);
-        sieve.add_arrow(vertex, edge);
-        let cone_result = sieve.cone(&vertex).unwrap();
-        assert!(cone_result.contains(&edge));
+    fn test_overlap_local_and_ghost_entities() {
+        let overlap = Overlap::new();
+        let vertex_local = MeshEntity::Vertex(1);
+        let vertex_ghost = MeshEntity::Vertex(2);
+        overlap.add_local_entity(vertex_local);
+        overlap.add_ghost_entity(vertex_ghost);
+        assert!(overlap.is_local(&vertex_local));
+        assert!(overlap.is_ghost(&vertex_ghost));
     }
 
     #[test]
-    /// Test that verifies the closure of a vertex correctly includes  
-    /// all transitive relationships and the entity itself.
-    fn test_closure() {
-        let sieve = Sieve::new();
-        let vertex = MeshEntity::Vertex(1);
-        let edge = MeshEntity::Edge(1);
-        let face = MeshEntity::Face(1);
-        sieve.add_arrow(vertex, edge);
-        sieve.add_arrow(edge, face);
-        let closure_result = sieve.closure(&vertex);
-        assert!(closure_result.contains_key(&vertex));
-        assert!(closure_result.contains_key(&edge));
-        assert!(closure_result.contains_key(&face));
-        assert_eq!(closure_result.len(), 3);
-    }
-
-    #[test]
-    /// Test that verifies the support of an entity includes the  
-    /// correct supporting entities.
-    fn test_support() {
-        let sieve = Sieve::new();
-        let vertex = MeshEntity::Vertex(1);
-        let edge = MeshEntity::Edge(1);
-
-        sieve.add_arrow(vertex, edge);
-        let support_result = sieve.support(&edge);
-
-        assert!(support_result.contains(&vertex));
-        assert_eq!(support_result.len(), 1);
-    }
-
-    #[test]
-    /// Test that verifies the star of an entity includes both the entity itself and  
-    /// its immediate supports.
-    fn test_star() {
-        let sieve = Sieve::new();
-        let edge = MeshEntity::Edge(1);
-        let face = MeshEntity::Face(1);
-
-        sieve.add_arrow(edge, face);
-
-        let star_result = sieve.star(&face);
-
-        assert!(star_result.contains_key(&face));
-        assert!(star_result.contains_key(&edge));
-        assert_eq!(star_result.len(), 2);
-    }
-
-    #[test]
-    /// Test that verifies the meet operation between two entities returns  
-    /// the correct intersection of their closures.
-    fn test_meet() {
-        let sieve = Sieve::new();
+    fn test_overlap_merge() {
+        let overlap1 = Overlap::new();
+        let overlap2 = Overlap::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
-        let edge = MeshEntity::Edge(1);
+        let vertex3 = MeshEntity::Vertex(3);
 
-        sieve.add_arrow(vertex1, edge);
-        sieve.add_arrow(vertex2, edge);
+        overlap1.add_local_entity(vertex1);
+        overlap1.add_ghost_entity(vertex2);
 
-        let meet_result = sieve.meet(&vertex1, &vertex2);
+        overlap2.add_local_entity(vertex3);
 
-        assert!(meet_result.contains_key(&edge));
-        assert_eq!(meet_result.len(), 1);
+        overlap1.merge(&overlap2);
+
+        assert!(overlap1.is_local(&vertex1));
+        assert!(overlap1.is_ghost(&vertex2));
+        assert!(overlap1.is_local(&vertex3));
+        assert_eq!(overlap1.local_entities().len(), 2);
     }
 
     #[test]
-    /// Test that verifies the join operation between two entities returns  
-    /// the correct union of their stars.
-    fn test_join() {
-        let sieve = Sieve::new();
+    fn test_delta_set_and_get_data() {
+        let delta = Delta::new();
+        let vertex = MeshEntity::Vertex(1);
+
+        delta.set_data(vertex, 42);
+
+        assert_eq!(delta.get_data(&vertex), Some(42));
+        assert!(delta.has_data(&vertex));
+    }
+
+    #[test]
+    fn test_delta_remove_data() {
+        let delta = Delta::new();
+        let vertex = MeshEntity::Vertex(1);
+
+        delta.set_data(vertex, 100);
+        assert_eq!(delta.remove_data(&vertex), Some(100));
+        assert!(!delta.has_data(&vertex));
+    }
+
+    #[test]
+    fn test_delta_merge() {
+        let delta1 = Delta::new();
+        let delta2 = Delta::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
 
-        let join_result = sieve.join(&vertex1, &vertex2);
+        delta1.set_data(vertex1, 10);
+        delta2.set_data(vertex2, 20);
 
-        assert!(join_result.contains_key(&vertex1), "Join result should contain vertex1");
-        assert!(join_result.contains_key(&vertex2), "Join result should contain vertex2");
-        assert_eq!(join_result.len(), 2);
+        delta1.merge(&delta2);
+
+        assert_eq!(delta1.get_data(&vertex1), Some(10));
+        assert_eq!(delta1.get_data(&vertex2), Some(20));
     }
 }
-
 ```
 
 ---
@@ -782,132 +785,156 @@ mod tests {
 
 ---
 
-`src/domain/overlap.rs`
+`src/domain/sieve.rs`
 
 ```rust
 use dashmap::DashMap;
-use std::sync::Arc;
+use rayon::prelude::*;
 use crate::domain::mesh_entity::MeshEntity;
 
-/// The `Overlap` struct manages two sets of `MeshEntity` elements:  
-/// - `local_entities`: Entities that are local to the current partition.
-/// - `ghost_entities`: Entities that are shared with other partitions.
-pub struct Overlap {
-    /// A thread-safe set of local entities.  
-    pub local_entities: Arc<DashMap<MeshEntity, ()>>,
-    /// A thread-safe set of ghost entities.  
-    pub ghost_entities: Arc<DashMap<MeshEntity, ()>>,
+/// A `Sieve` struct that manages the relationships (arrows) between `MeshEntity`  
+/// elements, organized in an adjacency map.
+///
+/// The adjacency map tracks directed relations between entities in the mesh.  
+/// It supports operations such as adding relationships, querying direct  
+/// relations (cones), and computing closure and star sets for entities.
+#[derive(Clone, Debug)]
+pub struct Sieve {
+    /// A thread-safe adjacency map where each key is a `MeshEntity`,  
+    /// and the value is a set of `MeshEntity` objects related to the key.  
+    pub adjacency: DashMap<MeshEntity, DashMap<MeshEntity, ()>>,
 }
 
-impl Overlap {
-    /// Creates a new `Overlap` with empty sets for local and ghost entities.
+impl Sieve {
+    /// Creates a new empty `Sieve` instance with an empty adjacency map.
     pub fn new() -> Self {
-        Overlap {
-            local_entities: Arc::new(DashMap::new()),
-            ghost_entities: Arc::new(DashMap::new()),
+        Sieve {
+            adjacency: DashMap::new(),
         }
     }
 
-    /// Adds a `MeshEntity` to the set of local entities.
-    pub fn add_local_entity(&self, entity: MeshEntity) {
-        self.local_entities.insert(entity, ());
+    /// Adds a directed relationship (arrow) between two `MeshEntity` elements.  
+    /// The relationship is stored in the adjacency map from the `from` entity  
+    /// to the `to` entity.
+    pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
+        self.adjacency
+            .entry(from)
+            .or_insert_with(DashMap::new)
+            .insert(to, ());
     }
 
-    /// Adds a `MeshEntity` to the set of ghost entities.
-    pub fn add_ghost_entity(&self, entity: MeshEntity) {
-        self.ghost_entities.insert(entity, ());
+    /// Retrieves all entities directly related to the given entity (`point`).  
+    /// This operation is referred to as retrieving the cone of the entity.  
+    /// Returns `None` if there are no related entities.
+    pub fn cone(&self, point: &MeshEntity) -> Option<Vec<MeshEntity>> {
+        self.adjacency.get(point).map(|cone| {
+            cone.iter().map(|entry| entry.key().clone()).collect()
+        })
     }
 
-    /// Checks if a `MeshEntity` is a local entity.
-    pub fn is_local(&self, entity: &MeshEntity) -> bool {
-        self.local_entities.contains_key(entity)
-    }
+    /// Computes the closure of a given `MeshEntity`.  
+    /// The closure includes the entity itself and all entities it covers (cones) recursively.
+    pub fn closure(&self, point: &MeshEntity) -> DashMap<MeshEntity, ()> {
+        let result = DashMap::new();
+        let stack = DashMap::new();
+        stack.insert(point.clone(), ());
 
-    /// Checks if a `MeshEntity` is a ghost entity.
-    pub fn is_ghost(&self, entity: &MeshEntity) -> bool {
-        self.ghost_entities.contains_key(entity)
-    }
-
-    /// Retrieves a clone of all local entities.
-    pub fn local_entities(&self) -> Vec<MeshEntity> {
-        self.local_entities.iter().map(|entry| entry.key().clone()).collect()
-    }
-
-    /// Retrieves a clone of all ghost entities.
-    pub fn ghost_entities(&self) -> Vec<MeshEntity> {
-        self.ghost_entities.iter().map(|entry| entry.key().clone()).collect()
-    }
-
-    /// Merges another `Overlap` instance into this one, combining local  
-    /// and ghost entities from both overlaps.
-    pub fn merge(&self, other: &Overlap) {
-        other.local_entities.iter().for_each(|entry| {
-            self.local_entities.insert(entry.key().clone(), ());
-        });
-
-        other.ghost_entities.iter().for_each(|entry| {
-            self.ghost_entities.insert(entry.key().clone(), ());
-        });
-    }
-}
-
-/// The `Delta` struct manages transformation data for `MeshEntity` elements  
-/// in overlapping regions. It is used to store and apply data transformations  
-/// across entities in distributed environments.
-pub struct Delta<T> {
-    /// A thread-safe map storing transformation data associated with `MeshEntity` objects.  
-    pub data: Arc<DashMap<MeshEntity, T>>,  // Transformation data over overlapping regions
-}
-
-impl<T> Delta<T> {
-    /// Creates a new, empty `Delta`.
-    pub fn new() -> Self {
-        Delta {
-            data: Arc::new(DashMap::new()),
+        while !stack.is_empty() {
+            let keys: Vec<MeshEntity> = stack.iter().map(|entry| entry.key().clone()).collect();
+            for p in keys {
+                if result.insert(p.clone(), ()).is_none() {
+                    if let Some(cones) = self.cone(&p) {
+                        for q in cones {
+                            stack.insert(q, ());
+                        }
+                    }
+                }
+                stack.remove(&p);
+            }
         }
+        result
     }
 
-    /// Sets the transformation data for a specific `MeshEntity`.
-    pub fn set_data(&self, entity: MeshEntity, value: T) {
-        self.data.insert(entity, value);
+    /// Computes the star of a given `MeshEntity`.  
+    /// The star includes the entity itself and all entities that directly cover it (supports).
+    pub fn star(&self, point: &MeshEntity) -> DashMap<MeshEntity, ()> {
+        let result = DashMap::new();
+        result.insert(point.clone(), ());
+        let supports = self.support(point);
+        for support in supports {
+            result.insert(support, ());
+        }
+        result
     }
 
-    /// Retrieves the transformation data associated with a specific `MeshEntity`.
-    pub fn get_data(&self, entity: &MeshEntity) -> Option<T>
+    /// Retrieves all entities that support the given entity (`point`).  
+    /// These are the entities that have an arrow pointing to `point`.
+    pub fn support(&self, point: &MeshEntity) -> Vec<MeshEntity> {
+        let mut supports = Vec::new();
+        self.adjacency.iter().for_each(|entry| {
+            let from = entry.key();
+            if entry.value().contains_key(point) {
+                supports.push(from.clone());
+            }
+        });
+        supports
+    }
+
+    /// Computes the meet operation for two entities, `p` and `q`.  
+    /// This is the intersection of their closures.
+    pub fn meet(&self, p: &MeshEntity, q: &MeshEntity) -> DashMap<MeshEntity, ()> {
+        let closure_p = self.closure(p);
+        let closure_q = self.closure(q);
+        let result = DashMap::new();
+
+        closure_p.iter().for_each(|entry| {
+            let key = entry.key();
+            if closure_q.contains_key(key) {
+                result.insert(key.clone(), ());
+            }
+        });
+
+        result
+    }
+
+    /// Computes the join operation for two entities, `p` and `q`.  
+    /// This is the union of their stars.
+    pub fn join(&self, p: &MeshEntity, q: &MeshEntity) -> DashMap<MeshEntity, ()> {
+        let star_p = self.star(p);
+        let star_q = self.star(q);
+        let result = DashMap::new();
+
+        star_p.iter().for_each(|entry| {
+            result.insert(entry.key().clone(), ());
+        });
+        star_q.iter().for_each(|entry| {
+            result.insert(entry.key().clone(), ());
+        });
+
+        result
+    }
+
+    /// Applies a given function in parallel to all adjacency map entries.  
+    /// This function is executed concurrently over each entity and its  
+    /// corresponding set of related entities.
+    pub fn par_for_each_adjacent<F>(&self, func: F)
     where
-        T: Clone,
+        F: Fn((&MeshEntity, Vec<MeshEntity>)) + Sync + Send,
     {
-        self.data.get(entity).map(|entry| entry.clone())
-    }
+        // Collect entries from DashMap to avoid borrow conflicts
+        let entries: Vec<_> = self.adjacency.iter().map(|entry| {
+            let key = entry.key().clone();
+            let values: Vec<MeshEntity> = entry.value().iter().map(|e| e.key().clone()).collect();
+            (key, values)
+        }).collect();
 
-    /// Removes the transformation data associated with a specific `MeshEntity`.
-    pub fn remove_data(&self, entity: &MeshEntity) -> Option<T> {
-        self.data.remove(entity).map(|(_, value)| value)
-    }
-
-    /// Checks if there is transformation data for a specific `MeshEntity`.
-    pub fn has_data(&self, entity: &MeshEntity) -> bool {
-        self.data.contains_key(entity)
-    }
-
-    /// Applies a function to all entities in the delta.
-    pub fn apply<F>(&self, mut func: F)
-    where
-        F: FnMut(&MeshEntity, &T),
-    {
-        self.data.iter().for_each(|entry| func(entry.key(), entry.value()));
-    }
-
-    /// Merges another `Delta` instance into this one, combining data from both deltas.
-    pub fn merge(&self, other: &Delta<T>)
-    where
-        T: Clone,
-    {
-        other.data.iter().for_each(|entry| {
-            self.data.insert(entry.key().clone(), entry.value().clone());
+        // Execute in parallel over collected entries
+        entries.par_iter().for_each(|entry| {
+            func((&entry.0, entry.1.clone()));
         });
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -915,152 +942,264 @@ mod tests {
     use crate::domain::mesh_entity::MeshEntity;
 
     #[test]
-    fn test_overlap_local_and_ghost_entities() {
-        let overlap = Overlap::new();
-        let vertex_local = MeshEntity::Vertex(1);
-        let vertex_ghost = MeshEntity::Vertex(2);
-        overlap.add_local_entity(vertex_local);
-        overlap.add_ghost_entity(vertex_ghost);
-        assert!(overlap.is_local(&vertex_local));
-        assert!(overlap.is_ghost(&vertex_ghost));
+    /// Test that verifies adding an arrow between two entities and querying  
+    /// the cone of an entity works as expected.
+    fn test_add_arrow_and_cone() {
+        let sieve = Sieve::new();
+        let vertex = MeshEntity::Vertex(1);
+        let edge = MeshEntity::Edge(1);
+        sieve.add_arrow(vertex, edge);
+        let cone_result = sieve.cone(&vertex).unwrap();
+        assert!(cone_result.contains(&edge));
     }
 
     #[test]
-    fn test_overlap_merge() {
-        let overlap1 = Overlap::new();
-        let overlap2 = Overlap::new();
+    /// Test that verifies the closure of a vertex correctly includes  
+    /// all transitive relationships and the entity itself.
+    fn test_closure() {
+        let sieve = Sieve::new();
+        let vertex = MeshEntity::Vertex(1);
+        let edge = MeshEntity::Edge(1);
+        let face = MeshEntity::Face(1);
+        sieve.add_arrow(vertex, edge);
+        sieve.add_arrow(edge, face);
+        let closure_result = sieve.closure(&vertex);
+        assert!(closure_result.contains_key(&vertex));
+        assert!(closure_result.contains_key(&edge));
+        assert!(closure_result.contains_key(&face));
+        assert_eq!(closure_result.len(), 3);
+    }
+
+    #[test]
+    /// Test that verifies the support of an entity includes the  
+    /// correct supporting entities.
+    fn test_support() {
+        let sieve = Sieve::new();
+        let vertex = MeshEntity::Vertex(1);
+        let edge = MeshEntity::Edge(1);
+
+        sieve.add_arrow(vertex, edge);
+        let support_result = sieve.support(&edge);
+
+        assert!(support_result.contains(&vertex));
+        assert_eq!(support_result.len(), 1);
+    }
+
+    #[test]
+    /// Test that verifies the star of an entity includes both the entity itself and  
+    /// its immediate supports.
+    fn test_star() {
+        let sieve = Sieve::new();
+        let edge = MeshEntity::Edge(1);
+        let face = MeshEntity::Face(1);
+
+        sieve.add_arrow(edge, face);
+
+        let star_result = sieve.star(&face);
+
+        assert!(star_result.contains_key(&face));
+        assert!(star_result.contains_key(&edge));
+        assert_eq!(star_result.len(), 2);
+    }
+
+    #[test]
+    /// Test that verifies the meet operation between two entities returns  
+    /// the correct intersection of their closures.
+    fn test_meet() {
+        let sieve = Sieve::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
-        let vertex3 = MeshEntity::Vertex(3);
+        let edge = MeshEntity::Edge(1);
 
-        overlap1.add_local_entity(vertex1);
-        overlap1.add_ghost_entity(vertex2);
+        sieve.add_arrow(vertex1, edge);
+        sieve.add_arrow(vertex2, edge);
 
-        overlap2.add_local_entity(vertex3);
+        let meet_result = sieve.meet(&vertex1, &vertex2);
 
-        overlap1.merge(&overlap2);
-
-        assert!(overlap1.is_local(&vertex1));
-        assert!(overlap1.is_ghost(&vertex2));
-        assert!(overlap1.is_local(&vertex3));
-        assert_eq!(overlap1.local_entities().len(), 2);
+        assert!(meet_result.contains_key(&edge));
+        assert_eq!(meet_result.len(), 1);
     }
 
     #[test]
-    fn test_delta_set_and_get_data() {
-        let delta = Delta::new();
-        let vertex = MeshEntity::Vertex(1);
-
-        delta.set_data(vertex, 42);
-
-        assert_eq!(delta.get_data(&vertex), Some(42));
-        assert!(delta.has_data(&vertex));
-    }
-
-    #[test]
-    fn test_delta_remove_data() {
-        let delta = Delta::new();
-        let vertex = MeshEntity::Vertex(1);
-
-        delta.set_data(vertex, 100);
-        assert_eq!(delta.remove_data(&vertex), Some(100));
-        assert!(!delta.has_data(&vertex));
-    }
-
-    #[test]
-    fn test_delta_merge() {
-        let delta1 = Delta::new();
-        let delta2 = Delta::new();
+    /// Test that verifies the join operation between two entities returns  
+    /// the correct union of their stars.
+    fn test_join() {
+        let sieve = Sieve::new();
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
 
-        delta1.set_data(vertex1, 10);
-        delta2.set_data(vertex2, 20);
+        let join_result = sieve.join(&vertex1, &vertex2);
 
-        delta1.merge(&delta2);
+        assert!(join_result.contains_key(&vertex1), "Join result should contain vertex1");
+        assert!(join_result.contains_key(&vertex2), "Join result should contain vertex2");
+        assert_eq!(join_result.len(), 2);
+    }
+}
 
-        assert_eq!(delta1.get_data(&vertex1), Some(10));
-        assert_eq!(delta1.get_data(&vertex2), Some(20));
+```
+
+---
+
+`src/domain/stratify.rs`
+
+```rust
+use crate::domain::mesh_entity::MeshEntity;
+use crate::domain::sieve::Sieve;
+use dashmap::DashMap;
+
+/// Implements a stratification method for the `Sieve` structure.  
+/// Stratification organizes the mesh entities into different strata based on  
+/// their dimensions:  
+/// - Stratum 0: Vertices  
+/// - Stratum 1: Edges  
+/// - Stratum 2: Faces  
+/// - Stratum 3: Cells  
+///
+/// This method categorizes each `MeshEntity` into its corresponding stratum and  
+/// returns a `DashMap` where the keys are the dimension (stratum) and the values  
+/// are vectors of mesh entities in that stratum.  
+///
+/// Example usage:
+/// 
+///    let sieve = Sieve::new();  
+///    sieve.add_arrow(MeshEntity::Vertex(1), MeshEntity::Edge(1));  
+///    let strata = sieve.stratify();  
+///    assert_eq!(strata.get(&0).unwrap().len(), 1);  // Stratum for vertices  
+/// 
+impl Sieve {
+    /// Organizes the mesh entities in the sieve into strata based on their dimension.  
+    ///
+    /// The method creates a map where each key is the dimension (0 for vertices,  
+    /// 1 for edges, 2 for faces, 3 for cells), and the value is a vector of mesh  
+    /// entities in that dimension.
+    ///
+    /// Example usage:
+    /// 
+    ///    let sieve = Sieve::new();  
+    ///    sieve.add_arrow(MeshEntity::Vertex(1), MeshEntity::Edge(1));  
+    ///    let strata = sieve.stratify();  
+    ///
+    pub fn stratify(&self) -> DashMap<usize, Vec<MeshEntity>> {
+        let strata: DashMap<usize, Vec<MeshEntity>> = DashMap::new();
+
+        // Iterate over the adjacency map to classify entities by their dimension.
+        self.adjacency.iter().for_each(|entry| {
+            let entity = entry.key();
+            // Determine the dimension of the current entity.
+            let dimension = match entity {
+                MeshEntity::Vertex(_) => 0,  // Stratum 0 for vertices
+                MeshEntity::Edge(_) => 1,    // Stratum 1 for edges
+                MeshEntity::Face(_) => 2,    // Stratum 2 for faces
+                MeshEntity::Cell(_) => 3,    // Stratum 3 for cells
+            };
+            
+            // Insert entity into the appropriate stratum in a thread-safe manner.
+            strata.entry(dimension).or_insert_with(Vec::new).push(entity.clone());
+        });
+
+        strata
     }
 }
 ```
 
 ---
 
-`src/domain/mesh/mod.rs`
+`src/domain/mesh/boundary.rs`
 
 ```rust
-pub mod entities;
-pub mod geometry;
-pub mod reordering;
-pub mod boundary;
-pub mod hierarchical;
-pub mod topology;
-
+use super::Mesh;
 use crate::domain::mesh_entity::MeshEntity;
-use crate::domain::sieve::Sieve;
-use rustc_hash::{FxHashMap, FxHashSet};
-use std::sync::{Arc, RwLock};
+use rustc_hash::FxHashMap;
 use crossbeam::channel::{Sender, Receiver};
 
-// Delegate methods to corresponding modules
-
-/// Represents the mesh structure, which is composed of a sieve for entity management,  
-/// a set of mesh entities, vertex coordinates, and channels for boundary data.  
-/// 
-/// The `Mesh` struct is the central component for managing mesh entities and  
-/// their relationships. It stores entities such as vertices, edges, faces,  
-/// and cells, along with their geometric data and boundary-related information.  
-/// 
-/// Example usage:
-/// 
-///    let mesh = Mesh::new();  
-///    let entity = MeshEntity::Vertex(1);  
-///    mesh.entities.write().unwrap().insert(entity);  
-/// 
-#[derive(Clone, Debug)]
-pub struct Mesh {
-    /// The sieve structure used for organizing the mesh entities' relationships.  
-    pub sieve: Arc<Sieve>,  
-    /// A thread-safe, read-write lock for managing mesh entities.  
-    /// This set contains all `MeshEntity` objects in the mesh.  
-    pub entities: Arc<RwLock<FxHashSet<MeshEntity>>>,  
-    /// A map from vertex indices to their 3D coordinates.  
-    pub vertex_coordinates: FxHashMap<usize, [f64; 3]>,  
-    /// An optional channel sender for transmitting boundary data related to mesh entities.  
-    pub boundary_data_sender: Option<Sender<FxHashMap<MeshEntity, [f64; 3]>>>,  
-    /// An optional channel receiver for receiving boundary data related to mesh entities.  
-    pub boundary_data_receiver: Option<Receiver<FxHashMap<MeshEntity, [f64; 3]>>>,  
-}
-
 impl Mesh {
-    /// Creates a new instance of the `Mesh` struct with initialized components.  
-    /// 
-    /// This method sets up the sieve, entity set, vertex coordinate map,  
-    /// and a channel for boundary data communication between mesh components.  
+    /// Synchronizes the boundary data by first sending the local boundary data  
+    /// and then receiving any updated boundary data from other sources.  
     ///
-    /// The `Sender` and `Receiver` are unbounded channels used to pass boundary  
-    /// data between mesh modules asynchronously.
-    /// 
+    /// This function ensures that boundary data, such as vertex coordinates,  
+    /// is consistent across all mesh partitions.  
+    ///
     /// Example usage:
     /// 
-    ///    let mesh = Mesh::new();  
-    ///    assert!(mesh.entities.read().unwrap().is_empty());  
+    ///    mesh.sync_boundary_data();  
+    ///
+    pub fn sync_boundary_data(&mut self) {
+        self.send_boundary_data();
+        self.receive_boundary_data();
+    }
+
+    /// Sets the communication channels for boundary data transmission.  
+    ///
+    /// The sender channel is used to transmit the local boundary data, and  
+    /// the receiver channel is used to receive boundary data from other  
+    /// partitions or sources.  
+    ///
+    /// Example usage:
     /// 
-    pub fn new() -> Self {
-        let (sender, receiver) = crossbeam::channel::unbounded();
-        Mesh {
-            sieve: Arc::new(Sieve::new()),
-            entities: Arc::new(RwLock::new(FxHashSet::default())),
-            vertex_coordinates: FxHashMap::default(),
-            boundary_data_sender: Some(sender),
-            boundary_data_receiver: Some(receiver),
+    ///    mesh.set_boundary_channels(sender, receiver);  
+    ///
+    pub fn set_boundary_channels(
+        &mut self,
+        sender: Sender<FxHashMap<MeshEntity, [f64; 3]>>,
+        receiver: Receiver<FxHashMap<MeshEntity, [f64; 3]>>,
+    ) {
+        self.boundary_data_sender = Some(sender);
+        self.boundary_data_receiver = Some(receiver);
+    }
+
+    /// Receives boundary data from the communication channel and updates the mesh.  
+    ///
+    /// This method listens for incoming boundary data (such as vertex coordinates)  
+    /// from the receiver channel and updates the local mesh entities and coordinates.  
+    ///
+    /// Example usage:
+    /// 
+    ///    mesh.receive_boundary_data();  
+    ///
+    pub fn receive_boundary_data(&mut self) {
+        if let Some(ref receiver) = self.boundary_data_receiver {
+            if let Ok(boundary_data) = receiver.recv() {
+                let mut entities = self.entities.write().unwrap();
+                for (entity, coords) in boundary_data {
+                    // Update vertex coordinates if the entity is a vertex.
+                    if let MeshEntity::Vertex(id) = entity {
+                        self.vertex_coordinates.insert(id, coords);
+                    }
+                    entities.insert(entity);
+                }
+            }
+        }
+    }
+
+    /// Sends the local boundary data (such as vertex coordinates) through  
+    /// the communication channel to other partitions or sources.  
+    ///
+    /// This method collects the vertex coordinates for all mesh entities  
+    /// and sends them using the sender channel.  
+    ///
+    /// Example usage:
+    /// 
+    ///    mesh.send_boundary_data();  
+    ///
+    pub fn send_boundary_data(&self) {
+        if let Some(ref sender) = self.boundary_data_sender {
+            let mut boundary_data = FxHashMap::default();
+            let entities = self.entities.read().unwrap();
+            for entity in entities.iter() {
+                if let MeshEntity::Vertex(id) = entity {
+                    if let Some(coords) = self.vertex_coordinates.get(id) {
+                        boundary_data.insert(*entity, *coords);
+                    }
+                }
+            }
+
+            // Send the boundary data through the sender channel.
+            if let Err(e) = sender.send(boundary_data) {
+                eprintln!("Failed to send boundary data: {:?}", e);
+            }
         }
     }
 }
-
-#[cfg(test)]
-pub mod tests;
 ```
 
 ---
@@ -1286,108 +1425,6 @@ impl Mesh {
 
 ---
 
-`src/domain/mesh/boundary.rs`
-
-```rust
-use super::Mesh;
-use crate::domain::mesh_entity::MeshEntity;
-use rustc_hash::FxHashMap;
-use crossbeam::channel::{Sender, Receiver};
-
-impl Mesh {
-    /// Synchronizes the boundary data by first sending the local boundary data  
-    /// and then receiving any updated boundary data from other sources.  
-    ///
-    /// This function ensures that boundary data, such as vertex coordinates,  
-    /// is consistent across all mesh partitions.  
-    ///
-    /// Example usage:
-    /// 
-    ///    mesh.sync_boundary_data();  
-    ///
-    pub fn sync_boundary_data(&mut self) {
-        self.send_boundary_data();
-        self.receive_boundary_data();
-    }
-
-    /// Sets the communication channels for boundary data transmission.  
-    ///
-    /// The sender channel is used to transmit the local boundary data, and  
-    /// the receiver channel is used to receive boundary data from other  
-    /// partitions or sources.  
-    ///
-    /// Example usage:
-    /// 
-    ///    mesh.set_boundary_channels(sender, receiver);  
-    ///
-    pub fn set_boundary_channels(
-        &mut self,
-        sender: Sender<FxHashMap<MeshEntity, [f64; 3]>>,
-        receiver: Receiver<FxHashMap<MeshEntity, [f64; 3]>>,
-    ) {
-        self.boundary_data_sender = Some(sender);
-        self.boundary_data_receiver = Some(receiver);
-    }
-
-    /// Receives boundary data from the communication channel and updates the mesh.  
-    ///
-    /// This method listens for incoming boundary data (such as vertex coordinates)  
-    /// from the receiver channel and updates the local mesh entities and coordinates.  
-    ///
-    /// Example usage:
-    /// 
-    ///    mesh.receive_boundary_data();  
-    ///
-    pub fn receive_boundary_data(&mut self) {
-        if let Some(ref receiver) = self.boundary_data_receiver {
-            if let Ok(boundary_data) = receiver.recv() {
-                let mut entities = self.entities.write().unwrap();
-                for (entity, coords) in boundary_data {
-                    // Update vertex coordinates if the entity is a vertex.
-                    if let MeshEntity::Vertex(id) = entity {
-                        self.vertex_coordinates.insert(id, coords);
-                    }
-                    entities.insert(entity);
-                }
-            }
-        }
-    }
-
-    /// Sends the local boundary data (such as vertex coordinates) through  
-    /// the communication channel to other partitions or sources.  
-    ///
-    /// This method collects the vertex coordinates for all mesh entities  
-    /// and sends them using the sender channel.  
-    ///
-    /// Example usage:
-    /// 
-    ///    mesh.send_boundary_data();  
-    ///
-    pub fn send_boundary_data(&self) {
-        if let Some(ref sender) = self.boundary_data_sender {
-            let mut boundary_data = FxHashMap::default();
-            let entities = self.entities.read().unwrap();
-            for entity in entities.iter() {
-                if let MeshEntity::Vertex(id) = entity {
-                    if let Some(coords) = self.vertex_coordinates.get(id) {
-                        boundary_data.insert(*entity, *coords);
-                    }
-                }
-            }
-
-            // Send the boundary data through the sender channel.
-            if let Err(e) = sender.send(boundary_data) {
-                eprintln!("Failed to send boundary data: {:?}", e);
-            }
-        }
-    }
-}
-```
-
----
-
-Note that the following file is highly relevant to the development of `src/domain/mesh/geometry_validation.rs` and generation of accurate code.
-
 `src/domain/mesh/geometry.rs`
 
 ```rust
@@ -1565,530 +1602,766 @@ impl Mesh {
 
 ---
 
-`src/geometry/mod.rs`
+`src/domain/mesh/hierarchical.rs`
 
 ```rust
-use rayon::prelude::*;
-use rustc_hash::FxHashMap;
-use crate::domain::{mesh::Mesh, MeshEntity};
-use std::sync::Mutex;
+use std::boxed::Box;
 
-// Module for handling geometric data and computations
-// 2D Shape Modules
-pub mod quadrilateral;
-pub mod triangle;
-// 3D Shape Modules
-pub mod tetrahedron;
-pub mod hexahedron;
-pub mod prism;
-pub mod pyramid;
-
-/// The `Geometry` struct stores geometric data for a mesh, including vertex coordinates, 
-/// cell centroids, and volumes. It also maintains a cache of computed properties such as 
-/// volume and centroid for reuse, optimizing performance by avoiding redundant calculations.
-pub struct Geometry {
-    pub vertices: Vec<[f64; 3]>,        // 3D coordinates for each vertex
-    pub cell_centroids: Vec<[f64; 3]>,  // Centroid positions for each cell
-    pub cell_volumes: Vec<f64>,         // Volumes of each cell
-    pub cache: Mutex<FxHashMap<usize, GeometryCache>>, // Cache for computed properties, with thread safety
+/// Represents a hierarchical mesh node, which can either be a leaf (non-refined)  
+/// or a branch (refined into smaller child elements).  
+/// 
+/// In 2D, each branch contains 4 child elements (quadtree), while in 3D, each branch  
+/// would contain 8 child elements (octree).
+///
+/// Example usage:
+/// 
+///    let mut node = MeshNode::Leaf(10);  
+///    node.refine(|&data| [data + 1, data + 2, data + 3, data + 4]);  
+///    assert!(matches!(node, MeshNode::Branch { .. }));  
+/// 
+#[derive(Debug, PartialEq)]
+pub enum MeshNode<T> {
+    /// A leaf node representing an unrefined element containing data of type `T`.  
+    Leaf(T),
+    
+    /// A branch node representing a refined element with child elements.  
+    /// The branch contains its own data and an array of 4 child nodes (for 2D).  
+    Branch {
+        data: T,
+        children: Box<[MeshNode<T>; 4]>,  // 2D quadtree; change to `[MeshNode<T>; 8]` for 3D.
+    },
 }
 
-/// The `GeometryCache` struct stores computed properties of geometric entities, 
-/// including volume, centroid, and area, with an optional "dirty" flag for lazy evaluation.
-#[derive(Default)]
-pub struct GeometryCache {
-    pub volume: Option<f64>,
-    pub centroid: Option<[f64; 3]>,
-    pub area: Option<f64>,
-    pub normal: Option<[f64; 3]>,  // Stores a precomputed normal vector for a face
-}
-
-/// `CellShape` enumerates the different cell shapes in a mesh, including:
-/// * Tetrahedron
-/// * Hexahedron
-/// * Prism
-/// * Pyramid
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CellShape {
-    Tetrahedron,
-    Hexahedron,
-    Prism,
-    Pyramid,
-}
-
-/// `FaceShape` enumerates the different face shapes in a mesh, including:
-/// * Triangle
-/// * Quadrilateral
-#[derive(Debug, Clone, Copy)]
-pub enum FaceShape {
-    Triangle,
-    Quadrilateral,
-}
-
-impl Geometry {
-    /// Initializes a new `Geometry` instance with empty data.
-    pub fn new() -> Geometry {
-        Geometry {
-            vertices: Vec::new(),
-            cell_centroids: Vec::new(),
-            cell_volumes: Vec::new(),
-            cache: Mutex::new(FxHashMap::default()),
-        }
-    }
-
-    /// Adds or updates a vertex in the geometry. If the vertex already exists,
-    /// it updates its coordinates; otherwise, it adds a new vertex.
+impl<T: Clone> MeshNode<T> {
+    /// Refines a leaf node into a branch with initialized child nodes.  
     ///
-    /// # Arguments
-    /// * `vertex_index` - The index of the vertex.
-    /// * `coords` - The 3D coordinates of the vertex.
-    pub fn set_vertex(&mut self, vertex_index: usize, coords: [f64; 3]) {
-        if vertex_index >= self.vertices.len() {
-            self.vertices.resize(vertex_index + 1, [0.0, 0.0, 0.0]);
-        }
-        self.vertices[vertex_index] = coords;
-        self.invalidate_cache();
-    }
-
-    /// Computes and returns the centroid of a specified cell using the cell's shape and vertices.
-    /// Caches the result for reuse.
-    pub fn compute_cell_centroid(&mut self, mesh: &Mesh, cell: &MeshEntity) -> [f64; 3] {
-        let cell_id = cell.get_id();
-        if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.centroid) {
-            return cached;
-        }
-
-        let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
-        let cell_vertices = mesh.get_cell_vertices(cell);
-
-        let centroid = match cell_shape {
-            CellShape::Tetrahedron => self.compute_tetrahedron_centroid(&cell_vertices),
-            CellShape::Hexahedron => self.compute_hexahedron_centroid(&cell_vertices),
-            CellShape::Prism => self.compute_prism_centroid(&cell_vertices),
-            CellShape::Pyramid => self.compute_pyramid_centroid(&cell_vertices),
-        };
-
-        self.cache.lock().unwrap().entry(cell_id).or_default().centroid = Some(centroid);
-        centroid
-    }
-
-    /// Computes the volume of a given cell using its shape and vertex coordinates.
-    /// The computed volume is cached for efficiency.
-    pub fn compute_cell_volume(&mut self, mesh: &Mesh, cell: &MeshEntity) -> f64 {
-        let cell_id = cell.get_id();
-        if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.volume) {
-            return cached;
-        }
-
-        let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
-        let cell_vertices = mesh.get_cell_vertices(cell);
-
-        let volume = match cell_shape {
-            CellShape::Tetrahedron => self.compute_tetrahedron_volume(&cell_vertices),
-            CellShape::Hexahedron => self.compute_hexahedron_volume(&cell_vertices),
-            CellShape::Prism => self.compute_prism_volume(&cell_vertices),
-            CellShape::Pyramid => self.compute_pyramid_volume(&cell_vertices),
-        };
-
-        self.cache.lock().unwrap().entry(cell_id).or_default().volume = Some(volume);
-        volume
-    }
-
-    /// Calculates Euclidean distance between two points in 3D space.
-    pub fn compute_distance(p1: &[f64; 3], p2: &[f64; 3]) -> f64 {
-        let dx = p1[0] - p2[0];
-        let dy = p1[1] - p2[1];
-        let dz = p1[2] - p2[2];
-        (dx.powi(2) + dy.powi(2) + dz.powi(2)).sqrt()
-    }
-
-    /// Computes the area of a 2D face based on its shape, caching the result.
-    pub fn compute_face_area(&mut self, face_id: usize, face_shape: FaceShape, face_vertices: &Vec<[f64; 3]>) -> f64 {
-        if let Some(cached) = self.cache.lock().unwrap().get(&face_id).and_then(|c| c.area) {
-            return cached;
-        }
-
-        let area = match face_shape {
-            FaceShape::Triangle => self.compute_triangle_area(face_vertices),
-            FaceShape::Quadrilateral => self.compute_quadrilateral_area(face_vertices),
-        };
-
-        self.cache.lock().unwrap().entry(face_id).or_default().area = Some(area);
-        area
-    }
-
-    /// Computes the centroid of a 2D face based on its shape.
+    /// The `init_child_data` function is used to generate the data for each child  
+    /// element based on the parent node's data.  
     ///
-    /// # Arguments
-    /// * `face_shape` - Enum defining the shape of the face (e.g., Triangle, Quadrilateral).
-    /// * `face_vertices` - A vector of 3D coordinates representing the vertices of the face.
+    /// Example usage:
+    /// 
+    ///    let mut node = MeshNode::Leaf(10);  
+    ///    node.refine(|&data| [data + 1, data + 2, data + 3, data + 4]);  
     ///
-    /// # Returns
-    /// * `[f64; 3]` - The 3D coordinates of the face centroid.
-    pub fn compute_face_centroid(&self, face_shape: FaceShape, face_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
-        match face_shape {
-            FaceShape::Triangle => self.compute_triangle_centroid(face_vertices),
-            FaceShape::Quadrilateral => self.compute_quadrilateral_centroid(face_vertices),
+    pub fn refine<F>(&mut self, init_child_data: F)
+    where
+        F: Fn(&T) -> [T; 4],  // Function to generate child data from the parent.
+    {
+        if let MeshNode::Leaf(data) = self {
+            let children = init_child_data(data);
+            *self = MeshNode::Branch {
+                data: data.clone(),
+                children: Box::new([
+                    MeshNode::Leaf(children[0].clone()),
+                    MeshNode::Leaf(children[1].clone()),
+                    MeshNode::Leaf(children[2].clone()),
+                    MeshNode::Leaf(children[3].clone()),
+                ]),
+            };
         }
     }
 
-    /// Computes and caches the normal vector for a face based on its shape.
+    /// Coarsens a branch back into a leaf node by collapsing its child elements.  
     ///
-    /// This function determines the face shape and calls the appropriate 
-    /// function to compute the normal vector.
+    /// This method turns a branch back into a leaf node, retaining the data of the  
+    /// parent node but removing its child elements.  
     ///
-    /// # Arguments
-    /// * `mesh` - A reference to the mesh.
-    /// * `face` - The face entity for which to compute the normal.
-    /// * `cell` - The cell associated with the face, used to determine the orientation.
+    /// Example usage:
+    /// 
+    ///    node.coarsen();  
     ///
-    /// # Returns
-    /// * `Option<[f64; 3]>` - The computed normal vector, or `None` if it could not be computed.
-    pub fn compute_face_normal(
-        &mut self,
-        mesh: &Mesh,
-        face: &MeshEntity,
-        _cell: &MeshEntity,
-    ) -> Option<[f64; 3]> {
-        let face_id = face.get_id();
-
-        // Check if the normal is already cached
-        if let Some(cached) = self.cache.lock().unwrap().get(&face_id).and_then(|c| c.normal) {
-            return Some(cached);
+    pub fn coarsen(&mut self) {
+        if let MeshNode::Branch { data, .. } = self {
+            *self = MeshNode::Leaf(data.clone());
         }
-
-        let face_vertices = mesh.get_face_vertices(face);
-        let face_shape = match face_vertices.len() {
-            3 => FaceShape::Triangle,
-            4 => FaceShape::Quadrilateral,
-            _ => return None, // Unsupported face shape
-        };
-
-        let normal = match face_shape {
-            FaceShape::Triangle => self.compute_triangle_normal(&face_vertices),
-            FaceShape::Quadrilateral => self.compute_quadrilateral_normal(&face_vertices),
-        };
-
-        // Cache the normal vector for future use
-        self.cache.lock().unwrap().entry(face_id).or_default().normal = Some(normal);
-
-        Some(normal)
     }
 
-    /// Invalidate the cache when geometry changes (e.g., vertex updates).
-    fn invalidate_cache(&mut self) {
-        self.cache.lock().unwrap().clear();
+    /// Applies constraints at hanging nodes to ensure continuity between the parent  
+    /// and its child elements.  
+    ///
+    /// This function adjusts the degrees of freedom (DOFs) at the parent node by  
+    /// averaging the DOFs from its child elements.  
+    ///
+    /// Example usage:
+    /// 
+    ///    node.apply_hanging_node_constraints(&mut parent_dofs, &mut child_dofs);  
+    ///
+    pub fn apply_hanging_node_constraints(&self, parent_dofs: &mut [f64], child_dofs: &mut [[f64; 4]; 4]) {
+        if let MeshNode::Branch { .. } = self {
+            for i in 0..parent_dofs.len() {
+                parent_dofs[i] = child_dofs.iter().map(|d| d[i]).sum::<f64>() / 4.0;
+            }
+        }
     }
 
-    /// Computes the total volume of all cells.
-    pub fn compute_total_volume(&self) -> f64 {
-        self.cell_volumes.par_iter().sum()
-    }
-
-    /// Updates all cell volumes in parallel using mesh information.
-    pub fn update_all_cell_volumes(&mut self, mesh: &Mesh) {
-        let new_volumes: Vec<f64> = mesh
-            .get_cells()
-            .par_iter()
-            .map(|cell| {
-                let mut temp_geometry = Geometry::new();
-                temp_geometry.compute_cell_volume(mesh, cell)
-            })
-            .collect();
-
-        self.cell_volumes = new_volumes;
-    }
-
-    /// Computes the total centroid of all cells.
-    pub fn compute_total_centroid(&self) -> [f64; 3] {
-        let total_centroid: [f64; 3] = self.cell_centroids
-            .par_iter()
-            .cloned()
-            .reduce(
-                || [0.0, 0.0, 0.0],
-                |acc, centroid| [
-                    acc[0] + centroid[0],
-                    acc[1] + centroid[1],
-                    acc[2] + centroid[2],
-                ],
-            );
-
-        let num_centroids = self.cell_centroids.len() as f64;
-        [
-            total_centroid[0] / num_centroids,
-            total_centroid[1] / num_centroids,
-            total_centroid[2] / num_centroids,
-        ]
+    /// Returns an iterator over all leaf nodes in the mesh hierarchy.  
+    ///
+    /// This iterator allows traversal of the entire hierarchical mesh,  
+    /// returning only the leaf nodes.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let leaves: Vec<_> = node.leaf_iter().collect();  
+    ///
+    pub fn leaf_iter(&self) -> LeafIterator<T> {
+        LeafIterator { stack: vec![self] }
     }
 }
 
+/// An iterator for traversing through leaf nodes in the hierarchical mesh.  
+/// 
+/// This iterator traverses all nodes in the hierarchy but only returns  
+/// the leaf nodes.
+pub struct LeafIterator<'a, T> {
+    stack: Vec<&'a MeshNode<T>>,
+}
+
+impl<'a, T> Iterator for LeafIterator<'a, T> {
+    type Item = &'a T;
+
+    /// Returns the next leaf node in the traversal.  
+    /// If the current node is a branch, its children are pushed onto the stack  
+    /// for traversal in depth-first order.
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(node) = self.stack.pop() {
+            match node {
+                MeshNode::Leaf(data) => return Some(data),
+                MeshNode::Branch { children, .. } => {
+                    // Push children onto the stack in reverse order to get them in the desired order.
+                    for child in children.iter().rev() {
+                        self.stack.push(child);
+                    }
+                }
+            }
+        }
+        None
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use crate::geometry::{Geometry, CellShape, FaceShape};
-    use crate::domain::{MeshEntity, mesh::Mesh, Sieve};
-    use rustc_hash::{FxHashMap, FxHashSet};
-    use std::sync::{Arc, RwLock};
+    use super::*;
+    use crate::domain::mesh::hierarchical::MeshNode;
 
     #[test]
-    fn test_set_vertex() {
-        let mut geometry = Geometry::new();
+    /// Test that verifies refining a leaf node into a branch works as expected.  
+    fn test_refine_leaf() {
+        let mut node = MeshNode::Leaf(10);
+        node.refine(|&data| [data + 1, data + 2, data + 3, data + 4]);
 
-        // Set vertex at index 0
-        geometry.set_vertex(0, [1.0, 2.0, 3.0]);
-        assert_eq!(geometry.vertices[0], [1.0, 2.0, 3.0]);
-
-        // Update vertex at index 0
-        geometry.set_vertex(0, [4.0, 5.0, 6.0]);
-        assert_eq!(geometry.vertices[0], [4.0, 5.0, 6.0]);
-
-        // Set vertex at a higher index
-        geometry.set_vertex(3, [7.0, 8.0, 9.0]);
-        assert_eq!(geometry.vertices[3], [7.0, 8.0, 9.0]);
-
-        // Ensure the intermediate vertices are initialized to [0.0, 0.0, 0.0]
-        assert_eq!(geometry.vertices[1], [0.0, 0.0, 0.0]);
-        assert_eq!(geometry.vertices[2], [0.0, 0.0, 0.0]);
-    }
-
-    #[test]
-    fn test_compute_distance() {
-        let p1 = [0.0, 0.0, 0.0];
-        let p2 = [3.0, 4.0, 0.0];
-
-        let distance = Geometry::compute_distance(&p1, &p2);
-
-        // The expected distance is 5 (Pythagoras: sqrt(3^2 + 4^2))
-        assert_eq!(distance, 5.0);
-    }
-
-    #[test]
-    fn test_compute_cell_centroid_tetrahedron() {
-        // Create a new Sieve and Mesh.
-        let sieve = Sieve::new();
-        let mut mesh = Mesh {
-            sieve: Arc::new(sieve),
-            entities: Arc::new(RwLock::new(FxHashSet::default())),
-            vertex_coordinates: FxHashMap::default(),
-            boundary_data_sender: None,
-            boundary_data_receiver: None,
-        };
-
-        // Define vertices and a cell.
-        let vertex1 = MeshEntity::Vertex(1);
-        let vertex2 = MeshEntity::Vertex(2);
-        let vertex3 = MeshEntity::Vertex(3);
-        let vertex4 = MeshEntity::Vertex(4);
-        let cell = MeshEntity::Cell(1);
-
-        // Set vertex coordinates.
-        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
-        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]);
-
-        // Add entities to the mesh.
-        mesh.add_entity(vertex1);
-        mesh.add_entity(vertex2);
-        mesh.add_entity(vertex3);
-        mesh.add_entity(vertex4);
-        mesh.add_entity(cell);
-
-        // Establish relationships between the cell and vertices.
-        mesh.add_arrow(cell, vertex1);
-        mesh.add_arrow(cell, vertex2);
-        mesh.add_arrow(cell, vertex3);
-        mesh.add_arrow(cell, vertex4);
-
-        // Verify that `get_cell_vertices` retrieves the correct vertices.
-        let cell_vertices = mesh.get_cell_vertices(&cell);
-        assert_eq!(cell_vertices.len(), 4, "Expected 4 vertices for a tetrahedron cell.");
-
-        // Validate the shape before computing.
-        assert_eq!(mesh.get_cell_shape(&cell), Ok(CellShape::Tetrahedron));
-
-        // Create a Geometry instance and compute the centroid.
-        let mut geometry = Geometry::new();
-        let centroid = geometry.compute_cell_centroid(&mesh, &cell);
-
-        // Expected centroid is the average of all vertices: (0.25, 0.25, 0.25)
-        assert_eq!(centroid, [0.25, 0.25, 0.25]);
-    }
-
-    #[test]
-    fn test_compute_face_area_triangle() {
-        let mut geometry = Geometry::new();
-
-        // Define a right-angled triangle in 3D space
-        let triangle_vertices = vec![
-            [0.0, 0.0, 0.0], // vertex 1
-            [3.0, 0.0, 0.0], // vertex 2
-            [0.0, 4.0, 0.0], // vertex 3
-        ];
-
-        let area = geometry.compute_face_area(1, FaceShape::Triangle, &triangle_vertices);
-
-        // Expected area: 0.5 * base * height = 0.5 * 3.0 * 4.0 = 6.0
-        assert_eq!(area, 6.0);
-    }
-
-    #[test]
-    fn test_compute_face_centroid_quadrilateral() {
-        let geometry = Geometry::new();
-
-        // Define a square in 3D space
-        let quad_vertices = vec![
-            [0.0, 0.0, 0.0], // vertex 1
-            [1.0, 0.0, 0.0], // vertex 2
-            [1.0, 1.0, 0.0], // vertex 3
-            [0.0, 1.0, 0.0], // vertex 4
-        ];
-
-        let centroid = geometry.compute_face_centroid(FaceShape::Quadrilateral, &quad_vertices);
-
-        // Expected centroid is the geometric center: (0.5, 0.5, 0.0)
-        assert_eq!(centroid, [0.5, 0.5, 0.0]);
-    }
-
-    #[test]
-    fn test_compute_total_volume() {
-        let mut geometry = Geometry::new();
-        let _mesh = Mesh::new();
-
-        // Example setup: Define cells with known volumes
-        // Here, you would typically define several cells and their volumes for the test
-        geometry.cell_volumes = vec![1.0, 2.0, 3.0];
-
-        // Expected total volume is the sum of individual cell volumes: 1.0 + 2.0 + 3.0 = 6.0
-        assert_eq!(geometry.compute_total_volume(), 6.0);
-    }
-
-    #[test]
-    fn test_compute_face_normal_triangle() {
-        let geometry = Geometry::new();
-        
-        // Define vertices for a triangular face in the XY plane
-        let vertices = vec![
-            [0.0, 0.0, 0.0], // vertex 1
-            [1.0, 0.0, 0.0], // vertex 2
-            [0.0, 1.0, 0.0], // vertex 3
-        ];
-
-        // Define the face as a triangle
-        let _face = MeshEntity::Face(1);
-        let _cell = MeshEntity::Cell(1);
-
-        // Directly compute the normal without setting up mesh connectivity
-        let normal = geometry.compute_triangle_normal(&vertices);
-
-        // Expected normal for a triangle in the XY plane should be along the Z-axis
-        let expected_normal = [0.0, 0.0, 1.0];
-        
-        // Check if the computed normal is correct
-        for i in 0..3 {
-            assert!((normal[i] - expected_normal[i]).abs() < 1e-6);
+        if let MeshNode::Branch { children, .. } = node {
+            assert_eq!(children[0], MeshNode::Leaf(11));
+            assert_eq!(children[1], MeshNode::Leaf(12));
+            assert_eq!(children[2], MeshNode::Leaf(13));
+            assert_eq!(children[3], MeshNode::Leaf(14));
+        } else {
+            panic!("Node should have been refined to a branch.");
         }
     }
 
     #[test]
-    fn test_compute_face_normal_quadrilateral() {
-        let geometry = Geometry::new();
+    /// Test that verifies coarsening a branch node back into a leaf works as expected.  
+    fn test_coarsen_branch() {
+        let mut node = MeshNode::Leaf(10);
+        node.refine(|&data| [data + 1, data + 2, data + 3, data + 4]);
+        node.coarsen();
 
-        // Define vertices for a quadrilateral face in the XY plane
-        let vertices = vec![
-            [0.0, 0.0, 0.0], // vertex 1
-            [1.0, 0.0, 0.0], // vertex 2
-            [1.0, 1.0, 0.0], // vertex 3
-            [0.0, 1.0, 0.0], // vertex 4
-        ];
-
-        // Define the face as a quadrilateral
-        let _face = MeshEntity::Face(2);
-        let _cell = MeshEntity::Cell(1);
-
-        // Directly compute the normal for quadrilateral
-        let normal = geometry.compute_quadrilateral_normal(&vertices);
-
-        // Expected normal for a quadrilateral in the XY plane should be along the Z-axis
-        let expected_normal = [0.0, 0.0, 1.0];
-        
-        // Check if the computed normal is correct
-        for i in 0..3 {
-            assert!((normal[i] - expected_normal[i]).abs() < 1e-6);
-        }
+        assert_eq!(node, MeshNode::Leaf(10));
     }
 
     #[test]
-    fn test_compute_face_normal_caching() {
-        let geometry = Geometry::new();
+    /// Test that verifies applying hanging node constraints works correctly by  
+    /// averaging the degrees of freedom from the child elements to the parent element.  
+    fn test_apply_hanging_node_constraints() {
+        let node = MeshNode::Branch {
+            data: 0,
+            children: Box::new([
+                MeshNode::Leaf(1),
+                MeshNode::Leaf(2),
+                MeshNode::Leaf(3),
+                MeshNode::Leaf(4),
+            ]),
+        };
 
-        // Define vertices for a triangular face
-        let vertices = vec![
-            [0.0, 0.0, 0.0], // vertex 1
-            [1.0, 0.0, 0.0], // vertex 2
-            [0.0, 1.0, 0.0], // vertex 3
+        let mut parent_dofs = [0.0; 4];
+        let mut child_dofs = [
+            [1.0, 2.0, 3.0, 4.0],
+            [1.0, 2.0, 3.0, 4.0],
+            [1.0, 2.0, 3.0, 4.0],
+            [1.0, 2.0, 3.0, 4.0],
         ];
 
-        let face_id = 3; // Unique identifier for caching
-        let _face = MeshEntity::Face(face_id);
-        let _cell = MeshEntity::Cell(1);
+        node.apply_hanging_node_constraints(&mut parent_dofs, &mut child_dofs);
 
-        // First computation to populate the cache
-        let normal_first = geometry.compute_triangle_normal(&vertices);
-
-        // Manually retrieve from cache to verify caching behavior
-        geometry.cache.lock().unwrap().entry(face_id).or_default().normal = Some(normal_first);
-        let cached_normal = geometry.cache.lock().unwrap().get(&face_id).and_then(|c| c.normal);
-
-        // Verify that the cached value matches the first computed value
-        assert_eq!(Some(normal_first), cached_normal);
+        assert_eq!(parent_dofs, [1.0, 2.0, 3.0, 4.0]);
     }
 
     #[test]
-    fn test_compute_face_normal_unsupported_shape() {
-        let geometry = Geometry::new();
+    /// Test that verifies the leaf iterator correctly traverses all leaf nodes in  
+    /// the mesh hierarchy and returns them in the expected order.  
+    fn test_leaf_iterator() {
+        let mut node = MeshNode::Leaf(10);
+        node.refine(|&data| [data + 1, data + 2, data + 3, data + 4]);
 
-        // Define vertices for a pentagon (unsupported)
-        let vertices = vec![
-            [0.0, 0.0, 0.0], // vertex 1
-            [1.0, 0.0, 0.0], // vertex 2
-            [1.0, 1.0, 0.0], // vertex 3
-            [0.0, 1.0, 0.0], // vertex 4
-            [0.5, 0.5, 0.0], // vertex 5
-        ];
-
-        let _face = MeshEntity::Face(4);
-        let _cell = MeshEntity::Cell(1);
-
-        // Since compute_face_normal expects only triangles or quadrilaterals, it should return None
-        let face_shape = match vertices.len() {
-            3 => FaceShape::Triangle,
-            4 => FaceShape::Quadrilateral,
-            _ => return, // Unsupported shape, skip test
-        };
-
-        // Attempt to compute the normal for an unsupported shape
-        let normal = match face_shape {
-            FaceShape::Triangle => Some(geometry.compute_triangle_normal(&vertices)),
-            FaceShape::Quadrilateral => Some(geometry.compute_quadrilateral_normal(&vertices)),
-        };
-
-        // Assert that the function correctly handles unsupported shapes by skipping normal computation
-        assert!(normal.is_none());
+        let leaves: Vec<_> = node.leaf_iter().collect();
+        assert_eq!(leaves, [&11, &12, &13, &14]);
     }
 }
 ```
 
 ---
 
-Now generate the source code for `src/domain/mesh/boundary_validation.rs` based on the following instructions:
+`src/domain/mesh/mod.rs`
+
+```rust
+pub mod entities;
+pub mod geometry;
+pub mod reordering;
+pub mod boundary;
+pub mod hierarchical;
+pub mod topology;
+/* pub mod geometry_validation;
+pub mod boundary_validation; */
+
+use crate::domain::mesh_entity::MeshEntity;
+use crate::domain::sieve::Sieve;
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::sync::{Arc, RwLock};
+use crossbeam::channel::{Sender, Receiver};
+
+// Delegate methods to corresponding modules
+
+/// Represents the mesh structure, which is composed of a sieve for entity management,  
+/// a set of mesh entities, vertex coordinates, and channels for boundary data.  
+/// 
+/// The `Mesh` struct is the central component for managing mesh entities and  
+/// their relationships. It stores entities such as vertices, edges, faces,  
+/// and cells, along with their geometric data and boundary-related information.  
+/// 
+/// Example usage:
+/// 
+///    let mesh = Mesh::new();  
+///    let entity = MeshEntity::Vertex(1);  
+///    mesh.entities.write().unwrap().insert(entity);  
+/// 
+#[derive(Clone, Debug)]
+pub struct Mesh {
+    /// The sieve structure used for organizing the mesh entities' relationships.  
+    pub sieve: Arc<Sieve>,  
+    /// A thread-safe, read-write lock for managing mesh entities.  
+    /// This set contains all `MeshEntity` objects in the mesh.  
+    pub entities: Arc<RwLock<FxHashSet<MeshEntity>>>,  
+    /// A map from vertex indices to their 3D coordinates.  
+    pub vertex_coordinates: FxHashMap<usize, [f64; 3]>,  
+    /// An optional channel sender for transmitting boundary data related to mesh entities.  
+    pub boundary_data_sender: Option<Sender<FxHashMap<MeshEntity, [f64; 3]>>>,  
+    /// An optional channel receiver for receiving boundary data related to mesh entities.  
+    pub boundary_data_receiver: Option<Receiver<FxHashMap<MeshEntity, [f64; 3]>>>,  
+}
+
+impl Mesh {
+    /// Creates a new instance of the `Mesh` struct with initialized components.  
+    /// 
+    /// This method sets up the sieve, entity set, vertex coordinate map,  
+    /// and a channel for boundary data communication between mesh components.  
+    ///
+    /// The `Sender` and `Receiver` are unbounded channels used to pass boundary  
+    /// data between mesh modules asynchronously.
+    /// 
+    /// Example usage:
+    /// 
+    ///    let mesh = Mesh::new();  
+    ///    assert!(mesh.entities.read().unwrap().is_empty());  
+    /// 
+    pub fn new() -> Self {
+        let (sender, receiver) = crossbeam::channel::unbounded();
+        Mesh {
+            sieve: Arc::new(Sieve::new()),
+            entities: Arc::new(RwLock::new(FxHashSet::default())),
+            vertex_coordinates: FxHashMap::default(),
+            boundary_data_sender: Some(sender),
+            boundary_data_receiver: Some(receiver),
+        }
+    }
+}
+
+#[cfg(test)]
+pub mod tests;
+```
+
+---
+
+`src/domain/mesh/reordering.rs`
+
+```rust
+use super::Mesh;
+use crate::domain::mesh_entity::MeshEntity;
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::VecDeque;
+use rayon::prelude::*;
+
+/// Reorders mesh entities using the Cuthill-McKee algorithm.  
+/// This algorithm improves memory locality by reducing the bandwidth of sparse matrices,  
+/// which is beneficial for solver optimizations.  
+///
+/// The algorithm starts from the node with the smallest degree and visits its neighbors  
+/// in increasing order of their degree.
+///
+/// Example usage:
+/// 
+///    let ordered_entities = cuthill_mckee(&entities, &adjacency);  
+///
+pub fn cuthill_mckee(
+    entities: &[MeshEntity], 
+    adjacency: &FxHashMap<MeshEntity, Vec<MeshEntity>>
+) -> Vec<MeshEntity> {
+    let mut visited = FxHashSet::default();
+    let mut queue = VecDeque::new();
+    let mut ordered = Vec::new();
+
+    // Find the starting entity (node) with the smallest degree.
+    if let Some((start, _)) = entities.iter()
+        .map(|entity| (entity, adjacency.get(entity).map_or(0, |neighbors| neighbors.len())))
+        .min_by_key(|&(_, degree)| degree)
+    {
+        queue.push_back(*start);
+        visited.insert(*start);
+    }
+
+    // Perform the Cuthill-McKee reordering.
+    while let Some(entity) = queue.pop_front() {
+        ordered.push(entity);
+        if let Some(neighbors) = adjacency.get(&entity) {
+            let mut sorted_neighbors: Vec<_> = neighbors.iter()
+                .filter(|&&n| !visited.contains(&n))
+                .cloned()
+                .collect();
+            sorted_neighbors.sort_by_key(|n| adjacency.get(n).map_or(0, |neighbors| neighbors.len()));
+            for neighbor in sorted_neighbors {
+                queue.push_back(neighbor);
+                visited.insert(neighbor);
+            }
+        }
+    }
+
+    ordered
+}
+
+impl Mesh {
+    /// Applies a reordering to the mesh entities based on the given new order.  
+    ///
+    /// This method can be used to reorder entities or update a sparse matrix  
+    /// structure based on the new ordering.
+    ///
+    /// Example usage:
+    /// 
+    ///    mesh.apply_reordering(&new_order);  
+    ///
+    pub fn apply_reordering(&mut self, _new_order: &[usize]) {
+        // Implement the application of reordering to mesh entities or sparse matrix structure.
+    }
+
+    /// Computes the reverse Cuthill-McKee (RCM) ordering starting from a given node.  
+    ///
+    /// This method performs the RCM algorithm to minimize the bandwidth of sparse matrices  
+    /// by reordering mesh entities in reverse order of their Cuthill-McKee ordering.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let rcm_order = mesh.rcm_ordering(start_node);  
+    ///
+    pub fn rcm_ordering(&self, start_node: MeshEntity) -> Vec<MeshEntity> {
+        let mut visited = FxHashSet::default();
+        let mut queue = VecDeque::new();
+        let mut ordering = Vec::new();
+
+        queue.push_back(start_node);
+        visited.insert(start_node);
+
+        // Perform breadth-first traversal and order nodes by degree.
+        while let Some(node) = queue.pop_front() {
+            ordering.push(node);
+            if let Some(neighbors) = self.sieve.cone(&node) {
+                let mut sorted_neighbors: Vec<_> = neighbors
+                    .into_iter()
+                    .filter(|n| !visited.contains(n))
+                    .collect();
+                sorted_neighbors.sort_by_key(|n| self.sieve.cone(n).map_or(0, |set| set.len()));
+                for neighbor in sorted_neighbors {
+                    queue.push_back(neighbor);
+                    visited.insert(neighbor);
+                }
+            }
+        }
+
+        // Reverse the ordering to get the RCM order.
+        ordering.reverse();
+        ordering
+    }
+
+    /// Reorders elements in the mesh using Morton order (Z-order curve) for better memory locality.  
+    ///
+    /// This method applies the Morton order to the given set of 2D elements (with x and y coordinates).  
+    /// Morton ordering is a space-filling curve that helps improve memory access patterns  
+    /// in 2D meshes or grids.
+    ///
+    /// Example usage:
+    /// 
+    ///    mesh.reorder_by_morton_order(&mut elements);  
+    ///
+    pub fn reorder_by_morton_order(&mut self, elements: &mut [(u32, u32)]) {
+        elements.par_sort_by_key(|&(x, y)| Self::morton_order_2d(x, y));
+    }
+
+    /// Computes the Morton order (Z-order curve) for a 2D point with coordinates (x, y).  
+    ///
+    /// This function interleaves the bits of the x and y coordinates to generate  
+    /// a single value that represents the Morton order.  
+    ///
+    /// Example usage:
+    /// 
+    ///    let morton_order = Mesh::morton_order_2d(10, 20);  
+    ///
+    pub fn morton_order_2d(x: u32, y: u32) -> u64 {
+        // Helper function to interleave the bits of a 32-bit integer.
+        fn part1by1(n: u32) -> u64 {
+            let mut n = n as u64;
+            n = (n | (n << 16)) & 0x0000_0000_ffff_0000;
+            n = (n | (n << 8)) & 0x0000_ff00_00ff_0000;
+            n = (n | (n << 4)) & 0x00f0_00f0_00f0_00f0;
+            n = (n | (n << 2)) & 0x0c30_0c30_0c30_0c30;
+            n = (n | (n << 1)) & 0x2222_2222_2222_2222;
+            n
+        }
+
+        // Interleave the bits of x and y to compute the Morton order.
+        part1by1(x) | (part1by1(y) << 1)
+    }
+}
+```
+
+---
+
+`src/domain/mesh/tests.rs`
+
+```rust
+#[cfg(test)]
+mod tests {
+    use crate::domain::mesh_entity::MeshEntity;
+    use crossbeam::channel::unbounded;
+    use crate::domain::mesh::Mesh;
+
+    /// Tests that boundary data can be sent from one mesh and received by another.  
+    #[test]
+    fn test_send_receive_boundary_data() {
+        let mut mesh = Mesh::new();
+        let vertex1 = MeshEntity::Vertex(1);
+        let vertex2 = MeshEntity::Vertex(2);
+
+        mesh.vertex_coordinates.insert(1, [1.0, 2.0, 3.0]);
+        mesh.vertex_coordinates.insert(2, [4.0, 5.0, 6.0]);
+        mesh.add_entity(vertex1);
+        mesh.add_entity(vertex2);
+
+        let (test_sender, test_receiver) = unbounded();
+        mesh.set_boundary_channels(test_sender, test_receiver);
+
+        mesh.send_boundary_data();
+
+        let mut mesh_receiver = Mesh::new();
+        mesh_receiver.set_boundary_channels(
+            mesh.boundary_data_sender.clone().unwrap(),
+            mesh.boundary_data_receiver.clone().unwrap(),
+        );
+
+        mesh_receiver.receive_boundary_data();
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&1), Some(&[1.0, 2.0, 3.0]));
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&2), Some(&[4.0, 5.0, 6.0]));
+    }
+
+    /// Tests sending boundary data without a receiver does not cause a failure.
+    #[test]
+    fn test_send_without_receiver() {
+        let mut mesh = Mesh::new();
+        let vertex = MeshEntity::Vertex(3);
+        mesh.vertex_coordinates.insert(3, [7.0, 8.0, 9.0]);
+        mesh.add_entity(vertex);
+
+        mesh.send_boundary_data();
+        assert!(mesh.vertex_coordinates.get(&3).is_some());
+    }
+
+    /// Tests the addition of a new entity to the mesh.  
+    /// Tests the addition of a new entity to the mesh.  
+    /// Verifies that the entity is successfully added to the mesh's entity set.  
+    /// Tests the addition of a new entity to the mesh.
+    /// Verifies that the entity is successfully added to the mesh's entity set.  
+    #[test]
+    fn test_add_entity() {
+        let mesh = Mesh::new();
+        let vertex = MeshEntity::Vertex(1);
+        mesh.add_entity(vertex);
+        assert!(mesh.entities.read().unwrap().contains(&vertex));
+    }
+
+    /// Tests the iterator over the mesh's vertex coordinates.  
+    /// Tests the iterator over the mesh's vertex coordinates.  
+    /// Verifies that the iterator returns the correct vertex IDs.  
+    /// Tests the iterator over the mesh's vertex coordinates.
+    /// Verifies that the iterator returns the correct vertex IDs.  
+    #[test]
+    fn test_iter_vertices() {
+        let mut mesh = Mesh::new();
+        mesh.vertex_coordinates.insert(1, [1.0, 2.0, 3.0]);
+        let vertices: Vec<_> = mesh.iter_vertices().collect();
+        assert_eq!(vertices, vec![&1]);
+    }
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use crate::domain::mesh::hierarchical::MeshNode;
+    use crate::domain::mesh_entity::MeshEntity;
+    use crate::domain::mesh::Mesh;
+    use crossbeam::channel::unbounded;
+
+    /// Full integration test for mesh operations including entity addition,  
+    /// boundary data synchronization, and applying constraints at hanging nodes.
+    #[test]
+    fn test_full_mesh_integration() {
+        let mut mesh = Mesh::new();
+        let vertex1 = MeshEntity::Vertex(1);
+        let vertex2 = MeshEntity::Vertex(2);
+        let vertex3 = MeshEntity::Vertex(3);
+        let cell1 = MeshEntity::Cell(1);
+
+        mesh.add_entity(vertex1);
+        mesh.add_entity(vertex2);
+        mesh.add_entity(vertex3);
+        mesh.add_entity(cell1);
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
+
+        let (sender, receiver) = unbounded();
+        mesh.set_boundary_channels(sender, receiver);
+        mesh.send_boundary_data();
+
+        let mut mesh_receiver = Mesh::new();
+        mesh_receiver.set_boundary_channels(
+            mesh.boundary_data_sender.clone().unwrap(),
+            mesh.boundary_data_receiver.clone().unwrap(),
+        );
+        mesh_receiver.receive_boundary_data();
+
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&1), Some(&[0.0, 0.0, 0.0]));
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&2), Some(&[1.0, 0.0, 0.0]));
+        assert_eq!(mesh_receiver.vertex_coordinates.get(&3), Some(&[0.0, 1.0, 0.0]));
+
+        let mut node = MeshNode::Leaf(cell1);
+        node.refine(|&_cell| [
+            MeshEntity::Cell(2), MeshEntity::Cell(3), MeshEntity::Cell(4), MeshEntity::Cell(5)
+        ]);
+
+        if let MeshNode::Branch { ref children, .. } = node {
+            assert_eq!(children.len(), 4);
+            assert_eq!(children[0], MeshNode::Leaf(MeshEntity::Cell(2)));
+            assert_eq!(children[1], MeshNode::Leaf(MeshEntity::Cell(3)));
+            assert_eq!(children[2], MeshNode::Leaf(MeshEntity::Cell(4)));
+            assert_eq!(children[3], MeshNode::Leaf(MeshEntity::Cell(5)));
+        } else {
+            panic!("Expected the node to be refined into a branch.");
+        }
+
+        let rcm_order = mesh.rcm_ordering(vertex1);
+        assert!(rcm_order.len() > 0);
+
+        let mut parent_dofs = [0.0; 4];
+        let mut child_dofs = [
+            [1.0, 1.5, 2.0, 2.5],
+            [1.0, 1.5, 2.0, 2.5],
+            [1.0, 1.5, 2.0, 2.5],
+            [1.0, 1.5, 2.0, 2.5],
+        ];
+        node.apply_hanging_node_constraints(&mut parent_dofs, &mut child_dofs);
+        assert_eq!(parent_dofs, [1.0, 1.5, 2.0, 2.5]);
+    }
+}
+```
+
+---
+
+`src/domain/mesh/topology.rs`
+
+```rust
+// src/boundary/mesh/topology.rs
+
+use crate::domain::mesh_entity::MeshEntity;
+use crate::domain::sieve::Sieve;
+use crate::domain::mesh::Mesh;
+use rustc_hash::FxHashSet;
+use std::sync::{Arc, RwLock};
+
+/// `TopologyValidation` struct responsible for checking mesh entity connectivity and uniqueness.
+pub struct TopologyValidation<'a> {
+    sieve: &'a Sieve,
+    entities: &'a Arc<RwLock<FxHashSet<MeshEntity>>>,
+}
+
+impl<'a> TopologyValidation<'a> {
+    /// Creates a new `TopologyValidation` instance for a given mesh.
+    pub fn new(mesh: &'a Mesh) -> Self {
+        TopologyValidation {
+            sieve: &mesh.sieve,
+            entities: &mesh.entities,
+        }
+    }
+
+    /// Validates that each `Cell` in the mesh has the correct connections to `Faces` and `Vertices`.
+    /// Returns `true` if all cells are correctly connected, `false` otherwise.
+    pub fn validate_connectivity(&self) -> bool {
+        for cell in self.get_cells() {
+            if !self.validate_cell_connectivity(&cell) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Validates that `Edges` in the mesh are unique and not duplicated within any `Cell`.
+    /// Returns `true` if all edges are unique, `false` otherwise.
+    pub fn validate_unique_relationships(&self) -> bool {
+        for cell in self.get_cells() {
+            println!("Validating edges for cell: {:?}", cell); // Debugging statement
+            let mut edge_set = FxHashSet::default(); // Reset edge_set for each cell
+    
+            if !self.validate_unique_edges_in_cell(&cell, &mut edge_set) {
+                println!("Duplicate edge detected in cell: {:?}", cell); // Debugging statement
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Retrieves all `Cell` entities from the mesh.
+    fn get_cells(&self) -> Vec<MeshEntity> {
+        let entities = self.entities.read().unwrap();
+        entities.iter()
+            .filter(|e| matches!(e, MeshEntity::Cell(_)))
+            .cloned()
+            .collect()
+    }
+
+    /// Checks if a `Cell` is connected to valid `Faces` and `Vertices`.
+    fn validate_cell_connectivity(&self, cell: &MeshEntity) -> bool {
+        if let Some(connected_faces) = self.sieve.cone(cell) {
+            for face in connected_faces {
+                if !matches!(face, MeshEntity::Face(_)) {
+                    return false;
+                }
+                // Check each face is connected to valid vertices
+                if let Some(vertices) = self.sieve.cone(&face) {
+                    if !vertices.iter().all(|v| matches!(v, MeshEntity::Vertex(_))) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Checks if `Edges` within a `Cell` are unique.
+    fn validate_unique_edges_in_cell(&self, cell: &MeshEntity, edge_set: &mut FxHashSet<MeshEntity>) -> bool {
+        if let Some(edges) = self.sieve.cone(cell) {
+            for edge in edges {
+                if !matches!(edge, MeshEntity::Edge(_)) {
+                    return false;
+                }
+                // Debugging: Print edge and current edge set
+                println!("Checking edge {:?} in cell {:?}. Current edge set: {:?}", edge, cell, edge_set);
+                
+                // Check for duplication in `edge_set`
+                if !edge_set.insert(edge) {
+                    println!("Duplicate edge {:?} found in cell {:?}", edge, cell); // Debugging statement
+                    return false; // Duplicate edge found
+                }
+            }
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::mesh::Mesh;
+
+    #[test]
+    fn test_valid_connectivity() {
+        let mesh = Mesh::new();
+        // Adding sample entities and relationships to the mesh for testing
+        let cell = MeshEntity::Cell(1);
+        let face1 = MeshEntity::Face(1);
+        let face2 = MeshEntity::Face(2);
+        let vertex1 = MeshEntity::Vertex(1);
+        let vertex2 = MeshEntity::Vertex(2);
+        let vertex3 = MeshEntity::Vertex(3);
+
+        mesh.add_entity(cell);
+        mesh.add_entity(face1);
+        mesh.add_entity(face2);
+        mesh.add_entity(vertex1);
+        mesh.add_entity(vertex2);
+        mesh.add_entity(vertex3);
+
+        mesh.add_arrow(cell, face1);
+        mesh.add_arrow(cell, face2);
+        mesh.add_arrow(face1, vertex1);
+        mesh.add_arrow(face1, vertex2);
+        mesh.add_arrow(face2, vertex2);
+        mesh.add_arrow(face2, vertex3);
+
+        let topology_validation = TopologyValidation::new(&mesh);
+        assert!(topology_validation.validate_connectivity(), "Connectivity validation failed");
+    }
+
+    #[test]
+    fn test_unique_relationships() {
+        let mesh = Mesh::new();
+        // Adding sample entities and relationships to the mesh for testing
+        let cell1 = MeshEntity::Cell(1);
+        let cell2 = MeshEntity::Cell(2);
+        let edge1 = MeshEntity::Edge(1);
+        let edge2 = MeshEntity::Edge(2);
+        let edge3 = MeshEntity::Edge(3);
+
+        mesh.add_entity(cell1);
+        mesh.add_entity(cell2);
+        mesh.add_entity(edge1);
+        mesh.add_entity(edge2);
+        mesh.add_entity(edge3);
+
+        // Establish valid relationships between cells and edges
+        mesh.add_arrow(cell1, edge1);
+        mesh.add_arrow(cell1, edge2);
+        mesh.add_arrow(cell2, edge2); // Edge2 is reused here, valid as it's unique within each cell.
+        mesh.add_arrow(cell2, edge3);
+
+        // Initialize TopologyValidation to verify unique relationships per cell
+        let topology_validation = TopologyValidation::new(&mesh);
+
+        // Check that relationships are valid and unique within the constraints of the current design
+        assert!(topology_validation.validate_unique_relationships(), "Unique relationships validation failed");
+
+        // Additional checks for edge-sharing across cells can be done if necessary
+    }
 
 
-#### `BoundaryValidation` Module
-   - **Responsibilities**:
-     - Confirm that boundary conditions are only applied to entities tagged as boundaries.
-     - Ensure compatibility of boundary data across partitioned entities.
-   
-   - **Key Tests**:
-     - `test_boundary_condition_application`: Check boundary condition application on each boundary entity.
-     - `test_boundary_data_synchronization`: Verify that boundary data sent via channels is consistent across partitions.
+}
+```
