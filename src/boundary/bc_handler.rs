@@ -47,6 +47,13 @@ impl BoundaryConditionHandler {
         self.conditions.get(entity).map(|entry| entry.clone())
     }
 
+    pub fn get_boundary_faces(&self) -> Vec<MeshEntity> {
+        self.conditions.iter()
+            .map(|entry| entry.key().clone()) // Extract the keys (MeshEntities) from the map
+            .filter(|entity| matches!(entity, MeshEntity::Face(_))) // Filter for Face entities
+            .collect()
+    }
+
     /// Applies the boundary conditions to the system matrices and right-hand side vectors.
     pub fn apply_bc(
         &self,

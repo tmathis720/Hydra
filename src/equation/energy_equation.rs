@@ -10,6 +10,26 @@ pub struct EnergyEquation {
     pub thermal_conductivity: f64, // Coefficient for thermal conduction
 }
 
+impl<T> PhysicalEquation<T> for EnergyEquation {
+    fn assemble(
+        &self,
+        domain: &Mesh,
+        fields: &Fields<T>,
+        fluxes: &mut Fluxes,
+        boundary_handler: &BoundaryConditionHandler,
+        current_time: f64,
+    ) {
+        self.calculate_energy_fluxes(
+            domain,
+            &fields.temperature_field,
+            &fields.temperature_gradient,
+            &fields.velocity_field,
+            &mut fluxes.energy_fluxes,
+            boundary_handler,
+        );
+    }
+}
+
 impl EnergyEquation {
     pub fn new(thermal_conductivity: f64) -> Self {
         EnergyEquation { thermal_conductivity }
@@ -204,26 +224,6 @@ impl EnergyEquation {
         (conductive_flux + convective_flux) * face_area
     }
             
-}
-
-
-impl PhysicalEquation for EnergyEquation {
-    fn assemble(
-        &self,
-        domain: &Mesh,
-        fields: &Fields,
-        fluxes: &mut Fluxes,
-        boundary_handler: &BoundaryConditionHandler,
-    ) {
-        self.calculate_energy_fluxes(
-            domain,
-            &fields.temperature_field,
-            &fields.temperature_gradient,
-            &fields.velocity_field,
-            &mut fluxes.energy_fluxes,
-            boundary_handler,
-        );
-    }
 }
 
 #[cfg(test)]
@@ -535,6 +535,8 @@ mod tests {
             gradient: Section::new(),
             k_field: Section::new(),
             epsilon_field: Section::new(),
+            pressure_field: todo!(),
+            velocity_gradient: todo!(),
         };
         
         let mut fluxes = Fluxes {
@@ -555,7 +557,7 @@ mod tests {
         fields.velocity_field.set_data(face, [2.0, 0.0, 0.0]);
 
         let energy_eq = EnergyEquation::new(0.5);
-        energy_eq.assemble(&mesh, &fields, &mut fluxes, &boundary_handler);
+        energy_eq.assemble(&mesh, &fields, &mut fluxes, &boundary_handler, current_time);
 
         // Verify that energy fluxes were computed and stored for the face
         assert!(fluxes.energy_fluxes.restrict(&face).is_some(), "Energy fluxes should be computed and stored.");

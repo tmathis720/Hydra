@@ -1,13 +1,13 @@
-//! Unit tests for the gradient module.
+// src/equation/gradient/tests.rs
 
 
 
 #[cfg(test)]
-pub mod tests {
-
-    use crate::boundary::{bc_handler::BoundaryConditionHandler, bc_handler::BoundaryCondition};
+mod tests {
+    use crate::equation::gradient::GradientCalculationMethod;
     use crate::domain::{mesh::Mesh, MeshEntity, Section};
-    use crate::equation::gradient::{Gradient, GradientCalculationMethod};
+    use crate::boundary::{bc_handler::BoundaryConditionHandler, bc_handler::BoundaryCondition};
+    use crate::equation::gradient::Gradient;
     use std::sync::Arc;
 
     /// Creates a simple mesh used by all tests to ensure consistency.
@@ -33,29 +33,29 @@ pub mod tests {
 
         // Create face
         let face = MeshEntity::Face(1);
-        mesh.add_entity(face.clone());
+        mesh.add_entity(face);
 
         // Create cells
         let cell1 = MeshEntity::Cell(1);
         let cell2 = MeshEntity::Cell(2);
-        mesh.add_entity(cell1.clone());
-        mesh.add_entity(cell2.clone());
+        mesh.add_entity(cell1);
+        mesh.add_entity(cell2);
 
         // Build relationships
         // Cells to face
-        mesh.add_relationship(cell1, face);
-        mesh.add_relationship(cell2, face);
+        mesh.add_relationship(cell1, face.clone());
+        mesh.add_relationship(cell2, face.clone());
         // Cells to vertices
-        for cell in &[cell1.clone(), cell2.clone()] {
-            mesh.add_relationship(*cell, vertex1);
-            mesh.add_relationship(*cell, vertex2);
-            mesh.add_relationship(*cell, vertex3);
-            mesh.add_relationship(*cell, vertex4);
+        for &cell in &[cell1, cell2] {
+            mesh.add_relationship(cell, vertex1);
+            mesh.add_relationship(cell, vertex2);
+            mesh.add_relationship(cell, vertex3);
+            mesh.add_relationship(cell, vertex4);
         }
         // Face to vertices
-        mesh.add_relationship(face, vertex1);
-        mesh.add_relationship(face, vertex2);
-        mesh.add_relationship(face, vertex3);
+        mesh.add_relationship(face.clone(), vertex1);
+        mesh.add_relationship(face.clone(), vertex2);
+        mesh.add_relationship(face.clone(), vertex3);
 
         mesh
     }
@@ -84,6 +84,9 @@ pub mod tests {
     #[test]
     fn test_gradient_with_dirichlet_boundary() {
         let mesh = create_simple_mesh();
+        // Remove cell 2 to simulate a boundary
+        mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
+        mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
 
         let field = Section::<f64>::new();
         field.set_data(MeshEntity::Cell(1), 1.0);
@@ -107,7 +110,9 @@ pub mod tests {
     #[test]
     fn test_gradient_with_neumann_boundary() {
         let mesh = create_simple_mesh();
-
+        // Remove cell 2 to simulate a boundary
+        mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
+        mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
 
         let field = Section::<f64>::new();
         field.set_data(MeshEntity::Cell(1), 1.0);
@@ -131,6 +136,9 @@ pub mod tests {
     #[test]
     fn test_gradient_with_dirichlet_function_boundary() {
         let mesh = create_simple_mesh();
+        // Remove cell 2 to simulate a boundary
+        mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
+        mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
 
         let field = Section::<f64>::new();
         field.set_data(MeshEntity::Cell(1), 1.0);
@@ -173,6 +181,9 @@ pub mod tests {
     #[test]
     fn test_gradient_error_on_unimplemented_robin_condition() {
         let mesh = create_simple_mesh();
+        // Remove cell 2 to simulate a boundary
+        mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
+        mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
 
         let field = Section::<f64>::new();
         field.set_data(MeshEntity::Cell(1), 1.0);
@@ -189,4 +200,5 @@ pub mod tests {
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
         assert!(result.is_err(), "Expected error due to unimplemented Robin condition");
     }
+
 }

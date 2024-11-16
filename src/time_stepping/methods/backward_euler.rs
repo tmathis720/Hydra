@@ -1,22 +1,50 @@
-
 use crate::time_stepping::{TimeStepper, TimeSteppingError, TimeDependentProblem};
 
-pub struct BackwardEuler;
+pub struct BackwardEuler {
+    current_time: f64,
+    time_step: f64,
+}
 
-impl<P: TimeDependentProblem> TimeStepper<P> for BackwardEuler {
+impl BackwardEuler {
+    pub fn new(start_time: f64, time_step: f64) -> Self {
+        Self {
+            current_time: start_time,
+            time_step,
+        }
+    }
+}
+
+impl<P: TimeDependentProblem<Time = f64>> TimeStepper<P> for BackwardEuler {
+    fn current_time(&self) -> P::Time {
+        self.current_time
+    }
+
+    fn set_current_time(&mut self, time: P::Time) {
+        self.current_time = time;
+    }
+
     fn step(
         &mut self,
-        problem: &P,
-        time: P::Time,
-        _dt: P::Time,
+        problems: &[P],
+        dt: P::Time,
+        current_time: P::Time,
         state: &mut P::State,
     ) -> Result<(), TimeSteppingError> {
-        // Use Box to store the dynamically sized Matrix on the heap
-        let mut matrix = problem.get_matrix();  // No need for Box::new here
-        let mut rhs = problem.initial_state();
+        self.time_step = dt;
 
-        problem.compute_rhs(time, state, &mut rhs)?;
-        problem.solve_linear_system(matrix.as_mut(), state, &rhs)?;
+        // Iterate through each problem and apply Backward Euler
+        for problem in problems {
+            let mut matrix = problem
+                .get_matrix()
+                .ok_or(TimeSteppingError::SolverError("Matrix is required for Backward Euler.".into()))?;
+            let mut rhs = state.clone();
+
+            problem.compute_rhs(current_time, state, &mut rhs)?;
+            problem.solve_linear_system(matrix.as_mut(), state, &rhs)?;
+        }
+
+        // Update the current time
+        self.current_time += dt;
 
         Ok(())
     }
@@ -24,46 +52,45 @@ impl<P: TimeDependentProblem> TimeStepper<P> for BackwardEuler {
     fn adaptive_step(
         &mut self,
         _problem: &P,
-        _time: P::Time,
         _state: &mut P::State,
-    ) -> Result<(), TimeSteppingError> {
-        // Adaptive step logic implementation
-        Ok(())
+    ) -> Result<P::Time, TimeSteppingError> {
+        // Adaptive step logic (placeholder)
+        Ok(self.time_step)
     }
 
-    fn set_time_interval(&mut self, _start_time: P::Time, _end_time: P::Time) {
-        // Implement setting time interval if needed
+    fn set_time_interval(&mut self, start_time: P::Time, _end_time: P::Time) {
+        self.current_time = start_time;
     }
 
-    fn set_time_step(&mut self, _dt: P::Time) {
-        // Implement setting time step if needed
+    fn set_time_step(&mut self, dt: P::Time) {
+        self.time_step = dt;
+    }
+    
+    fn get_time_step(&self) -> <P as TimeDependentProblem>::Time {
+        todo!()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use faer::Mat; // Import matrix types from faer
-    use crate::linalg::Matrix;
-    use crate::time_stepping::{TimeStepper, TimeSteppingError, TimeDependentProblem};
+    use crate::time_stepping::{TimeDependentProblem, TimeSteppingError};
+    use crate::Matrix;
+    use faer::Mat;
 
-    // Mock struct to represent a simple linear system for testing
     struct MockProblem {
-        matrix: Mat<f64>,  // Use Mat from faer
+        matrix: Mat<f64>,
         initial_state: Vec<f64>,
     }
 
-    // Implement the TimeDependentProblem trait for MockProblem
     impl TimeDependentProblem for MockProblem {
         type State = Vec<f64>;
         type Time = f64;
-    
-        // Returns the initial state of the problem
+
         fn initial_state(&self) -> Self::State {
             self.initial_state.clone()
         }
-    
-        // Computes the right-hand side of the equation (RHS)
+
         fn compute_rhs(
             &self,
             _time: Self::Time,
@@ -74,58 +101,59 @@ mod tests {
             rhs[1] = 1.0;
             Ok(())
         }
-    
-        // Correct return type for get_matrix
-        fn get_matrix(&self) -> Box<dyn Matrix<Scalar = f64>> {
-            Box::new(self.matrix.clone())  // Clone matrix into a boxed trait object
+
+        fn get_matrix(&self) -> Option<Box<dyn Matrix<Scalar = f64>>> {
+            Some(Box::new(self.matrix.clone()))
         }
-    
-        // Correct type for the matrix parameter
+
         fn solve_linear_system(
             &self,
-            _matrix: &mut dyn Matrix<Scalar = f64>,  // Use concrete Mat type
+            _matrix: &mut dyn Matrix<Scalar = f64>,
             state: &mut Self::State,
             rhs: &Self::State,
         ) -> Result<(), TimeSteppingError> {
-            state[0] = rhs[0];
-            state[1] = rhs[1];
+            state.copy_from_slice(rhs);
             Ok(())
         }
-    
-        fn time_to_scalar(&self, _time: Self::Time) -> <Self::State as crate::Vector>::Scalar {
-            todo!()
+
+        fn time_to_scalar(&self, time: Self::Time) -> f64 {
+            time
         }
     }
 
     #[test]
     fn test_backward_euler_step() {
-        // Create a simple 2x2 matrix for testing using faer::Mat
         let test_matrix = Mat::from_fn(2, 2, |i, j| if i == j { 1.0 } else { 0.0 });
-
         let initial_state = vec![0.0, 0.0];
 
-        // Create the mock problem
         let problem = MockProblem {
             matrix: test_matrix,
             initial_state,
         };
 
-        // Initialize BackwardEuler stepper
-        let mut stepper = BackwardEuler;
-
-        // Define time and timestep
-        let time = 0.0;
-        let dt = 0.1;
+        let mut stepper = BackwardEuler::new(0.0, 0.1);
         let mut state = problem.initial_state();
 
-        // Perform the step using BackwardEuler
-        let result = stepper.step(&problem, time, dt, &mut state);
+        let problems = vec![Box::new(problem) as Box<dyn TimeDependentProblem<State = Vec<f64>, Time = f64>>];
 
-        // Ensure the step was successful
+        let result = stepper.step(&problems, 0.1, 0.0, &mut state);
+
         assert!(result.is_ok());
-
-        // Ensure that the state has been updated correctly
         assert_eq!(state, vec![1.0, 1.0]);
+        assert_eq!(stepper.current_time(), 0.1);
+    }
+
+    #[test]
+    fn test_set_current_time() {
+        let mut stepper = BackwardEuler::new(0.0, 0.1);
+        stepper.set_current_time(1.0);
+        assert_eq!(stepper.current_time(), 1.0);
+    }
+
+    #[test]
+    fn test_set_time_step() {
+        let mut stepper = BackwardEuler::new(0.0, 0.1);
+        stepper.set_time_step(0.2);
+        assert_eq!(stepper.time_step, 0.2);
     }
 }
-
