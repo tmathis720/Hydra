@@ -27,7 +27,7 @@ mod tests {
             mesh.boundary_data_receiver.clone().unwrap(),
         );
 
-        mesh_receiver.receive_boundary_data();
+        let _ = mesh_receiver.receive_boundary_data();
         assert_eq!(mesh_receiver.vertex_coordinates.get(&1), Some(&[1.0, 2.0, 3.0]));
         assert_eq!(mesh_receiver.vertex_coordinates.get(&2), Some(&[4.0, 5.0, 6.0]));
     }
@@ -105,7 +105,7 @@ mod integration_tests {
             mesh.boundary_data_sender.clone().unwrap(),
             mesh.boundary_data_receiver.clone().unwrap(),
         );
-        mesh_receiver.receive_boundary_data();
+        let _ = mesh_receiver.receive_boundary_data();
 
         assert_eq!(mesh_receiver.vertex_coordinates.get(&1), Some(&[0.0, 0.0, 0.0]));
         assert_eq!(mesh_receiver.vertex_coordinates.get(&2), Some(&[1.0, 0.0, 0.0]));
