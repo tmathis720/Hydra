@@ -55,3 +55,136 @@ impl Sieve {
         strata
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use dashmap::DashMap;
+
+    use crate::domain::mesh_entity::MeshEntity;
+    use crate::domain::sieve::Sieve;
+
+    #[test]
+    fn test_stratify_empty_sieve() {
+        // Test stratification on an empty Sieve
+        let sieve = Sieve::new();
+        let strata = sieve.stratify();
+
+        // Ensure no strata are created for an empty sieve
+        assert!(strata.is_empty());
+    }
+
+    #[test]
+    fn test_stratify_single_entity_per_dimension() {
+        // Create a Sieve and add one entity per dimension
+        let sieve = Sieve::new();
+        sieve.add_arrow(MeshEntity::Vertex(1), MeshEntity::Edge(1));
+        sieve.add_arrow(MeshEntity::Edge(1), MeshEntity::Face(1));
+        sieve.add_arrow(MeshEntity::Face(1), MeshEntity::Cell(1));
+
+        // Add the entities directly to ensure they're present
+        sieve.adjacency.entry(MeshEntity::Vertex(1)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Edge(1)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Face(1)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Cell(1)).or_insert_with(DashMap::new);
+
+        let strata = sieve.stratify();
+
+        // Verify that each dimension contains exactly one entity
+        assert_eq!(strata.get(&0).unwrap().len(), 1); // Stratum for vertices
+        assert_eq!(strata.get(&1).unwrap().len(), 1); // Stratum for edges
+        assert_eq!(strata.get(&2).unwrap().len(), 1); // Stratum for faces
+        assert_eq!(strata.get(&3).unwrap().len(), 1); // Stratum for cells
+
+        // Verify the correct entities are in each stratum
+        assert_eq!(strata.get(&0).unwrap()[0], MeshEntity::Vertex(1));
+        assert_eq!(strata.get(&1).unwrap()[0], MeshEntity::Edge(1));
+        assert_eq!(strata.get(&2).unwrap()[0], MeshEntity::Face(1));
+        assert_eq!(strata.get(&3).unwrap()[0], MeshEntity::Cell(1));
+    }
+
+    #[test]
+    fn test_stratify_multiple_entities_per_dimension() {
+        // Create a Sieve with multiple entities in each dimension
+        let sieve = Sieve::new();
+        sieve.add_arrow(MeshEntity::Vertex(1), MeshEntity::Edge(1));
+        sieve.add_arrow(MeshEntity::Vertex(2), MeshEntity::Edge(2));
+        sieve.add_arrow(MeshEntity::Edge(1), MeshEntity::Face(1));
+        sieve.add_arrow(MeshEntity::Edge(2), MeshEntity::Face(2));
+        sieve.add_arrow(MeshEntity::Face(1), MeshEntity::Cell(1));
+        sieve.add_arrow(MeshEntity::Face(2), MeshEntity::Cell(2));
+
+        // Add the entities directly to ensure they're present
+        sieve.adjacency.entry(MeshEntity::Vertex(1)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Vertex(2)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Edge(1)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Edge(2)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Face(1)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Face(2)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Cell(1)).or_insert_with(DashMap::new);
+        sieve.adjacency.entry(MeshEntity::Cell(2)).or_insert_with(DashMap::new);
+
+        let strata = sieve.stratify();
+
+        // Verify that each dimension contains the correct number of entities
+        assert_eq!(strata.get(&0).unwrap().len(), 2); // Two vertices
+        assert_eq!(strata.get(&1).unwrap().len(), 2); // Two edges
+        assert_eq!(strata.get(&2).unwrap().len(), 2); // Two faces
+        assert_eq!(strata.get(&3).unwrap().len(), 2); // Two cells
+
+        // Verify the correct entities are in each stratum
+        assert!(strata.get(&0).unwrap().contains(&MeshEntity::Vertex(1)));
+        assert!(strata.get(&0).unwrap().contains(&MeshEntity::Vertex(2)));
+        assert!(strata.get(&1).unwrap().contains(&MeshEntity::Edge(1)));
+        assert!(strata.get(&1).unwrap().contains(&MeshEntity::Edge(2)));
+        assert!(strata.get(&2).unwrap().contains(&MeshEntity::Face(1)));
+        assert!(strata.get(&2).unwrap().contains(&MeshEntity::Face(2)));
+        assert!(strata.get(&3).unwrap().contains(&MeshEntity::Cell(1)));
+        assert!(strata.get(&3).unwrap().contains(&MeshEntity::Cell(2)));
+    }
+
+    #[test]
+    fn test_stratify_overlapping_entities() {
+        // Create a Sieve with overlapping entities across dimensions
+        let sieve = Sieve::new();
+        sieve.add_arrow(MeshEntity::Vertex(1), MeshEntity::Edge(1));
+        sieve.add_arrow(MeshEntity::Edge(1), MeshEntity::Vertex(1)); // Circular reference
+        sieve.add_arrow(MeshEntity::Face(1), MeshEntity::Edge(1));
+
+        let strata = sieve.stratify();
+
+        // Verify that circular references are handled correctly
+        assert_eq!(strata.get(&0).unwrap().len(), 1); // One vertex
+        assert_eq!(strata.get(&1).unwrap().len(), 1); // One edge
+        assert_eq!(strata.get(&2).unwrap().len(), 1); // One face
+
+        // Verify the correct entities are in each stratum
+        assert!(strata.get(&0).unwrap().contains(&MeshEntity::Vertex(1)));
+        assert!(strata.get(&1).unwrap().contains(&MeshEntity::Edge(1)));
+        assert!(strata.get(&2).unwrap().contains(&MeshEntity::Face(1)));
+    }
+
+    #[test]
+    fn test_stratify_large_mesh() {
+        // Create a large Sieve with many entities
+        let sieve = Sieve::new();
+        for i in 0..100 {
+            sieve.add_arrow(MeshEntity::Vertex(i), MeshEntity::Edge(i));
+            sieve.add_arrow(MeshEntity::Edge(i), MeshEntity::Face(i));
+            sieve.add_arrow(MeshEntity::Face(i), MeshEntity::Cell(i));
+
+            // Add the entities directly to ensure they're present
+            sieve.adjacency.entry(MeshEntity::Vertex(i)).or_insert_with(DashMap::new);
+            sieve.adjacency.entry(MeshEntity::Edge(i)).or_insert_with(DashMap::new);
+            sieve.adjacency.entry(MeshEntity::Face(i)).or_insert_with(DashMap::new);
+            sieve.adjacency.entry(MeshEntity::Cell(i)).or_insert_with(DashMap::new);
+        }
+
+        let strata = sieve.stratify();
+
+        // Verify that each dimension contains the correct number of entities
+        assert_eq!(strata.get(&0).unwrap().len(), 100); // 100 vertices
+        assert_eq!(strata.get(&1).unwrap().len(), 100); // 100 edges
+        assert_eq!(strata.get(&2).unwrap().len(), 100); // 100 faces
+        assert_eq!(strata.get(&3).unwrap().len(), 100); // 100 cells
+    }
+}
