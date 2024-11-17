@@ -1,7 +1,9 @@
 use super::Mesh;
+use crate::domain;
 use crate::domain::mesh_entity::MeshEntity;
 use crate::geometry::{Geometry, CellShape, FaceShape};
 use dashmap::DashMap;
+use crate::domain::section::Vector3;
 
 impl Mesh {
     /// Retrieves all the faces of a given cell, filtering only face entities.
@@ -152,7 +154,7 @@ impl Mesh {
         &self,
         face: &MeshEntity,
         reference_cell: Option<&MeshEntity>,
-    ) -> Option<[f64; 3]> {
+    ) -> Option<Vector3> {
         // Retrieve face vertices
         let face_vertices = self.get_face_vertices(face);
         let face_shape = match face_vertices.len() {
@@ -186,10 +188,10 @@ impl Mesh {
 
             if dot_product < 0.0 {
                 // Reverse the normal direction to make it outward-pointing
-                return Some([-normal[0], -normal[1], -normal[2]]);
+                return Some(domain::section::Vector3([-normal[0], -normal[1], -normal[2]]));
             }
         }
 
-        Some(normal)
+        Some(domain::section::Vector3(normal))
     }
 }

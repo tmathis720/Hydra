@@ -606,6 +606,7 @@ dependencies = [
  "crossbeam",
  "dashmap",
  "faer",
+ "lazy_static",
  "rand",
  "rayon",
  "rustc-hash",

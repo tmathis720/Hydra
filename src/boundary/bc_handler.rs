@@ -1,5 +1,6 @@
 use dashmap::DashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use lazy_static::lazy_static;
 use crate::domain::mesh_entity::MeshEntity;
 use crate::boundary::dirichlet::DirichletBC;
 use crate::boundary::neumann::NeumannBC;
@@ -29,12 +30,21 @@ pub struct BoundaryConditionHandler {
     conditions: DashMap<MeshEntity, BoundaryCondition>,
 }
 
+lazy_static! {
+    static ref GLOBAL_BC_HANDLER: Arc<RwLock<BoundaryConditionHandler>> =
+        Arc::new(RwLock::new(BoundaryConditionHandler::new()));
+}
+
 impl BoundaryConditionHandler {
     /// Creates a new BoundaryConditionHandler with an empty map to store boundary conditions.
     pub fn new() -> Self {
         Self {
             conditions: DashMap::new(),
         }
+    }
+
+    pub fn global() -> Arc<RwLock<BoundaryConditionHandler>> {
+        GLOBAL_BC_HANDLER.clone()
     }
 
     /// Sets a boundary condition for a specific mesh entity.
@@ -104,6 +114,7 @@ impl BoundaryConditionHandler {
         }
     }
 }
+
 
 /// The BoundaryConditionApply trait defines the `apply` method, which is used to apply 
 /// a boundary condition to a given mesh entity.

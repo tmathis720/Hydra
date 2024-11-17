@@ -12,6 +12,7 @@ use crate::domain::sieve::Sieve;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::{Arc, RwLock};
 use crossbeam::channel::{Sender, Receiver};
+use lazy_static::lazy_static;
 
 // Delegate methods to corresponding modules
 
@@ -43,6 +44,10 @@ pub struct Mesh {
     pub boundary_data_receiver: Option<Receiver<FxHashMap<MeshEntity, [f64; 3]>>>,  
 }
 
+lazy_static! {
+    static ref GLOBAL_MESH: Arc<RwLock<Mesh>> = Arc::new(RwLock::new(Mesh::new()));
+}
+
 impl Mesh {
     /// Creates a new instance of the `Mesh` struct with initialized components.  
     /// 
@@ -66,6 +71,10 @@ impl Mesh {
             boundary_data_sender: Some(sender),
             boundary_data_receiver: Some(receiver),
         }
+    }
+
+    pub fn global() -> Arc<RwLock<Mesh>> {
+        GLOBAL_MESH.clone()
     }
 }
 

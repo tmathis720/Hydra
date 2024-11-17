@@ -2,6 +2,7 @@ use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler};
 use crate::domain::{mesh::Mesh, MeshEntity, Section};
 use crate::geometry::{FaceShape, Geometry};
 use crate::equation::gradient::GradientMethod;
+use crate::domain::section::{Scalar, Vector3};
 use std::error::Error;
 
 /// Struct for the finite volume gradient calculation method.
@@ -29,11 +30,11 @@ impl GradientMethod for FiniteVolumeGradient {
         mesh: &Mesh,
         boundary_handler: &BoundaryConditionHandler,
         geometry: &mut Geometry,
-        field: &Section<f64>,
+        field: &Section<Scalar>,
         cell: &MeshEntity,
         time: f64,
     ) -> Result<[f64; 3], Box<dyn Error>> {
-        let phi_c = field.restrict(cell).ok_or("Field value not found for cell")?;
+        let phi_c = field.restrict(cell).ok_or("Field value not found for cell")?.0;
         let mut grad_phi = [0.0; 3];
         let cell_vertices = mesh.get_cell_vertices(cell);
 
@@ -54,7 +55,7 @@ impl GradientMethod for FiniteVolumeGradient {
                 let area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
                 let normal = geometry.compute_face_normal(mesh, face, cell)
                     .ok_or("Face normal not found")?;
-                let flux_vector = [normal[0] * area, normal[1] * area, normal[2] * area];
+                let flux_vector = Vector3([normal[0] * area, normal[1] * area, normal[2] * area]);
                 let neighbor_cells = mesh.get_cells_sharing_face(face);
 
                 let nb_cell = neighbor_cells.iter()
@@ -62,7 +63,7 @@ impl GradientMethod for FiniteVolumeGradient {
                     .map(|entry| entry.key().clone());
 
                 if let Some(nb_cell) = nb_cell {
-                    let phi_nb = field.restrict(&nb_cell).ok_or("Field value not found for neighbor cell")?;
+                    let phi_nb = field.restrict(&nb_cell).ok_or("Field value not found for neighbor cell")?.0;
                     let delta_phi = phi_nb - phi_c;
                     for i in 0..3 {
                         grad_phi[i] += delta_phi * flux_vector[i];
@@ -102,7 +103,7 @@ impl FiniteVolumeGradient {
         &self,
         face: &MeshEntity,
         phi_c: f64,
-        flux_vector: [f64; 3],
+        flux_vector: Vector3,
         time: f64,
         grad_phi: &mut [f64; 3],
         boundary_handler: &BoundaryConditionHandler,
@@ -142,7 +143,7 @@ impl FiniteVolumeGradient {
     }
     
     /// Applies a Dirichlet boundary condition by adding flux contribution.
-    fn apply_dirichlet_boundary(&self, value: f64, phi_c: f64, flux_vector: [f64; 3], grad_phi: &mut [f64; 3]) {
+    fn apply_dirichlet_boundary(&self, value: f64, phi_c: f64, flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
         let delta_phi = value - phi_c;
         for i in 0..3 {
             grad_phi[i] += delta_phi * flux_vector[i];
@@ -150,14 +151,14 @@ impl FiniteVolumeGradient {
     }
     
     /// Applies a Neumann boundary condition by adding constant flux.
-    fn apply_neumann_boundary(&self, flux: f64, flux_vector: [f64; 3], grad_phi: &mut [f64; 3]) {
+    fn apply_neumann_boundary(&self, flux: f64, flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
         for i in 0..3 {
             grad_phi[i] += flux * flux_vector[i];
         }
     }
     
     /// Applies a Mixed boundary condition by combining field value and flux.
-    fn apply_mixed_boundary(&self, gamma: f64, delta: f64, phi_c: f64, flux_vector: [f64; 3], grad_phi: &mut [f64; 3]) {
+    fn apply_mixed_boundary(&self, gamma: f64, delta: f64, phi_c: f64, flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
         let mixed_contrib = gamma * phi_c + delta;
         for i in 0..3 {
             grad_phi[i] += mixed_contrib * flux_vector[i];
@@ -165,7 +166,7 @@ impl FiniteVolumeGradient {
     }
     
     /// Applies a Cauchy boundary condition by adding lambda to flux and mu to field.
-    fn apply_cauchy_boundary(&self, lambda: f64, mu: f64, flux_vector: [f64; 3], grad_phi: &mut [f64; 3]) {
+    fn apply_cauchy_boundary(&self, lambda: f64, mu: f64, flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
         for i in 0..3 {
             grad_phi[i] += lambda * flux_vector[i] + mu;
         }
