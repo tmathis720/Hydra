@@ -1,5 +1,4 @@
-use crate::linalg::Matrix;
-use crate::linalg::Vector;
+use crate::{equation::fields::FieldIterator, linalg::Matrix};
 
 #[derive(Debug)]
 pub enum TimeSteppingError {
@@ -8,8 +7,8 @@ pub enum TimeSteppingError {
 }
 
 pub trait TimeDependentProblem {
-    type State: Vector + Clone;
-    type Time: Copy + PartialOrd;
+    type State: Clone + FieldIterator;
+    type Time: Copy + PartialOrd + std::ops::Add<Output = Self::Time> + From<f64> + Into<f64>;
 
     fn compute_rhs(
         &self,
@@ -19,8 +18,6 @@ pub trait TimeDependentProblem {
     ) -> Result<(), TimeSteppingError>;
 
     fn initial_state(&self) -> Self::State;
-
-    fn time_to_scalar(&self, time: Self::Time) -> <Self::State as Vector>::Scalar;
 
     fn get_matrix(&self) -> Option<Box<dyn Matrix<Scalar = f64>>>;
 
@@ -42,7 +39,7 @@ where
 
     fn step(
         &mut self,
-        problems: &[P], // Accept slice of `P`
+        problem: &P,
         dt: P::Time,
         current_time: P::Time,
         state: &mut P::State,
@@ -61,3 +58,79 @@ where
     fn get_time_step(&self) -> P::Time;
 }
 
+pub struct FixedTimeStepper<P>
+where
+    P: TimeDependentProblem,
+{
+    current_time: P::Time,
+    time_step: P::Time,
+    start_time: P::Time,
+    end_time: P::Time,
+}
+
+impl<P> FixedTimeStepper<P>
+where
+    P: TimeDependentProblem,
+{
+    pub fn new(start_time: P::Time, end_time: P::Time, time_step: P::Time) -> Self {
+        FixedTimeStepper {
+            current_time: start_time,
+            time_step,
+            start_time,
+            end_time,
+        }
+    }
+}
+
+impl<P> TimeStepper<P> for FixedTimeStepper<P>
+where
+    P: TimeDependentProblem,
+{
+    fn current_time(&self) -> P::Time {
+        self.current_time
+    }
+
+    fn set_current_time(&mut self, time: P::Time) {
+        self.current_time = time;
+    }
+
+    fn step(
+        &mut self,
+        problem: &P,
+        dt: P::Time,
+        current_time: P::Time,
+        state: &mut P::State,
+    ) -> Result<(), TimeSteppingError> {
+        let mut derivative = state.clone();
+        problem.compute_rhs(current_time, state, &mut derivative)?;
+
+        for (s, d) in state.iter_mut().zip(derivative.iter()) {
+            *s = *s + dt.into() * *d;
+        }
+
+        self.current_time = self.current_time + dt;
+
+        Ok(())
+    }
+
+    fn adaptive_step(
+        &mut self,
+        _problem: &P,
+        _state: &mut P::State,
+    ) -> Result<P::Time, TimeSteppingError> {
+        Err(TimeSteppingError::InvalidStep)
+    }
+
+    fn set_time_interval(&mut self, start_time: P::Time, end_time: P::Time) {
+        self.start_time = start_time;
+        self.end_time = end_time;
+    }
+
+    fn set_time_step(&mut self, dt: P::Time) {
+        self.time_step = dt;
+    }
+
+    fn get_time_step(&self) -> P::Time {
+        self.time_step
+    }
+}

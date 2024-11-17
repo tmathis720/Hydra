@@ -7,6 +7,7 @@
 //! `GradientMethod` trait.
 
 use crate::boundary::bc_handler::BoundaryConditionHandler;
+use crate::domain::section::{Scalar, Vector3};
 use crate::domain::{mesh::Mesh, MeshEntity, Section};
 use crate::geometry::Geometry;
 use std::error::Error;
@@ -55,7 +56,7 @@ pub trait GradientMethod {
         mesh: &Mesh,
         boundary_handler: &BoundaryConditionHandler,
         geometry: &mut Geometry,
-        field: &Section<f64>,
+        field: &Section<Scalar>,
         cell: &MeshEntity,
         time: f64,
     ) -> Result<[f64; 3], Box<dyn Error>>;
@@ -104,8 +105,8 @@ impl<'a> Gradient<'a> {
     /// - `Err(Box<dyn Error>)`: If any error occurs during computation.
     pub fn compute_gradient(
         &mut self,  // Changed to mutable reference
-        field: &Section<f64>,
-        gradient: &mut Section<[f64; 3]>,
+        field: &Section<Scalar>,
+        gradient: &mut Section<Vector3>,
         time: f64,
     ) -> Result<(), Box<dyn Error>> {
         for cell in self.mesh.get_cells() {
@@ -117,7 +118,7 @@ impl<'a> Gradient<'a> {
                 &cell,
                 time,
             )?;
-            gradient.set_data(cell, grad_phi);
+            gradient.set_data(cell, Vector3(grad_phi));
         }
         Ok(())
     }

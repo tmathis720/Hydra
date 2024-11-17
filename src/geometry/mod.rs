@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
-use crate::domain::{mesh::Mesh, MeshEntity};
+use crate::domain::{self, mesh::Mesh, section::Vector3, MeshEntity};
 use std::sync::Mutex;
 
 // Module for handling geometric data and computations
@@ -179,12 +179,12 @@ impl Geometry {
         mesh: &Mesh,
         face: &MeshEntity,
         _cell: &MeshEntity,
-    ) -> Option<[f64; 3]> {
+    ) -> Option<Vector3> {
         let face_id = face.get_id();
 
         // Check if the normal is already cached
         if let Some(cached) = self.cache.lock().unwrap().get(&face_id).and_then(|c| c.normal) {
-            return Some(cached);
+            return Some(domain::section::Vector3(cached));
         }
 
         let face_vertices = mesh.get_face_vertices(face);
@@ -202,7 +202,7 @@ impl Geometry {
         // Cache the normal vector for future use
         self.cache.lock().unwrap().entry(face_id).or_default().normal = Some(normal);
 
-        Some(normal)
+        Some(domain::section::Vector3(normal))
     }
 
     /// Invalidate the cache when geometry changes (e.g., vertex updates).
