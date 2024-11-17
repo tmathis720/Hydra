@@ -1,29 +1,76 @@
-Here is some background code to help address the following test failures:
+### Summary of the Problem
 
-```bash
-failures:
+#### **Hydra Context and Task**
+Hydra is a sophisticated computational fluid dynamics (CFD) framework designed for geophysical fluid dynamics simulations. A core task in Hydra is to manage and manipulate mesh entities (vertices, edges, faces, and cells) using a structured data model. The `Sieve` structure organizes relationships between these entities, ensuring consistency and enabling complex simulations.
 
----- domain::stratify::tests::test_stratify_multiple_entities_per_dimension stdout ----
-thread 'domain::stratify::tests::test_stratify_multiple_entities_per_dimension' panicked at src\domain\stratify.rs:114:35:
-called `Option::unwrap()` on a `None` value
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+The **specific task** for this part of Hydra involves:
+1. **Filling Missing Entities**: Automatically inferring and creating edges (for 2D meshes) or faces (for 3D meshes) based on existing cells and vertices.
+2. **Verifying Integrity**: Ensuring inferred entities are correctly added and associated with the mesh.
+3. **Avoiding Duplicates**: Ensuring shared edges or faces across cells are not duplicated.
 
----- domain::stratify::tests::test_stratify_single_entity_per_dimension stdout ----
-thread 'domain::stratify::tests::test_stratify_single_entity_per_dimension' panicked at src\domain\stratify.rs:88:35:
-called `Option::unwrap()` on a `None` value
+The method being tested is `fill_missing_entities`, which iterates over cells, infers missing edges, and adds these edges to the adjacency map while maintaining relationships with the appropriate vertices.
 
----- domain::stratify::tests::test_stratify_large_mesh stdout ----
-thread 'domain::stratify::tests::test_stratify_large_mesh' panicked at src\domain\stratify.rs:164:35:
-called `Option::unwrap()` on a `None` value
+---
 
+#### **Error in Tests**
+The failure of `test_fill_missing_entities_for_single_cell` suggests that **inferred edges are not being correctly added or associated with their vertices in the adjacency map**. The test attempts to verify the existence of edges (e.g., between vertices `(1, 2)`), but the assertion fails because:
+- The adjacency map does not contain the expected edges, or
+- The edges are not correctly associated with the vertices.
 
-failures:
-    domain::stratify::tests::test_stratify_large_mesh
-    domain::stratify::tests::test_stratify_multiple_entities_per_dimension
-    domain::stratify::tests::test_stratify_single_entity_per_dimension
-```
+#### **Root Causes of Failure**
+1. **Edge Deduplication**: 
+   - In `fill_missing_entities`, deduplication of edges using `DashMap` may not be functioning correctly.
+   - This could result in missing edges or improper associations.
 
-Here is `src/domain/mesh_entity.rs`
+2. **Edge Association**:
+   - The adjacency relationships between vertices and edges may not be established properly. For example, vertex `1` should reference edge `(1, 2)` in the adjacency map.
+
+3. **Test Verification Logic**:
+   - The logic in the test to validate edge presence in the adjacency map may not accurately match how edges are stored.
+
+---
+
+#### **Background of `fill_missing_entities`**
+1. **Input**:
+   - A `Sieve` structure with cells and their associated vertices already defined.
+   - Example: Cell `(1)` is connected to vertices `(1, 2, 3)`.
+
+2. **Processing**:
+   - Loop over cells.
+   - Infer edges by pairing adjacent vertices in a loop (e.g., `(1, 2)`, `(2, 3)`, `(3, 1)` for a triangular cell).
+   - Add these edges to the adjacency map, ensuring:
+     - Edges are associated with their constituent vertices.
+     - Duplicate edges (e.g., shared edges across cells) are avoided.
+
+3. **Expected Output**:
+   - An adjacency map with inferred edges correctly connected to vertices.
+   - For example, vertex `1` should reference edge `(1, 2)`.
+
+---
+
+#### **Test Objectives**
+The `test_fill_missing_entities_for_single_cell` aims to validate the following:
+1. **Edges Are Created**: Verify that edges `(1, 2)`, `(2, 3)`, and `(3, 1)` are inferred and added.
+2. **Edges Are Associated**: Check that these edges are correctly connected to their vertices in the adjacency map.
+
+---
+
+### Next Steps
+1. **Debugging `fill_missing_entities`**:
+   - Ensure edges are correctly deduplicated and associated with vertices.
+   - Verify that edges are uniquely created and connected to both vertices.
+
+2. **Refining Test Logic**:
+   - Adjust test validation to match how edges and vertices are stored in the adjacency map.
+
+3. **Rerun and Validate Tests**:
+   - Ensure all edge-related tests pass, including tests for multiple cells and shared edges.
+
+This task is central to maintaining the integrity of Hydra’s mesh data structure, which underpins all CFD computations. By resolving these issues, we ensure robust and reliable handling of mesh entities.
+
+---
+
+`src/domain/mesh_entity.rs`
 
 ```rust
 // src/domain/mesh_entity.rs
@@ -474,694 +521,212 @@ mod tests {
 
 ---
 
-`src/domain/mesh/mod.rs`
+`src/domain/entity_fill.rs`
 
 ```rust
-pub mod entities;
-pub mod geometry;
-pub mod reordering;
-pub mod boundary;
-pub mod hierarchical;
-pub mod topology;
-/* pub mod geometry_validation;
-pub mod boundary_validation; */
-
 use crate::domain::mesh_entity::MeshEntity;
 use crate::domain::sieve::Sieve;
-use rustc_hash::{FxHashMap, FxHashSet};
-use std::sync::{Arc, RwLock};
-use crossbeam::channel::{Sender, Receiver};
-use lazy_static::lazy_static;
-
-// Delegate methods to corresponding modules
-
-/// Represents the mesh structure, which is composed of a sieve for entity management,  
-/// a set of mesh entities, vertex coordinates, and channels for boundary data.  
-/// 
-/// The `Mesh` struct is the central component for managing mesh entities and  
-/// their relationships. It stores entities such as vertices, edges, faces,  
-/// and cells, along with their geometric data and boundary-related information.  
-/// 
-/// Example usage:
-/// 
-///    let mesh = Mesh::new();  
-///    let entity = MeshEntity::Vertex(1);  
-///    mesh.entities.write().unwrap().insert(entity);  
-/// 
-#[derive(Clone, Debug)]
-pub struct Mesh {
-    /// The sieve structure used for organizing the mesh entities' relationships.  
-    pub sieve: Arc<Sieve>,  
-    /// A thread-safe, read-write lock for managing mesh entities.  
-    /// This set contains all `MeshEntity` objects in the mesh.  
-    pub entities: Arc<RwLock<FxHashSet<MeshEntity>>>,  
-    /// A map from vertex indices to their 3D coordinates.  
-    pub vertex_coordinates: FxHashMap<usize, [f64; 3]>,  
-    /// An optional channel sender for transmitting boundary data related to mesh entities.  
-    pub boundary_data_sender: Option<Sender<FxHashMap<MeshEntity, [f64; 3]>>>,  
-    /// An optional channel receiver for receiving boundary data related to mesh entities.  
-    pub boundary_data_receiver: Option<Receiver<FxHashMap<MeshEntity, [f64; 3]>>>,  
-}
-
-lazy_static! {
-    static ref GLOBAL_MESH: Arc<RwLock<Mesh>> = Arc::new(RwLock::new(Mesh::new()));
-}
-
-impl Mesh {
-    /// Creates a new instance of the `Mesh` struct with initialized components.  
-    /// 
-    /// This method sets up the sieve, entity set, vertex coordinate map,  
-    /// and a channel for boundary data communication between mesh components.  
-    ///
-    /// The `Sender` and `Receiver` are unbounded channels used to pass boundary  
-    /// data between mesh modules asynchronously.
-    /// 
-    /// Example usage:
-    /// 
-    ///    let mesh = Mesh::new();  
-    ///    assert!(mesh.entities.read().unwrap().is_empty());  
-    /// 
-    pub fn new() -> Self {
-        let (sender, receiver) = crossbeam::channel::unbounded();
-        Mesh {
-            sieve: Arc::new(Sieve::new()),
-            entities: Arc::new(RwLock::new(FxHashSet::default())),
-            vertex_coordinates: FxHashMap::default(),
-            boundary_data_sender: Some(sender),
-            boundary_data_receiver: Some(receiver),
-        }
-    }
-
-    pub fn global() -> Arc<RwLock<Mesh>> {
-        GLOBAL_MESH.clone()
-    }
-}
-
-#[cfg(test)]
-pub mod tests;
-```
-
----
-
-`src/domain/mesh/entities.rs`
-
-```rust
-use super::Mesh;
-use crate::domain::mesh_entity::MeshEntity;
 use dashmap::DashMap;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rustc_hash::FxHashMap;
 
-impl Mesh {
-    /// Adds a new `MeshEntity` to the mesh.  
-    /// The entity will be inserted into the thread-safe `entities` set.  
+impl Sieve {
+    /// Infers and adds missing edges (in 2D) or faces (in 3D) based on existing cells and vertices.  
     /// 
-    /// Example usage:
-    /// 
-    ///    let mesh = Mesh::new();  
-    ///    let vertex = MeshEntity::Vertex(1);  
-    ///    mesh.add_entity(vertex);  
-    /// 
-    pub fn add_entity(&self, entity: MeshEntity) {
-        self.entities.write().unwrap().insert(entity);
-    }
-
-    /// Establishes a relationship (arrow) between two mesh entities.  
-    /// This creates an arrow from the `from` entity to the `to` entity  
-    /// in the sieve structure.  
+    /// For 2D meshes, this method generates edges by connecting vertices of a cell.  
+    /// These edges are then associated with the corresponding vertices in the sieve.  
     ///
     /// Example usage:
     /// 
-    ///    let mut mesh = Mesh::new();  
-    ///    let vertex = MeshEntity::Vertex(1);  
-    ///    let edge = MeshEntity::Edge(2);  
-    ///    mesh.add_relationship(vertex, edge);  
-    /// 
-    pub fn add_relationship(&mut self, from: MeshEntity, to: MeshEntity) {
-        self.sieve.add_arrow(from, to);
-    }
+    ///    sieve.fill_missing_entities();  
+    ///
+    pub fn fill_missing_entities(&self) {
+        let edge_set: DashMap<(MeshEntity, MeshEntity), MeshEntity> = DashMap::new();
+        let mut next_edge_id = 0;
 
-    /// Adds an arrow from one mesh entity to another in the sieve structure.  
-    /// This method is a simple delegate to the `Sieve`'s `add_arrow` method.
-    ///
-    /// Example usage:
-    /// 
-    ///    let mesh = Mesh::new();  
-    ///    let vertex = MeshEntity::Vertex(1);  
-    ///    let edge = MeshEntity::Edge(2);  
-    ///    mesh.add_arrow(vertex, edge);  
-    /// 
-    pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
-        self.sieve.add_arrow(from, to);
-    }
+        // Loop through each cell and infer its edges
+        self.adjacency.iter().for_each(|entry| {
+            let cell = entry.key();
+            if let MeshEntity::Cell(_) = cell {
+                let vertices: Vec<_> = entry.value().iter().map(|v| v.key().clone()).collect();
+                if vertices.len() < 3 {
+                    // Skip cells with fewer than 3 vertices
+                    return;
+                }
 
-    /// Sets the 3D coordinates for a vertex and adds the vertex entity  
-    /// to the mesh if it's not already present.  
-    /// 
-    /// This method inserts the vertex's coordinates into the  
-    /// `vertex_coordinates` map and adds the vertex to the `entities` set.
-    ///
-    /// Example usage:
-    /// 
-    ///    let mut mesh = Mesh::new();  
-    ///    mesh.set_vertex_coordinates(1, [1.0, 2.0, 3.0]);  
-    ///    assert_eq!(mesh.get_vertex_coordinates(1), Some([1.0, 2.0, 3.0]));  
-    ///
-    pub fn set_vertex_coordinates(&mut self, vertex_id: usize, coords: [f64; 3]) {
-        self.vertex_coordinates.insert(vertex_id, coords);
-        self.add_entity(MeshEntity::Vertex(vertex_id));
-    }
+                // Create edges by connecting vertices
+                for i in 0..vertices.len() {
+                    let v1 = vertices[i].clone();
+                    let v2 = vertices[(i + 1) % vertices.len()].clone();
+                    let edge_key = if v1 < v2 { (v1.clone(), v2.clone()) } else { (v2.clone(), v1.clone()) };
 
-    /// Retrieves the 3D coordinates of a vertex by its identifier.  
-    ///
-    /// Returns `None` if the vertex does not exist in the `vertex_coordinates` map.
-    ///
-    /// Example usage:
-    /// 
-    ///    let mesh = Mesh::new();  
-    ///    let coords = mesh.get_vertex_coordinates(1);  
-    ///    assert!(coords.is_none());  
-    ///
-    pub fn get_vertex_coordinates(&self, vertex_id: usize) -> Option<[f64; 3]> {
-        self.vertex_coordinates.get(&vertex_id).cloned()
-    }
-
-    /// Counts the number of entities of a specified type (e.g., Vertex, Edge, Face, Cell)  
-    /// within the mesh.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let mesh = Mesh::new();  
-    ///    let count = mesh.count_entities(&MeshEntity::Vertex(1));  
-    ///    assert_eq!(count, 0);  
-    ///
-    pub fn count_entities(&self, entity_type: &MeshEntity) -> usize {
-        let entities = self.entities.read().unwrap();
-        entities.iter()
-            .filter(|e| match (e, entity_type) {
-                (MeshEntity::Vertex(_), MeshEntity::Vertex(_)) => true,
-                (MeshEntity::Cell(_), MeshEntity::Cell(_)) => true,
-                (MeshEntity::Edge(_), MeshEntity::Edge(_)) => true,
-                (MeshEntity::Face(_), MeshEntity::Face(_)) => true,
-                _ => false,
-            })
-            .count()
-    }
-
-    /// Applies a given function to each entity in the mesh in parallel.  
-    ///
-    /// The function `func` is applied to all mesh entities concurrently  
-    /// using Rayon’s parallel iterator.
-    ///
-    /// Example usage:
-    /// 
-    ///    mesh.par_for_each_entity(|entity| {  
-    ///        println!("{:?}", entity);  
-    ///    });  
-    ///
-    pub fn par_for_each_entity<F>(&self, func: F)
-    where
-        F: Fn(&MeshEntity) + Sync + Send,
-    {
-        let entities = self.entities.read().unwrap();
-        entities.par_iter().for_each(func);
-    }
-
-    /// Retrieves all the `Cell` entities from the mesh.  
-    ///
-    /// This method returns a `Vec<MeshEntity>` containing all entities  
-    /// classified as cells.
-    ///
-    /// Example usage:
-    /// 
-    ///    let cells = mesh.get_cells();  
-    ///    assert!(cells.is_empty());  
-    ///
-    pub fn get_cells(&self) -> Vec<MeshEntity> {
-        let entities = self.entities.read().unwrap();
-        entities.iter()
-            .filter(|e| matches!(e, MeshEntity::Cell(_)))
-            .cloned()
-            .collect()
-    }
-
-    /// Retrieves all the `Face` entities from the mesh.  
-    ///
-    /// This method returns a `Vec<MeshEntity>` containing all entities  
-    /// classified as faces.
-    ///
-    /// Example usage:
-    /// 
-    ///    let faces = mesh.get_faces();  
-    ///    assert!(faces.is_empty());  
-    ///
-    pub fn get_faces(&self) -> Vec<MeshEntity> {
-        let entities = self.entities.read().unwrap();
-        entities.iter()
-            .filter(|e| matches!(e, MeshEntity::Face(_)))
-            .cloned()
-            .collect()
-    }
-
-    /// Retrieves the vertices of the given face.
-    pub fn get_vertices_of_face(&self, face: &MeshEntity) -> Vec<MeshEntity> {
-        self.sieve.cone(face).unwrap_or_default()
-            .into_iter()
-            .filter(|e| matches!(e, MeshEntity::Vertex(_)))
-            .collect()
-    }
-
-    /// Computes properties for each entity in the mesh in parallel,  
-    /// returning a map of `MeshEntity` to the computed property.  
-    ///
-    /// The `compute_fn` is a user-provided function that takes a reference  
-    /// to a `MeshEntity` and returns a computed value of type `PropertyType`.  
-    ///
-    /// Example usage:
-    /// 
-    ///    let properties = mesh.compute_properties(|entity| {  
-    ///        entity.get_id()  
-    ///    });  
-    ///
-    pub fn compute_properties<F, PropertyType>(&self, compute_fn: F) -> FxHashMap<MeshEntity, PropertyType>
-    where
-        F: Fn(&MeshEntity) -> PropertyType + Sync + Send,
-        PropertyType: Send,
-    {
-        let entities = self.entities.read().unwrap();
-        entities
-            .par_iter()
-            .map(|entity| (*entity, compute_fn(entity)))
-            .collect()
-    }
-
-    /// Retrieves the ordered neighboring cells for each cell in the mesh.
-    ///
-    /// This method is designed for use in flux computations and gradient reconstruction,
-    /// and returns the neighboring cells in a predetermined, consistent order.
-    ///
-    /// # Arguments
-    /// * `cell` - The cell entity for which neighbors are retrieved.
-    ///
-    /// # Returns
-    /// A vector of neighboring cells ordered for consistency in TVD calculations.
-    pub fn get_ordered_neighbors(&self, cell: &MeshEntity) -> Vec<MeshEntity> {
-        let mut neighbors = Vec::new();
-        if let Some(faces) = self.get_faces_of_cell(cell) {
-            for face in faces.iter() {
-                let cells_sharing_face = self.get_cells_sharing_face(&face.key());
-                for neighbor in cells_sharing_face.iter() {
-                    if *neighbor.key() != *cell {
-                        neighbors.push(*neighbor.key());
-                    }
+                    // Add the edge if it doesn't exist
+                    edge_set.entry(edge_key).or_insert_with(|| {
+                        let edge = MeshEntity::Edge(next_edge_id);
+                        next_edge_id += 1;
+                        self.add_arrow(v1.clone(), edge.clone());
+                        self.add_arrow(v2.clone(), edge.clone());
+                        edge
+                    });
                 }
             }
-        }
-        neighbors.sort_by(|a, b| a.get_id().cmp(&b.get_id())); // Ensures consistent ordering by ID
-        neighbors
-    }
-
-    /// Maps each `MeshEntity` in the mesh to a unique index.
-    pub fn get_entity_to_index(&self) -> DashMap<MeshEntity, usize> {
-        let entity_to_index = DashMap::new();
-        let entities = self.entities.read().unwrap();
-        entities.iter().enumerate().for_each(|(index, entity)| {
-            entity_to_index.insert(entity.clone(), index);
         });
-
-        entity_to_index
-    }
-}
-```
-
----
-
-`src/domain/mesh/topology.rs`
-
-```rust
-// src/boundary/mesh/topology.rs
-
-use crate::domain::mesh_entity::MeshEntity;
-use crate::domain::sieve::Sieve;
-use crate::domain::mesh::Mesh;
-use rustc_hash::FxHashSet;
-use std::sync::{Arc, RwLock};
-
-/// `TopologyValidation` struct responsible for checking mesh entity connectivity and uniqueness.
-pub struct TopologyValidation<'a> {
-    sieve: &'a Sieve,
-    entities: &'a Arc<RwLock<FxHashSet<MeshEntity>>>,
-}
-
-impl<'a> TopologyValidation<'a> {
-    /// Creates a new `TopologyValidation` instance for a given mesh.
-    pub fn new(mesh: &'a Mesh) -> Self {
-        TopologyValidation {
-            sieve: &mesh.sieve,
-            entities: &mesh.entities,
-        }
-    }
-
-    /// Validates that each `Cell` in the mesh has the correct connections to `Faces` and `Vertices`.
-    /// Returns `true` if all cells are correctly connected, `false` otherwise.
-    pub fn validate_connectivity(&self) -> bool {
-        for cell in self.get_cells() {
-            if !self.validate_cell_connectivity(&cell) {
-                return false;
-            }
-        }
-        true
-    }
-
-    /// Validates that `Edges` in the mesh are unique and not duplicated within any `Cell`.
-    /// Returns `true` if all edges are unique, `false` otherwise.
-    pub fn validate_unique_relationships(&self) -> bool {
-        for cell in self.get_cells() {
-            println!("Validating edges for cell: {:?}", cell); // Debugging statement
-            let mut edge_set = FxHashSet::default(); // Reset edge_set for each cell
-    
-            if !self.validate_unique_edges_in_cell(&cell, &mut edge_set) {
-                println!("Duplicate edge detected in cell: {:?}", cell); // Debugging statement
-                return false;
-            }
-        }
-        true
-    }
-
-    /// Retrieves all `Cell` entities from the mesh.
-    fn get_cells(&self) -> Vec<MeshEntity> {
-        let entities = self.entities.read().unwrap();
-        entities.iter()
-            .filter(|e| matches!(e, MeshEntity::Cell(_)))
-            .cloned()
-            .collect()
-    }
-
-    /// Checks if a `Cell` is connected to valid `Faces` and `Vertices`.
-    fn validate_cell_connectivity(&self, cell: &MeshEntity) -> bool {
-        if let Some(connected_faces) = self.sieve.cone(cell) {
-            for face in connected_faces {
-                if !matches!(face, MeshEntity::Face(_)) {
-                    return false;
-                }
-                // Check each face is connected to valid vertices
-                if let Some(vertices) = self.sieve.cone(&face) {
-                    if !vertices.iter().all(|v| matches!(v, MeshEntity::Vertex(_))) {
-                        return false;
-                    }
-                } else {
-                    return false;
-                }
-            }
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Checks if `Edges` within a `Cell` are unique.
-    fn validate_unique_edges_in_cell(&self, cell: &MeshEntity, edge_set: &mut FxHashSet<MeshEntity>) -> bool {
-        if let Some(edges) = self.sieve.cone(cell) {
-            for edge in edges {
-                if !matches!(edge, MeshEntity::Edge(_)) {
-                    return false;
-                }
-                // Debugging: Print edge and current edge set
-                println!("Checking edge {:?} in cell {:?}. Current edge set: {:?}", edge, cell, edge_set);
-                
-                // Check for duplication in `edge_set`
-                if !edge_set.insert(edge) {
-                    println!("Duplicate edge {:?} found in cell {:?}", edge, cell); // Debugging statement
-                    return false; // Duplicate edge found
-                }
-            }
-            true
-        } else {
-            false
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::mesh::Mesh;
+    use crate::domain::mesh_entity::MeshEntity;
+    use crate::domain::sieve::Sieve;
 
     #[test]
-    fn test_valid_connectivity() {
-        let mesh = Mesh::new();
-        // Adding sample entities and relationships to the mesh for testing
-        let cell = MeshEntity::Cell(1);
-        let face1 = MeshEntity::Face(1);
-        let face2 = MeshEntity::Face(2);
-        let vertex1 = MeshEntity::Vertex(1);
-        let vertex2 = MeshEntity::Vertex(2);
-        let vertex3 = MeshEntity::Vertex(3);
+    fn test_fill_missing_entities_with_empty_sieve() {
+        let sieve = Sieve::new();
+        sieve.fill_missing_entities();
 
-        mesh.add_entity(cell);
-        mesh.add_entity(face1);
-        mesh.add_entity(face2);
-        mesh.add_entity(vertex1);
-        mesh.add_entity(vertex2);
-        mesh.add_entity(vertex3);
-
-        mesh.add_arrow(cell, face1);
-        mesh.add_arrow(cell, face2);
-        mesh.add_arrow(face1, vertex1);
-        mesh.add_arrow(face1, vertex2);
-        mesh.add_arrow(face2, vertex2);
-        mesh.add_arrow(face2, vertex3);
-
-        let topology_validation = TopologyValidation::new(&mesh);
-        assert!(topology_validation.validate_connectivity(), "Connectivity validation failed");
+        assert!(sieve.adjacency.is_empty(), "No edges should be created for an empty sieve");
     }
 
     #[test]
-    fn test_unique_relationships() {
-        let mesh = Mesh::new();
-        // Adding sample entities and relationships to the mesh for testing
+    fn test_fill_missing_entities_for_single_cell() {
+        let sieve = Sieve::new();
+        let cell = MeshEntity::Cell(1);
+        let vertices = vec![
+            MeshEntity::Vertex(1),
+            MeshEntity::Vertex(2),
+            MeshEntity::Vertex(3),
+        ];
+
+        sieve.adjacency.entry(cell.clone()).or_insert_with(DashMap::new);
+        for vertex in &vertices {
+            sieve.add_arrow(cell.clone(), vertex.clone());
+        }
+
+        sieve.fill_missing_entities();
+
+        let expected_edges = vec![
+            (MeshEntity::Vertex(1), MeshEntity::Vertex(2)),
+            (MeshEntity::Vertex(2), MeshEntity::Vertex(3)),
+            (MeshEntity::Vertex(3), MeshEntity::Vertex(1)),
+        ];
+
+        for (v1, v2) in expected_edges {
+            let edge_exists = sieve.adjacency.get(&v1).map_or(false, |adj| {
+                adj.iter().any(|entry| {
+                    if let MeshEntity::Edge(_) = entry.key() {
+                        sieve.adjacency.get(entry.key()).map_or(false, |edge_adj| {
+                            edge_adj.contains_key(&v2)
+                        })
+                    } else {
+                        false
+                    }
+                })
+            });
+            assert!(edge_exists, "Edge ({:?}, {:?}) should exist", v1, v2);
+        }
+    }
+
+    #[test]
+    fn test_fill_missing_entities_for_multiple_cells() {
+        let sieve = Sieve::new();
         let cell1 = MeshEntity::Cell(1);
         let cell2 = MeshEntity::Cell(2);
-        let edge1 = MeshEntity::Edge(1);
-        let edge2 = MeshEntity::Edge(2);
-        let edge3 = MeshEntity::Edge(3);
+        let vertices1 = vec![
+            MeshEntity::Vertex(1),
+            MeshEntity::Vertex(2),
+            MeshEntity::Vertex(3),
+        ];
+        let vertices2 = vec![
+            MeshEntity::Vertex(2),
+            MeshEntity::Vertex(3),
+            MeshEntity::Vertex(4),
+        ];
 
-        mesh.add_entity(cell1);
-        mesh.add_entity(cell2);
-        mesh.add_entity(edge1);
-        mesh.add_entity(edge2);
-        mesh.add_entity(edge3);
-
-        // Establish valid relationships between cells and edges
-        mesh.add_arrow(cell1, edge1);
-        mesh.add_arrow(cell1, edge2);
-        mesh.add_arrow(cell2, edge2); // Edge2 is reused here, valid as it's unique within each cell.
-        mesh.add_arrow(cell2, edge3);
-
-        // Initialize TopologyValidation to verify unique relationships per cell
-        let topology_validation = TopologyValidation::new(&mesh);
-
-        // Check that relationships are valid and unique within the constraints of the current design
-        assert!(topology_validation.validate_unique_relationships(), "Unique relationships validation failed");
-
-        // Additional checks for edge-sharing across cells can be done if necessary
-    }
-
-
-}
-```
-
----
-
-`src/input_output/mesh_generation.rs`
-
-```rust
-use crate::domain::{mesh::Mesh, MeshEntity};
-
-pub struct MeshGenerator;
-
-impl MeshGenerator {
-    /// Generates a 2D rectangular mesh with a specified width, height, and resolution (nx, ny).
-    pub fn generate_rectangle_2d(width: f64, height: f64, nx: usize, ny: usize) -> Mesh {
-        let mut mesh = Mesh::new();
-        let nodes = Self::generate_grid_nodes_2d(width, height, nx, ny);
-        for (id, position) in nodes.into_iter().enumerate() {
-            mesh.set_vertex_coordinates(id, position);
+        sieve.adjacency.entry(cell1.clone()).or_insert_with(DashMap::new);
+        for vertex in &vertices1 {
+            sieve.add_arrow(cell1.clone(), vertex.clone());
         }
-        Self::generate_quadrilateral_cells(&mut mesh, nx, ny);
-        mesh
-    }
 
-    /// Generates a 3D rectangular mesh with a specified width, height, depth, and resolution (nx, ny, nz).
-    pub fn generate_rectangle_3d(width: f64, height: f64, depth: f64, nx: usize, ny: usize, nz: usize) -> Mesh {
-        let mut mesh = Mesh::new();
-        let nodes = Self::generate_grid_nodes_3d(width, height, depth, nx, ny, nz);
-        for (id, position) in nodes.into_iter().enumerate() {
-            mesh.set_vertex_coordinates(id, position);
+        sieve.adjacency.entry(cell2.clone()).or_insert_with(DashMap::new);
+        for vertex in &vertices2 {
+            sieve.add_arrow(cell2.clone(), vertex.clone());
         }
-        Self::generate_hexahedral_cells(&mut mesh, nx, ny, nz);
-        Self::_generate_faces_3d(&mut mesh, nx, ny, nz);
-        mesh
-    }
 
-    /// Generates a circular 2D mesh with a given radius and number of divisions.
-    pub fn generate_circle(radius: f64, num_divisions: usize) -> Mesh {
-        let mut mesh = Mesh::new();
-        let nodes = Self::generate_circle_nodes(radius, num_divisions);
-        for (id, position) in nodes.into_iter().enumerate() {
-            mesh.set_vertex_coordinates(id, position);
-        }
-        Self::generate_triangular_cells(&mut mesh, num_divisions);
-        mesh
-    }
+        sieve.fill_missing_entities();
 
-    // --- Internal Helper Functions ---
+        let expected_edges = vec![
+            (MeshEntity::Vertex(1), MeshEntity::Vertex(2)),
+            (MeshEntity::Vertex(2), MeshEntity::Vertex(3)),
+            (MeshEntity::Vertex(3), MeshEntity::Vertex(1)),
+            (MeshEntity::Vertex(3), MeshEntity::Vertex(4)),
+            (MeshEntity::Vertex(2), MeshEntity::Vertex(4)),
+        ];
 
-    /// Generate 2D grid nodes for rectangular mesh
-    fn generate_grid_nodes_2d(width: f64, height: f64, nx: usize, ny: usize) -> Vec<[f64; 3]> {
-        let mut nodes = Vec::new();
-        let dx = width / nx as f64;
-        let dy = height / ny as f64;
-        for j in 0..=ny {
-            for i in 0..=nx {
-                nodes.push([i as f64 * dx, j as f64 * dy, 0.0]);
-            }
-        }
-        nodes
-    }
-
-    /// Generate 3D grid nodes for rectangular mesh
-    fn generate_grid_nodes_3d(width: f64, height: f64, depth: f64, nx: usize, ny: usize, nz: usize) -> Vec<[f64; 3]> {
-        let mut nodes = Vec::new();
-        let dx = width / nx as f64;
-        let dy = height / ny as f64;
-        let dz = depth / nz as f64;
-        for k in 0..=nz {
-            for j in 0..=ny {
-                for i in 0..=nx {
-                    nodes.push([i as f64 * dx, j as f64 * dy, k as f64 * dz]);
-                }
-            }
-        }
-        nodes
-    }
-
-    /// Generate circle nodes for circular mesh
-    fn generate_circle_nodes(radius: f64, num_divisions: usize) -> Vec<[f64; 3]> {
-        let mut nodes = Vec::new();
-        nodes.push([0.0, 0.0, 0.0]);
-        for i in 0..num_divisions {
-            let theta = 2.0 * std::f64::consts::PI * (i as f64) / (num_divisions as f64);
-            nodes.push([radius * theta.cos(), radius * theta.sin(), 0.0]);
-        }
-        nodes
-    }
-
-    /// Generate quadrilateral cells for a 2D rectangular mesh
-    fn generate_quadrilateral_cells(mesh: &mut Mesh, nx: usize, ny: usize) {
-        let mut cell_id = 0;
-        for j in 0..ny {
-            for i in 0..nx {
-                let n1 = j * (nx + 1) + i;
-                let n2 = n1 + 1;
-                let n3 = n1 + (nx + 1) + 1;
-                let n4 = n1 + (nx + 1);
-                let cell = MeshEntity::Cell(cell_id);
-                cell_id += 1;
-                mesh.add_entity(cell.clone());
-                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n1));
-                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n2));
-                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n3));
-                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n4));
-            }
-        }
-    }
-
-    /// Generate hexahedral cells for a 3D rectangular mesh
-    fn generate_hexahedral_cells(mesh: &mut Mesh, nx: usize, ny: usize, nz: usize) {
-        let mut cell_id = 0;
-        for k in 0..nz {
-            for j in 0..ny {
-                for i in 0..nx {
-                    let n1 = k * (ny + 1) * (nx + 1) + j * (nx + 1) + i;
-                    let n2 = n1 + 1;
-                    let n3 = n1 + (nx + 1);
-                    let n4 = n3 + 1;
-                    let n5 = n1 + (ny + 1) * (nx + 1);
-                    let n6 = n5 + 1;
-                    let n7 = n5 + (nx + 1);
-                    let n8 = n7 + 1;
-                    let cell = MeshEntity::Cell(cell_id);
-                    cell_id += 1;
-                    mesh.add_entity(cell.clone());
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n1));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n2));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n3));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n4));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n5));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n6));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n7));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n8));
-                }
-            }
-        }
-    }
-
-    /// Generate triangular cells for a circular mesh
-    fn generate_triangular_cells(mesh: &mut Mesh, num_divisions: usize) {
-        let mut cell_id = 0;
-        for i in 0..num_divisions {
-            let next = (i + 1) % num_divisions;
-            let cell = MeshEntity::Cell(cell_id);
-            cell_id += 1;
-            mesh.add_entity(cell.clone());
-            mesh.add_relationship(cell.clone(), MeshEntity::Vertex(0));
-            mesh.add_relationship(cell.clone(), MeshEntity::Vertex(i + 1));
-            mesh.add_relationship(cell.clone(), MeshEntity::Vertex(next + 1));
-        }
-    }
-
-    /// Generate faces for a 3D rectangular mesh.
-    fn _generate_faces_3d(mesh: &mut Mesh, nx: usize, ny: usize, nz: usize) {
-        let mut face_id = 0;
-        
-        // Loop over all cells to add faces
-        for k in 0..nz {
-            for j in 0..ny {
-                for i in 0..nx {
-                    let n1 = k * (ny + 1) * (nx + 1) + j * (nx + 1) + i;
-                    let n2 = n1 + 1;
-                    let n3 = n1 + (nx + 1);
-                    let n4 = n3 + 1;
-                    let n5 = n1 + (ny + 1) * (nx + 1);
-                    let n6 = n5 + 1;
-                    let n7 = n5 + (nx + 1);
-                    let n8 = n7 + 1;
-
-                    // Define the vertices for each face of a hexahedron
-                    let faces = [
-                        (n1, n2, n4, n3), // front face
-                        (n5, n6, n8, n7), // back face
-                        (n1, n5, n7, n3), // left face
-                        (n2, n6, n8, n4), // right face
-                        (n3, n4, n8, n7), // top face
-                        (n1, n2, n6, n5), // bottom face
-                    ];
-
-                    // Add each face to the mesh
-                    for &(v1, v2, v3, v4) in &faces {
-                        let face = MeshEntity::Face(face_id);
-                        face_id += 1;
-                        mesh.add_entity(face.clone());
-                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v1));
-                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v2));
-                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v3));
-                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v4));
+        for (v1, v2) in expected_edges {
+            let edge_exists = sieve.adjacency.get(&v1).map_or(false, |adj| {
+                adj.iter().any(|entry| {
+                    if let MeshEntity::Edge(_) = entry.key() {
+                        sieve.adjacency.get(entry.key()).map_or(false, |edge_adj| {
+                            edge_adj.contains_key(&v2)
+                        })
+                    } else {
+                        false
                     }
-                }
-            }
+                })
+            });
+            assert!(edge_exists, "Edge ({:?}, {:?}) should exist", v1, v2);
         }
     }
 
+    #[test]
+    fn test_fill_missing_entities_no_duplicate_edges() {
+        let sieve = Sieve::new();
+        let cell1 = MeshEntity::Cell(1);
+        let cell2 = MeshEntity::Cell(2);
+        let shared_vertices = vec![
+            MeshEntity::Vertex(1),
+            MeshEntity::Vertex(2),
+        ];
+
+        let vertices1 = vec![
+            shared_vertices[0],
+            shared_vertices[1],
+            MeshEntity::Vertex(3),
+        ];
+
+        let vertices2 = vec![
+            shared_vertices[0],
+            shared_vertices[1],
+            MeshEntity::Vertex(4),
+        ];
+
+        sieve.adjacency.entry(cell1.clone()).or_insert_with(DashMap::new);
+        for vertex in &vertices1 {
+            sieve.add_arrow(cell1.clone(), vertex.clone());
+        }
+
+        sieve.adjacency.entry(cell2.clone()).or_insert_with(DashMap::new);
+        for vertex in &vertices2 {
+            sieve.add_arrow(cell2.clone(), vertex.clone());
+        }
+
+        sieve.fill_missing_entities();
+
+        let shared_edge = (shared_vertices[0], shared_vertices[1]);
+        let edge_count = sieve.adjacency.get(&shared_edge.0).map_or(0, |adj| {
+            adj.iter().filter(|entry| {
+                if let MeshEntity::Edge(_) = entry.key() {
+                    sieve.adjacency.get(entry.key()).map_or(false, |edge_adj| {
+                        edge_adj.contains_key(&shared_edge.1)
+                    })
+                } else {
+                    false
+                }
+            }).count()
+        });
+
+        assert_eq!(edge_count, 1, "Shared edge should not be duplicated");
+    }
 }
+
 ```
+

@@ -3,46 +3,50 @@ use crate::domain::sieve::Sieve;
 use dashmap::DashMap;
 
 impl Sieve {
-    /// Infers and adds missing edges (in 2D) or faces (in 3D) based on existing cells and vertices.  
-    /// 
-    /// For 2D meshes, this method generates edges by connecting vertices of a cell.  
-    /// These edges are then associated with the corresponding vertices in the sieve.  
-    ///
-    /// Example usage:
-    /// 
-    ///    sieve.fill_missing_entities();  
-    ///
+    /// Infers and adds missing edges (in 2D) or faces (in 3D) based on existing cells and vertices.
+    /// For 2D meshes, this method generates edges by connecting vertices of a cell.
+    /// These edges are then associated with the corresponding vertices in the sieve.
     pub fn fill_missing_entities(&self) {
         let edge_set: DashMap<(MeshEntity, MeshEntity), MeshEntity> = DashMap::new();
         let mut next_edge_id = 0;
 
-        // Loop through each cell and infer its edges
-        self.adjacency.iter().for_each(|entry| {
+        for entry in self.adjacency.iter() {
             let cell = entry.key();
             if let MeshEntity::Cell(_) = cell {
                 let vertices: Vec<_> = entry.value().iter().map(|v| v.key().clone()).collect();
                 if vertices.len() < 3 {
                     // Skip cells with fewer than 3 vertices
-                    return;
+                    continue;
                 }
 
                 // Create edges by connecting vertices
                 for i in 0..vertices.len() {
                     let v1 = vertices[i].clone();
                     let v2 = vertices[(i + 1) % vertices.len()].clone();
-                    let edge_key = if v1 < v2 { (v1.clone(), v2.clone()) } else { (v2.clone(), v1.clone()) };
+                    let edge_key = if v1 < v2 {
+                        (v1.clone(), v2.clone())
+                    } else {
+                        (v2.clone(), v1.clone())
+                    };
 
                     // Add the edge if it doesn't exist
                     edge_set.entry(edge_key).or_insert_with(|| {
                         let edge = MeshEntity::Edge(next_edge_id);
                         next_edge_id += 1;
+
+                        // Add arrows from vertices to edge
                         self.add_arrow(v1.clone(), edge.clone());
                         self.add_arrow(v2.clone(), edge.clone());
+
+                        // Add arrows from edge to vertices (bidirectional)
+                        self.add_arrow(edge.clone(), v1.clone());
+                        self.add_arrow(edge.clone(), v2.clone());
+
                         edge
                     });
                 }
             }
-        });
+        }
     }
 }
 
