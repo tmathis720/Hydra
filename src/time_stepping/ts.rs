@@ -1,5 +1,5 @@
-use crate::{equation::fields::FieldIterator, linalg::Matrix};
-use std::ops::{Add, Mul};
+use crate::{equation::fields::UpdateState, linalg::Matrix};
+use std::ops::Add;
 
 #[derive(Debug)]
 pub enum TimeSteppingError {
@@ -8,7 +8,7 @@ pub enum TimeSteppingError {
 }
 
 pub trait TimeDependentProblem {
-    type State: Clone + FieldIterator;
+    type State: Clone + UpdateState;
     type Time: Copy + PartialOrd + Add<Output = Self::Time> + From<f64> + Into<f64>;
 
     fn compute_rhs(
@@ -105,9 +105,7 @@ where
         let mut derivative = state.clone();
         problem.compute_rhs(current_time, state, &mut derivative)?;
 
-        for (s, d) in state.iter_mut().zip(derivative.iter()) {
-            *s = (*s).clone() + dt.into() * d.clone();
-        }
+        state.update_state(&derivative, dt.into());
 
         self.current_time = self.current_time + dt;
 
