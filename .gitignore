@@ -1,3 +1,4 @@
 /target/debug
 /target/release
 /target/doc
+rustc_info.json
