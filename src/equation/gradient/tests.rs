@@ -1,13 +1,14 @@
 // src/equation/gradient/tests.rs
 
-use crate::domain::{mesh::Mesh, MeshEntity, Section};
-use crate::boundary::{bc_handler::BoundaryConditionHandler, bc_handler::BoundaryCondition};
-use crate::equation::gradient::gradient_calc::Gradient;
-use std::sync::Arc;
+
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::equation::gradient::GradientCalculationMethod;
+    use crate::domain::{mesh::Mesh, MeshEntity, Section};
+    use crate::boundary::{bc_handler::BoundaryConditionHandler, bc_handler::BoundaryCondition};
+    use crate::equation::gradient::Gradient;
+    use std::sync::Arc;
 
     /// Creates a simple mesh used by all tests to ensure consistency.
     fn create_simple_mesh() -> Mesh {
@@ -60,144 +61,88 @@ mod tests {
     }
 
     #[test]
-    fn test_gradient_simple_mesh() {
+    fn test_gradient_with_finite_volume_method() {
         let mesh = create_simple_mesh();
-
-        // Initialize field values
         let field = Section::<f64>::new();
         field.set_data(MeshEntity::Cell(1), 1.0);
         field.set_data(MeshEntity::Cell(2), 2.0);
 
-        // Initialize gradient
         let mut gradient = Section::<[f64; 3]>::new();
         let boundary_handler = BoundaryConditionHandler::new();
-        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
+        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler, GradientCalculationMethod::FiniteVolume);
 
-        // Compute the gradient
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
-        assert!(
-            result.is_ok(),
-            "Gradient calculation failed with result: {:?}",
-            result
-        );
+        assert!(result.is_ok(), "Gradient calculation failed: {:?}", result);
 
-        let grad_cell1 = gradient
-            .restrict(&MeshEntity::Cell(1))
-            .expect("Gradient not computed for cell1");
-        println!("Computed gradient for cell1: {:?}", grad_cell1);
-
-        // Expected gradient based on computations
+        let grad_cell1 = gradient.restrict(&MeshEntity::Cell(1)).expect("Gradient not computed for cell1");
         let expected_grad = [0.0, 0.0, 3.0];
         for i in 0..3 {
-            assert!(
-                (grad_cell1[i] - expected_grad[i]).abs() < 1e-6,
-                "Gradient component {} does not match expected value",
-                i
-            );
+            assert!((grad_cell1[i] - expected_grad[i]).abs() < 1e-6, "Mismatch in gradient component {}", i);
         }
     }
 
     #[test]
-    fn test_gradient_dirichlet_boundary() {
+    fn test_gradient_with_dirichlet_boundary() {
         let mesh = create_simple_mesh();
-
-        // Remove cell2 and its relationships to simulate a boundary
+        // Remove cell 2 to simulate a boundary
         mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
         mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
 
-        // Initialize field
         let field = Section::<f64>::new();
         field.set_data(MeshEntity::Cell(1), 1.0);
 
-        // Initialize gradient
         let mut gradient = Section::<[f64; 3]>::new();
         let boundary_handler = BoundaryConditionHandler::new();
         boundary_handler.set_bc(MeshEntity::Face(1), BoundaryCondition::Dirichlet(2.0));
 
-        // Initialize gradient calculator
-        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
+        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler, GradientCalculationMethod::FiniteVolume);
 
-        // Compute the gradient
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
-        assert!(
-            result.is_ok(),
-            "Gradient calculation failed with result: {:?}",
-            result
-        );
+        assert!(result.is_ok(), "Gradient calculation failed: {:?}", result);
 
-        let grad = gradient
-            .restrict(&MeshEntity::Cell(1))
-            .expect("Gradient not computed");
-        println!("Computed gradient: {:?}", grad);
-
-        // Expected gradient based on computations
+        let grad = gradient.restrict(&MeshEntity::Cell(1)).expect("Gradient not computed");
         let expected_grad = [0.0, 0.0, 3.0];
         for i in 0..3 {
-            assert!(
-                (grad[i] - expected_grad[i]).abs() < 1e-6,
-                "Gradient component {} does not match expected value",
-                i
-            );
+            assert!((grad[i] - expected_grad[i]).abs() < 1e-6, "Mismatch in gradient component {}", i);
         }
     }
 
     #[test]
-    fn test_gradient_neumann_boundary() {
+    fn test_gradient_with_neumann_boundary() {
         let mesh = create_simple_mesh();
-
-        // Remove cell2 and its relationships to simulate a boundary
+        // Remove cell 2 to simulate a boundary
         mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
         mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
 
-        // Initialize field
         let field = Section::<f64>::new();
         field.set_data(MeshEntity::Cell(1), 1.0);
 
-        // Initialize gradient
         let mut gradient = Section::<[f64; 3]>::new();
         let boundary_handler = BoundaryConditionHandler::new();
         boundary_handler.set_bc(MeshEntity::Face(1), BoundaryCondition::Neumann(2.0));
 
-        // Initialize gradient calculator
-        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
+        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler, GradientCalculationMethod::FiniteVolume);
 
-        // Compute the gradient
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
-        assert!(
-            result.is_ok(),
-            "Gradient calculation failed with result: {:?}",
-            result
-        );
+        assert!(result.is_ok(), "Gradient calculation failed: {:?}", result);
 
-        let grad = gradient
-            .restrict(&MeshEntity::Cell(1))
-            .expect("Gradient not computed");
-        println!("Computed gradient: {:?}", grad);
-
-        // Corrected expected gradient based on computations
-        let expected_grad = [0.0, 0.0, 6.0];
+        let grad = gradient.restrict(&MeshEntity::Cell(1)).expect("Gradient not computed");
+        let expected_grad = [0.0, 0.0, 6.0]; // Adjusted expected gradient
         for i in 0..3 {
-            assert!(
-                (grad[i] - expected_grad[i]).abs() < 1e-6,
-                "Gradient component {} does not match expected value",
-                i
-            );
+            assert!((grad[i] - expected_grad[i]).abs() < 1e-6, "Mismatch in gradient component {}", i);
         }
     }
 
     #[test]
-    fn test_gradient_functional_boundary() {
+    fn test_gradient_with_dirichlet_function_boundary() {
         let mesh = create_simple_mesh();
-
-        // Remove cell2 and its relationships to simulate a boundary
+        // Remove cell 2 to simulate a boundary
         mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
         mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
 
-        // Initialize field
         let field = Section::<f64>::new();
         field.set_data(MeshEntity::Cell(1), 1.0);
 
-        // Initialize gradient
         let mut gradient = Section::<[f64; 3]>::new();
         let boundary_handler = BoundaryConditionHandler::new();
         boundary_handler.set_bc(
@@ -205,92 +150,55 @@ mod tests {
             BoundaryCondition::DirichletFn(Arc::new(|time, _| 1.0 + time)),
         );
 
-        // Initialize gradient calculator
-        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
+        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler, GradientCalculationMethod::FiniteVolume);
 
-        // Compute the gradient at time = 2.0
-        let result = gradient_calculator.compute_gradient(&field, &mut gradient, 2.0);
-        assert!(
-            result.is_ok(),
-            "Gradient calculation failed with result: {:?}",
-            result
-        );
+        let time = 2.0;
+        let result = gradient_calculator.compute_gradient(&field, &mut gradient, time);
+        assert!(result.is_ok(), "Gradient calculation failed: {:?}", result);
 
-        let grad = gradient
-            .restrict(&MeshEntity::Cell(1))
-            .expect("Gradient not computed");
-        println!("Computed gradient: {:?}", grad);
-
-        // Expected gradient based on computations
-        let expected_grad = [0.0, 0.0, 6.0];
+        let grad = gradient.restrict(&MeshEntity::Cell(1)).expect("Gradient not computed");
+        let expected_grad = [0.0, 0.0, 6.0]; // Adjusted expected gradient based on time
         for i in 0..3 {
-            assert!(
-                (grad[i] - expected_grad[i]).abs() < 1e-6,
-                "Gradient component {} does not match expected value",
-                i
-            );
+            assert!((grad[i] - expected_grad[i]).abs() < 1e-6, "Mismatch in gradient component {}", i);
         }
     }
 
     #[test]
-    fn test_gradient_missing_data() {
+    fn test_gradient_error_on_missing_data() {
         let mesh = Mesh::new();
-
-        // Create cell without any faces
         let cell = MeshEntity::Cell(1);
-        mesh.add_entity(cell);
+        mesh.add_entity(cell.clone());
 
-        // Initialize empty field
-        let field = Section::<f64>::new();
-
-        // Initialize gradient
+        let field = Section::<f64>::new(); // Field data is missing for the cell
         let mut gradient = Section::<[f64; 3]>::new();
         let boundary_handler = BoundaryConditionHandler::new();
-        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
+        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler, GradientCalculationMethod::FiniteVolume);
 
-        // Attempt to compute gradient
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
-        assert!(
-            result.is_err(),
-            "Expected error due to missing field values"
-        );
-
-        println!("Expected error: {:?}", result.err());
+        assert!(result.is_err(), "Expected error due to missing field values");
     }
 
     #[test]
-    fn test_gradient_unimplemented_robin_condition() {
+    fn test_gradient_error_on_unimplemented_robin_condition() {
         let mesh = create_simple_mesh();
-
-        // Remove cell2 and its relationships to simulate a boundary
+        // Remove cell 2 to simulate a boundary
         mesh.entities.write().unwrap().remove(&MeshEntity::Cell(2));
         mesh.sieve.adjacency.remove(&MeshEntity::Cell(2));
 
-        // Initialize field
         let field = Section::<f64>::new();
         field.set_data(MeshEntity::Cell(1), 1.0);
 
-        // Initialize gradient
         let mut gradient = Section::<[f64; 3]>::new();
         let boundary_handler = BoundaryConditionHandler::new();
         boundary_handler.set_bc(
             MeshEntity::Face(1),
-            BoundaryCondition::Robin {
-                alpha: 1.0,
-                beta: 2.0,
-            },
+            BoundaryCondition::Robin { alpha: 1.0, beta: 2.0 },
         );
 
-        // Initialize gradient calculator
-        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler);
+        let mut gradient_calculator = Gradient::new(&mesh, &boundary_handler, GradientCalculationMethod::FiniteVolume);
 
-        // Attempt to compute gradient
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
-        assert!(
-            result.is_err(),
-            "Expected error due to unimplemented Robin condition"
-        );
-
-        println!("Expected error: {:?}", result.err());
+        assert!(result.is_err(), "Expected error due to unimplemented Robin condition");
     }
+
 }

@@ -1,5 +1,6 @@
 use super::Mesh;
 use crate::domain::mesh_entity::MeshEntity;
+use dashmap::DashMap;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rustc_hash::FxHashMap;
 
@@ -210,5 +211,16 @@ impl Mesh {
         }
         neighbors.sort_by(|a, b| a.get_id().cmp(&b.get_id())); // Ensures consistent ordering by ID
         neighbors
+    }
+
+    /// Maps each `MeshEntity` in the mesh to a unique index.
+    pub fn get_entity_to_index(&self) -> DashMap<MeshEntity, usize> {
+        let entity_to_index = DashMap::new();
+        let entities = self.entities.read().unwrap();
+        entities.iter().enumerate().for_each(|(index, entity)| {
+            entity_to_index.insert(entity.clone(), index);
+        });
+
+        entity_to_index
     }
 }
