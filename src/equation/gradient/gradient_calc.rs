@@ -121,14 +121,14 @@ impl FiniteVolumeGradient {
                 BoundaryCondition::Robin { alpha: _, beta: _ } => {
                     return Err("Robin boundary condition not implemented for gradient computation".into());
                 }
-                BoundaryCondition::DirichletFn(fn_bc) => {
+                BoundaryCondition::DirichletFn(wrapper) => {
                     let coords = geometry.compute_face_centroid(FaceShape::Triangle, &mesh.get_face_vertices(face));
-                    let phi_nb = fn_bc(time, &coords);
+                    let phi_nb = (wrapper.function)(time, &coords);
                     self.apply_dirichlet_boundary(phi_nb, phi_c, flux_vector, grad_phi);
                 }
-                BoundaryCondition::NeumannFn(fn_bc) => {
+                BoundaryCondition::NeumannFn(wrapper) => {
                     let coords = geometry.compute_face_centroid(FaceShape::Triangle, &mesh.get_face_vertices(face));
-                    let flux = fn_bc(time, &coords);
+                    let flux = (wrapper.function)(time, &coords);
                     self.apply_neumann_boundary(flux, flux_vector, grad_phi);
                 }
                 BoundaryCondition::Mixed { gamma, delta } => {

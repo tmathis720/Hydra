@@ -33,7 +33,6 @@ impl DirichletBC {
         entity_to_index: &DashMap<MeshEntity, usize>,
         time: f64,
     ) {
-        // Iterate through the conditions and apply each condition accordingly.
         self.conditions.iter().for_each(|entry| {
             let (entity, condition) = entry.pair();
             if let Some(index) = entity_to_index.get(entity).map(|i| *i) {
@@ -41,9 +40,9 @@ impl DirichletBC {
                     BoundaryCondition::Dirichlet(value) => {
                         self.apply_constant_dirichlet(matrix, rhs, index, *value);
                     }
-                    BoundaryCondition::DirichletFn(fn_bc) => {
+                    BoundaryCondition::DirichletFn(wrapper) => {
                         let coords = self.get_coordinates(entity);
-                        let value = fn_bc(time, &coords);
+                        let value = (wrapper.function)(time, &coords);
                         self.apply_constant_dirichlet(matrix, rhs, index, value);
                     }
                     _ => {}
@@ -92,7 +91,7 @@ impl BoundaryConditionApply for DirichletBC {
 mod tests {
     use super::*;
     use faer::Mat;
-    use crate::domain::mesh_entity::MeshEntity;
+    use crate::{boundary::bc_handler::FunctionWrapper, domain::mesh_entity::MeshEntity};
     use std::sync::Arc;
 
     fn create_test_matrix_and_rhs() -> (Mat<f64>, Mat<f64>) {
@@ -146,24 +145,23 @@ mod tests {
         let entity_to_index = DashMap::new();
         entity_to_index.insert(entity, 2);
 
-        dirichlet_bc.set_bc(
-            entity,
-            BoundaryCondition::DirichletFn(Arc::new(|_time: f64, _coords: &[f64]| 7.0)),
-        );
+        let wrapper = FunctionWrapper {
+            description: "test_fn".to_string(),
+            function: Arc::new(|_time, _coords| 7.0),
+        };
+
+        dirichlet_bc.set_bc(entity, BoundaryCondition::DirichletFn(wrapper));
 
         let (mut matrix, mut rhs) = create_test_matrix_and_rhs();
-        let mut matrix_mut = matrix.as_mut();
-        let mut rhs_mut = rhs.as_mut();
+        dirichlet_bc.apply_bc(&mut matrix.as_mut(), &mut rhs.as_mut(), &entity_to_index, 1.0);
 
-        dirichlet_bc.apply_bc(&mut matrix_mut, &mut rhs_mut, &entity_to_index, 1.0);
-
-        for col in 0..matrix_mut.ncols() {
+        for col in 0..matrix.ncols() {
             if col == 2 {
-                assert_eq!(matrix_mut[(2, col)], 1.0);
+                assert_eq!(matrix[(2, col)], 1.0);
             } else {
-                assert_eq!(matrix_mut[(2, col)], 0.0);
+                assert_eq!(matrix[(2, col)], 0.0);
             }
         }
-        assert_eq!(rhs_mut[(2, 0)], 7.0);
+        assert_eq!(rhs[(2, 0)], 7.0);
     }
 }

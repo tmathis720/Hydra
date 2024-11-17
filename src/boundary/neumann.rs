@@ -24,12 +24,9 @@ impl NeumannBC {
         self.conditions.insert(entity, condition);
     }
 
-    /// Applies the stored Neumann boundary conditions to the right-hand side (RHS) of the system. 
-    /// It iterates over the stored conditions and applies either constant or function-based Neumann
-    /// boundary conditions to the corresponding entities.
+    /// Applies the stored Neumann boundary conditions to the right-hand side (RHS) of the system.
     pub fn apply_bc(
         &self,
-        _matrix: &mut MatMut<f64>,
         rhs: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
         time: f64,
@@ -41,9 +38,9 @@ impl NeumannBC {
                     BoundaryCondition::Neumann(value) => {
                         self.apply_constant_neumann(rhs, index, *value);
                     }
-                    BoundaryCondition::NeumannFn(fn_bc) => {
+                    BoundaryCondition::NeumannFn(wrapper) => {
                         let coords = self.get_coordinates(entity);
-                        let value = fn_bc(time, &coords);
+                        let value = (wrapper.function)(time, &coords);
                         self.apply_constant_neumann(rhs, index, value);
                     }
                     _ => {}
@@ -57,7 +54,7 @@ impl NeumannBC {
         rhs.write(index, 0, rhs.read(index, 0) + value);
     }
 
-    /// Retrieves the coordinates of the mesh entity (currently a placeholder).
+    /// Retrieves the coordinates of the mesh entity (placeholder for real coordinates).
     fn get_coordinates(&self, _entity: &MeshEntity) -> [f64; 3] {
         [0.0, 0.0, 0.0]
     }
@@ -73,7 +70,7 @@ impl BoundaryConditionApply for NeumannBC {
         entity_to_index: &DashMap<MeshEntity, usize>,
         time: f64,
     ) {
-        self.apply_bc(_matrix, rhs, entity_to_index, time);
+        self.apply_bc(rhs, entity_to_index, time);
     }
 }
 
@@ -81,8 +78,8 @@ impl BoundaryConditionApply for NeumannBC {
 mod tests {
     use super::*;
     use faer::Mat;
-    use crate::domain::mesh_entity::MeshEntity;
     use std::sync::Arc;
+    use crate::{boundary::bc_handler::FunctionWrapper, domain::mesh_entity::MeshEntity};
 
     fn create_test_matrix_and_rhs() -> (Mat<f64>, Mat<f64>) {
         let matrix = Mat::from_fn(3, 3, |i, j| if i == j { 1.0 } else { 0.0 });
@@ -108,13 +105,16 @@ mod tests {
         let entity_to_index = DashMap::new();
         entity_to_index.insert(entity, 1);
 
+        // Set a constant Neumann boundary condition
         neumann_bc.set_bc(entity, BoundaryCondition::Neumann(5.0));
         
-        let (mut matrix, mut rhs) = create_test_matrix_and_rhs();
+        let mut rhs = create_test_matrix_and_rhs().1; // Only create the RHS vector
         let mut rhs_mut = rhs.as_mut();
 
-        neumann_bc.apply_bc(&mut matrix.as_mut(), &mut rhs_mut, &entity_to_index, 0.0);
+        // Apply the Neumann boundary condition
+        neumann_bc.apply_bc(&mut rhs_mut, &entity_to_index, 0.0);
 
+        // Verify that the RHS was updated correctly
         assert_eq!(rhs_mut[(1, 0)], 5.0);
     }
 
@@ -125,16 +125,16 @@ mod tests {
         let entity_to_index = DashMap::new();
         entity_to_index.insert(entity, 2);
 
-        neumann_bc.set_bc(
-            entity,
-            BoundaryCondition::NeumannFn(Arc::new(|_time: f64, _coords: &[f64]| 7.0)),
-        );
+        let wrapper = FunctionWrapper {
+            description: "neumann_fn".to_string(),
+            function: Arc::new(|_time, _coords| 7.0),
+        };
 
-        let (mut matrix, mut rhs) = create_test_matrix_and_rhs();
-        let mut rhs_mut = rhs.as_mut();
+        neumann_bc.set_bc(entity, BoundaryCondition::NeumannFn(wrapper));
 
-        neumann_bc.apply_bc(&mut matrix.as_mut(), &mut rhs_mut, &entity_to_index, 1.0);
+        let mut rhs = Mat::zeros(3, 1);
+        neumann_bc.apply_bc(&mut rhs.as_mut(), &entity_to_index, 1.0);
 
-        assert_eq!(rhs_mut[(2, 0)], 7.0);
+        assert_eq!(rhs[(2, 0)], 7.0);
     }
 }
