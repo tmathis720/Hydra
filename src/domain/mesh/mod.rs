@@ -4,8 +4,8 @@ pub mod reordering;
 pub mod boundary;
 pub mod hierarchical;
 pub mod topology;
-/* pub mod geometry_validation;
-pub mod boundary_validation; */
+pub mod geometry_validation;
+pub mod boundary_validation;
 
 use crate::domain::mesh_entity::MeshEntity;
 use crate::domain::sieve::Sieve;
