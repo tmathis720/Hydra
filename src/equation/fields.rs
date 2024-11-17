@@ -1,5 +1,4 @@
 use std::ops::{Add, Mul};
-
 use rustc_hash::FxHashMap;
 use crate::{domain::Section, MeshEntity};
 use super::super::domain::section::{Vector3, Tensor3x3, Scalar, Vector2};
@@ -18,31 +17,29 @@ pub struct Fields {
 pub trait FieldIterator {
     type Item: Add<Output = Self::Item> + Mul<f64, Output = Self::Item> + Clone;
 
-    fn iter(&self) -> Box<dyn Iterator<Item = &Self::Item>>;
-    fn iter_mut(&mut self) -> Box<dyn Iterator<Item = &mut Self::Item>>;
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Self::Item> + 'a>;
+    fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut Self::Item> + 'a>;
 }
 
 impl FieldIterator for Fields {
-    type Item = f64; // Assuming numerical data for fields
+    type Item = f64;
 
-    fn iter(&self) -> Box<dyn Iterator<Item = &Self::Item>> {
-        let scalar_iter = self.scalar_fields.values().flat_map(|section| {
-            section.all_data().iter().map(|scalar| &scalar.0).collect::<Vec<_>>()
-        });
-        Box::new(scalar_iter)
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Self::Item> + 'a> {
+        Box::new(
+            self.scalar_fields
+                .values()
+                .flat_map(|section| section.all_data().iter().map(|scalar| &scalar.0)),
+        )
     }
 
-    fn iter_mut(&mut self) -> Box<dyn Iterator<Item = &mut Self::Item>> {
-        let scalar_iter = self.scalar_fields.values_mut().flat_map(|section| {
-            section
-                .all_data_mut()
-                .iter_mut()
-                .map(|scalar| &mut scalar.0).collect::<Vec<_>>()
-        });
-        Box::new(scalar_iter)
+    fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut Self::Item> + 'a> {
+        Box::new(
+            self.scalar_fields
+                .values_mut()
+                .flat_map(|section| section.all_data_mut().iter_mut().map(|scalar| &mut scalar.0)),
+        )
     }
 }
-
 
 impl Fields {
     pub fn new() -> Self {
@@ -67,66 +64,15 @@ impl Fields {
         }
     }
 
-    pub fn get_vector_field_value(&self, name: &str, entity: &MeshEntity) -> Option<Vector3> {
-        self.vector_fields.get(name)?.restrict(entity)
-    }
-
-    pub fn set_vector_field_value(&mut self, name: &str, entity: MeshEntity, value: Vector3) {
-        if let Some(field) = self.vector_fields.get_mut(name) {
-            field.set_data(entity, value);
-        } else {
-            let field = Section::new();
-            field.set_data(entity, value);
-            self.vector_fields.insert(name.to_string(), field);
-        }
-    }
-
-    pub fn get_tensor_field_value(&self, name: &str, entity: &MeshEntity) -> Option<Tensor3x3> {
-        self.tensor_fields.get(name)?.restrict(entity)
-    }
-
-    pub fn set_tensor_field_value(&mut self, name: &str, entity: MeshEntity, value: Tensor3x3) {
-        if let Some(field) = self.tensor_fields.get_mut(name) {
-            field.set_data(entity, value);
-        } else {
-            let field = Section::new();
-            field.set_data(entity, value);
-            self.tensor_fields.insert(name.to_string(), field);
-        }
-    }
-
-    pub fn add_turbulence_fields(&mut self) {
-        self.scalar_fields.insert("turbulent_viscosity".to_string(), Section::new());
-        self.scalar_fields.insert("k_field".to_string(), Section::new());
-        self.scalar_fields.insert("omega_field".to_string(), Section::new());
-    }
-
-    /// Updates the derivative fields based on the computed fluxes
     pub fn update_from_fluxes(&mut self, _fluxes: &Fluxes) {
         // Implement logic to update derivative fields from fluxes
-        // This is domain-specific and should be implemented accordingly
     }
 }
 
 impl UpdateState for Fields {
     fn update_state(&mut self, derivative: &Fields, dt: f64) {
-        // Update scalar fields
         for (key, section) in &derivative.scalar_fields {
             if let Some(state_section) = self.scalar_fields.get_mut(key) {
-                state_section.update_with_derivative(section, dt);
-            }
-        }
-
-        // Update vector fields
-        for (key, section) in &derivative.vector_fields {
-            if let Some(state_section) = self.vector_fields.get_mut(key) {
-                state_section.update_with_derivative(section, dt);
-            }
-        }
-
-        // Update tensor fields if needed
-        for (key, section) in &derivative.tensor_fields {
-            if let Some(state_section) = self.tensor_fields.get_mut(key) {
                 state_section.update_with_derivative(section, dt);
             }
         }
