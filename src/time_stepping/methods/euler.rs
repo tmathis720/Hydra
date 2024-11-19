@@ -1,3 +1,5 @@
+use crate::time_stepping::adaptivity::error_estimate::estimate_error;
+use crate::time_stepping::adaptivity::step_size_control::adjust_step_size;
 use crate::time_stepping::{TimeStepper, TimeDependentProblem, TimeSteppingError};
 use crate::equation::fields::UpdateState;
 
@@ -54,12 +56,29 @@ where
 
     fn adaptive_step(
         &mut self,
-        _problem: &P,
-        _state: &mut P::State,
+        problem: &P,
+        state: &mut P::State,
+        tol: f64,
     ) -> Result<P::Time, TimeSteppingError> {
-        // For simplicity, not implemented
-        unimplemented!()
+        let mut error = f64::INFINITY;
+        let mut dt = self.time_step.into();
+        while error > tol {
+            // Compute high-order step
+            let mut temp_state = state.clone();
+            let mid_dt = P::Time::from(0.5 * dt);
+            self.step(problem, mid_dt, self.current_time, &mut temp_state)?;
+
+            // Compute full step for comparison
+            let mut high_order_state = temp_state.clone();
+            self.step(problem, mid_dt, self.current_time + mid_dt, &mut high_order_state)?;
+
+            error = estimate_error(problem, state, P::Time::from(dt))?;
+            dt = adjust_step_size(dt, error, tol, 0.9, 2.0);
+        }
+        self.set_time_step(P::Time::from(dt));
+        Ok(P::Time::from(dt))
     }
+    
 
     fn set_time_interval(&mut self, start_time: P::Time, end_time: P::Time) {
         self.start_time = start_time;

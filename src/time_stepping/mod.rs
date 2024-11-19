@@ -5,3 +5,6 @@ pub mod adaptivity;
 pub use ts::{TimeStepper, TimeSteppingError, TimeDependentProblem};
 pub use methods::backward_euler::BackwardEuler;
 pub use methods::euler::ExplicitEuler;
+
+#[cfg(test)]
+mod tests;

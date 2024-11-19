@@ -9,45 +9,68 @@ impl Sieve {
     pub fn fill_missing_entities(&self) {
         let mut edge_set: FxHashSet<(MeshEntity, MeshEntity)> = FxHashSet::default();
         let mut next_edge_id = 0;
+        let mut arrows_to_add: Vec<(MeshEntity, MeshEntity)> = Vec::new();
 
-        for entry in self.adjacency.iter() {
-            let cell = entry.key();
-            if let MeshEntity::Cell(_) = cell {
-                let vertices: Vec<_> = entry.value().iter().map(|v| v.key().clone()).collect();
-                if vertices.len() < 3 {
-                    eprintln!("Skipping cell with fewer than 3 vertices: {:?}", cell);
+        // Collect cells and their associated vertices to avoid modifying the map during iteration
+        let cell_vertices: Vec<(MeshEntity, Vec<MeshEntity>)> = self.adjacency.iter()
+            .filter_map(|entry| {
+                let cell = entry.key();
+                if let MeshEntity::Cell(_) = cell {
+                    let vertices: Vec<_> = entry.value().iter().map(|v| v.key().clone()).collect();
+                    Some((cell.clone(), vertices))
+                } else {
+                    None
+                }
+            }).collect();
+
+        for (cell, vertices) in cell_vertices {
+            if vertices.len() < 3 {
+                eprintln!("Skipping cell with fewer than 3 vertices: {:?}", cell);
+                continue;
+            }
+
+            eprintln!("Processing cell: {:?}", cell);
+
+            for i in 0..vertices.len() {
+                let (v1, v2) = (
+                    vertices[i].clone(),
+                    vertices[(i + 1) % vertices.len()].clone(),
+                );
+                let edge_key = if v1 < v2 {
+                    (v1.clone(), v2.clone())
+                } else {
+                    (v2.clone(), v1.clone())
+                };
+
+                if edge_set.contains(&edge_key) {
+                    eprintln!("Edge {:?} already processed, skipping.", edge_key);
                     continue;
                 }
+                edge_set.insert(edge_key.clone());
 
-                eprintln!("Processing cell: {:?}", cell);
+                let edge = MeshEntity::Edge(next_edge_id);
+                next_edge_id += 1;
 
-                for i in 0..vertices.len() {
-                    let (v1, v2) = (vertices[i].clone(), vertices[(i + 1) % vertices.len()].clone());
-                    let edge_key = if v1 < v2 { (v1.clone(), v2.clone()) } else { (v2.clone(), v1.clone()) };
+                // Collect arrows to add after iteration
+                arrows_to_add.push((v1.clone(), edge.clone()));
+                arrows_to_add.push((v2.clone(), edge.clone()));
+                arrows_to_add.push((edge.clone(), v1.clone()));
+                arrows_to_add.push((edge.clone(), v2.clone()));
 
-                    if edge_set.contains(&edge_key) {
-                        eprintln!("Edge {:?} already processed, skipping.", edge_key);
-                        continue;
-                    }
-                    edge_set.insert(edge_key.clone());
-
-                    let edge = MeshEntity::Edge(next_edge_id);
-                    next_edge_id += 1;
-
-                    // Add arrows from vertices to edge
-                    self.add_arrow(v1.clone(), edge.clone());
-                    self.add_arrow(v2.clone(), edge.clone());
-
-                    // Add arrows from edge to vertices (bidirectional)
-                    self.add_arrow(edge.clone(), v1.clone());
-                    self.add_arrow(edge.clone(), v2.clone());
-
-                    eprintln!("Created edge {:?} between {:?} and {:?}", edge, v1, v2);
-                }
+                eprintln!(
+                    "Created edge {:?} between {:?} and {:?}",
+                    edge, v1, v2
+                );
             }
+        }
+
+        // Now add all arrows to self.adjacency outside the iteration
+        for (from, to) in arrows_to_add {
+            self.add_arrow(from, to);
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -69,7 +92,10 @@ mod tests {
             let sieve = Sieve::new();
             sieve.fill_missing_entities();
 
-            assert!(sieve.adjacency.is_empty(), "No edges should be created for an empty sieve");
+            assert!(
+                sieve.adjacency.is_empty(),
+                "No edges should be created for an empty sieve"
+            );
         });
     }
 
@@ -84,7 +110,10 @@ mod tests {
                 MeshEntity::Vertex(3),
             ];
 
-            sieve.adjacency.entry(cell.clone()).or_insert_with(DashMap::new);
+            sieve
+                .adjacency
+                .entry(cell.clone())
+                .or_insert_with(DashMap::new);
             for vertex in &vertices {
                 sieve.add_arrow(cell.clone(), vertex.clone());
             }
@@ -120,10 +149,7 @@ mod tests {
             let sieve = Sieve::new();
             let cell1 = MeshEntity::Cell(1);
             let cell2 = MeshEntity::Cell(2);
-            let shared_vertices = vec![
-                MeshEntity::Vertex(1),
-                MeshEntity::Vertex(2),
-            ];
+            let shared_vertices = vec![MeshEntity::Vertex(1), MeshEntity::Vertex(2)];
 
             let vertices1 = vec![
                 shared_vertices[0],
@@ -137,12 +163,18 @@ mod tests {
                 MeshEntity::Vertex(4),
             ];
 
-            sieve.adjacency.entry(cell1.clone()).or_insert_with(DashMap::new);
+            sieve
+                .adjacency
+                .entry(cell1.clone())
+                .or_insert_with(DashMap::new);
             for vertex in &vertices1 {
                 sieve.add_arrow(cell1.clone(), vertex.clone());
             }
 
-            sieve.adjacency.entry(cell2.clone()).or_insert_with(DashMap::new);
+            sieve
+                .adjacency
+                .entry(cell2.clone())
+                .or_insert_with(DashMap::new);
             for vertex in &vertices2 {
                 sieve.add_arrow(cell2.clone(), vertex.clone());
             }
@@ -151,15 +183,17 @@ mod tests {
 
             let shared_edge = (shared_vertices[0], shared_vertices[1]);
             let edge_count = sieve.adjacency.get(&shared_edge.0).map_or(0, |adj| {
-                adj.iter().filter(|entry| {
-                    if let MeshEntity::Edge(_) = entry.key() {
-                        sieve.adjacency.get(entry.key()).map_or(false, |edge_adj| {
-                            edge_adj.contains_key(&shared_edge.1)
-                        })
-                    } else {
-                        false
-                    }
-                }).count()
+                adj.iter()
+                    .filter(|entry| {
+                        if let MeshEntity::Edge(_) = entry.key() {
+                            sieve.adjacency.get(entry.key()).map_or(false, |edge_adj| {
+                                edge_adj.contains_key(&shared_edge.1)
+                            })
+                        } else {
+                            false
+                        }
+                    })
+                    .count()
             });
 
             assert_eq!(edge_count, 1, "Shared edge should not be duplicated");

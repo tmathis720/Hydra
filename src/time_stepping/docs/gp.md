@@ -546,3 +546,5 @@ mod tests {
 5. **Validation**:
    - Compare results with analytical or benchmark problems.
    - Verify convergence and stability of time-stepping methods.
+
+Start by generating the complete code for Step 1 above.

@@ -4,6 +4,8 @@ use super::super::domain::section::{Vector3, Tensor3x3, Scalar, Vector2};
 
 pub trait UpdateState {
     fn update_state(&mut self, derivative: &Self, dt: f64);
+    fn difference(&self, other: &Self) -> Self; // Returns the difference between states
+    fn norm(&self) -> f64; // Returns the norm (magnitude) of the state
 }
 
 #[derive(Clone)]
@@ -68,6 +70,14 @@ impl UpdateState for Fields {
             }
         }
         // Repeat for vector_fields and tensor_fields as needed
+    }
+    
+    fn difference(&self, _other: &Self) -> Self {
+        todo!()
+    }
+    
+    fn norm(&self) -> f64 {
+        todo!()
     }
 }
 

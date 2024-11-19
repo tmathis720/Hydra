@@ -121,6 +121,7 @@ where
         &mut self,
         _problem: &P,
         _state: &mut P::State,
+        _tol: f64,
     ) -> Result<P::Time, TimeSteppingError> {
         Err(TimeSteppingError::InvalidStep)
     }

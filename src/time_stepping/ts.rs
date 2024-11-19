@@ -50,6 +50,7 @@ where
         &mut self,
         problem: &P,
         state: &mut P::State,
+        tol: f64,
     ) -> Result<P::Time, TimeSteppingError>;
 
     fn set_time_interval(&mut self, start_time: P::Time, end_time: P::Time);
@@ -116,6 +117,7 @@ where
         &mut self,
         _problem: &P,
         _state: &mut P::State,
+        _tol: f64,
     ) -> Result<P::Time, TimeSteppingError> {
         Err(TimeSteppingError::InvalidStep)
     }
