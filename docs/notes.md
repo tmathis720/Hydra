@@ -1,0 +1,11 @@
+https://www.grc.nasa.gov/WWW/wind/valid/fpturb/fpturb.html
+https://www.grc.nasa.gov/WWW/wind/valid/lamcyl/lam_cyl.html
+https://www.grc.nasa.gov/WWW/wind/valid/cavity/cavity.html
+http://cfd.mace.manchester.ac.uk/ercoftac/doku.php?id=cases:case005
+http://cfd.mace.manchester.ac.uk/ercoftac/doku.php?id=cases:case016
+http://cfd.mace.manchester.ac.uk/ercoftac/doku.php?id=cases:case020
+http://cfd.mace.manchester.ac.uk/ercoftac/doku.php?id=cases:case046
+http://cfd.mace.manchester.ac.uk/ercoftac/doku.php?id=cases:case049
+https://turbmodels.larc.nasa.gov/bump3d.html
+https://turbmodels.larc.nasa.gov/multielementverif.html
+https://turbmodels.larc.nasa.gov/flatplate.html
