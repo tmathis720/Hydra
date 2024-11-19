@@ -1,13 +1,13 @@
 use crate::domain::mesh_entity::MeshEntity;
 use crate::domain::sieve::Sieve;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 impl Sieve {
     /// Infers and adds missing edges (in 2D) or faces (in 3D) based on existing cells and vertices.
     /// For 2D meshes, this method generates edges by connecting vertices of a cell.
     /// These edges are then associated with the corresponding vertices in the sieve.
     pub fn fill_missing_entities(&self) {
-        let mut edge_set: HashSet<(MeshEntity, MeshEntity)> = HashSet::new();
+        let mut edge_set: FxHashSet<(MeshEntity, MeshEntity)> = FxHashSet::default();
         let mut next_edge_id = 0;
 
         for entry in self.adjacency.iter() {
