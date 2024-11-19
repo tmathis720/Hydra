@@ -7,56 +7,67 @@ mod tests {
     use crate::time_stepping::{TimeDependentProblem, TimeStepper, TimeSteppingError};
     use crate::Matrix;
 
-    #[derive(Clone)]
+    /// Represents a simple state with a scalar value
+    #[derive(Clone, Debug)]
     struct MockState {
         value: f64,
     }
 
+    /// Trait implementation for updating and calculating differences in state
     impl UpdateState for MockState {
         fn update_state(&mut self, derivative: &Self, dt: f64) {
             self.value += derivative.value * dt;
         }
-        
-        fn difference(&self, _other: &Self) -> Self {
-            todo!()
+
+        fn difference(&self, other: &Self) -> Self {
+            MockState {
+                value: self.value - other.value,
+            }
         }
-        
+
         fn norm(&self) -> f64 {
-            todo!()
+            self.value.abs() // L1 norm for simplicity
         }
     }
 
+    /// Represents a simple problem with exponential decay dynamics
     struct MockProblem;
 
     impl TimeDependentProblem for MockProblem {
         type State = MockState;
         type Time = f64;
 
+        /// Computes the derivative (RHS) of the state
         fn compute_rhs(
             &self,
             _time: Self::Time,
             state: &Self::State,
             derivative: &mut Self::State,
         ) -> Result<(), TimeSteppingError> {
-            derivative.value = -state.value; // Simple exponential decay
+            derivative.value = -state.value; // Exponential decay
             Ok(())
         }
 
+        /// Provides the initial state
         fn initial_state(&self) -> Self::State {
-            MockState { value: 1.0 }
+            MockState { value: 1.0 } // Initial value for the problem
         }
 
+        /// Mock implementation returns no matrix
         fn get_matrix(&self) -> Option<Box<dyn Matrix<Scalar = f64>>> {
             None
         }
 
+        /// Mock implementation of solving a linear system (not used)
         fn solve_linear_system(
             &self,
             _matrix: &mut dyn Matrix<Scalar = f64>,
             _state: &mut Self::State,
             _rhs: &Self::State,
         ) -> Result<(), TimeSteppingError> {
-            Err(TimeSteppingError::SolverError("No solver in mock".into()))
+            Err(TimeSteppingError::SolverError(
+                "No solver implemented for MockProblem".into(),
+            ))
         }
     }
 
@@ -69,7 +80,10 @@ mod tests {
         let tol = 1e-3;
         let result = solver.adaptive_step(&problem, &mut state, tol);
         assert!(result.is_ok());
-        assert!(solver.get_time_step() < 0.1, "Step size should decrease if error is high.");
+        assert!(
+            solver.get_time_step() < 0.1,
+            "Step size should decrease if error is high."
+        );
     }
 
     #[test]
@@ -78,6 +92,17 @@ mod tests {
         let state = problem.initial_state();
         let error = estimate_error(&problem, &state, 0.1).unwrap();
         assert!(error > 0.0, "Error should be positive.");
+    }
+
+    #[test]
+    fn test_step_size_control() {
+        let current_dt = 0.1;
+        let error = 0.01;
+        let tol = 1e-3;
+        let safety_factor = 0.9;
+        let growth_factor = 2.0;
+        let new_dt = adjust_step_size(current_dt, error, tol, safety_factor, growth_factor);
+        assert!(new_dt < current_dt, "Step size should decrease when error is high.");
     }
 
     #[test]

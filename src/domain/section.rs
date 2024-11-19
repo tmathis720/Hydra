@@ -2,6 +2,7 @@ use dashmap::DashMap;
 use rayon::prelude::*;
 use crate::domain::mesh_entity::MeshEntity;
 use std::ops::{AddAssign, Mul};
+use std::ops::{Add, Sub, Neg, Div};
 
 /// Represents a 3D vector with three floating-point components.
 #[derive(Clone, Copy, Debug)]
@@ -71,7 +72,7 @@ impl<'a> IntoIterator for &'a Vector3 {
 }
 
 /// Represents a 3x3 tensor with floating-point components.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Tensor3x3(pub [[f64; 3]; 3]);
 
 impl AddAssign for Tensor3x3 {
@@ -125,7 +126,7 @@ impl Mul<f64> for Scalar {
 }
 
 /// Represents a 2D vector with two floating-point components.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Vector2(pub [f64; 2]);
 
 impl AddAssign for Vector2 {
@@ -149,7 +150,7 @@ impl Mul<f64> for Vector2 {
 }
 
 /// A generic `Section` struct that associates data of type `T` with `MeshEntity` elements.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Section<T> {
     /// A thread-safe map storing data of type `T` associated with `MeshEntity` objects.
     pub data: DashMap<MeshEntity, T>,
@@ -225,6 +226,73 @@ where
         self.parallel_update(|value| {
             *value = value.clone() * factor;
         });
+    }
+}
+
+// Add for Section<Scalar>
+impl Add for Section<Scalar> {
+    type Output = Section<Scalar>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let result = self.clone();
+        for entry in rhs.data.iter() {
+            let (key, value) = entry.pair(); // Access key-value pair
+            if let Some(mut current) = result.data.get_mut(key) {
+                current.value_mut().0 += value.0;
+            } else {
+                result.set_data(*key, *value);
+            }
+        }
+        result
+    }
+}
+
+
+// Sub for Section<Scalar>
+impl Sub for Section<Scalar> {
+    type Output = Section<Scalar>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        let result = self.clone();
+        for entry in rhs.data.iter() {
+            let (key, value) = entry.pair(); // Access key-value pair
+            if let Some(mut current) = result.data.get_mut(key) {
+                current.value_mut().0 -= value.0;
+            } else {
+                result.set_data(*key, Scalar(-value.0));
+            }
+        }
+        result
+    }
+}
+
+
+// Neg for Section<Scalar>
+impl Neg for Section<Scalar> {
+    type Output = Section<Scalar>;
+
+    fn neg(self) -> Self::Output {
+        let result = self.clone();
+        for mut entry in result.data.iter_mut() {
+            let (_, value) = entry.pair_mut(); // Access mutable key-value pair
+            value.0 = -value.0;
+        }
+        result
+    }
+}
+
+
+// Div for Section<Scalar>
+impl Div<f64> for Section<Scalar> {
+    type Output = Section<Scalar>;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        let result = self.clone();
+        for mut entry in result.data.iter_mut() {
+            let (_, value) = entry.pair_mut(); // Access mutable key-value pair
+            value.0 /= rhs;
+        }
+        result
     }
 }
 

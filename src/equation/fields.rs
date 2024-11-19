@@ -8,7 +8,7 @@ pub trait UpdateState {
     fn norm(&self) -> f64; // Returns the norm (magnitude) of the state
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Fields {
     pub scalar_fields: FxHashMap<String, Section<Scalar>>,
     pub vector_fields: FxHashMap<String, Section<Vector3>>,

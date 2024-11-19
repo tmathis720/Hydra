@@ -87,6 +87,7 @@ where
         &mut self,
         problem: &P,
         state: &mut P::State,
+        tol: f64,
     ) -> Result<P::Time, TimeSteppingError>;
 
     fn set_time_interval(&mut self, start_time: P::Time, end_time: P::Time);
@@ -153,6 +154,7 @@ where
         &mut self,
         _problem: &P,
         _state: &mut P::State,
+        _tol: f64,
     ) -> Result<P::Time, TimeSteppingError> {
         Err(TimeSteppingError::InvalidStep)
     }
@@ -178,7 +180,8 @@ where
 `src/time_stepping/adaptivity/mod.rs`
 
 ```rust
-
+pub mod error_estimate;
+pub mod step_size_control;
 ```
 
 ---
@@ -186,6 +189,71 @@ where
 `src/time_stepping/adaptivity/error_estimate.rs`
 
 ```rust
+use crate::{equation::fields::UpdateState, time_stepping::{TimeDependentProblem, TimeSteppingError}};
+
+pub fn estimate_error<P>(
+    problem: &P,
+    state: &P::State,
+    dt: P::Time,
+) -> Result<f64, TimeSteppingError>
+where
+    P: TimeDependentProblem,
+    P::State: Clone,
+    P::Time: Into<f64> + From<f64> + Copy,
+{
+    // Clone the initial state to preserve the original for comparison
+    let mut single_step_state = state.clone();
+    let mut two_half_steps_state = state.clone();
+
+    // Perform a single full step
+    let mut rhs = state.clone();
+    problem.compute_rhs(
+        P::Time::from(0.0), // Assume starting time is 0 for simplicity
+        state,
+        &mut rhs,
+    )?;
+    let single_rhs = rhs.clone(); // Save RHS to avoid re-borrowing
+    single_step_state.update_state(&single_rhs, dt.into());
+
+    // Perform two half-steps
+    let half_dt = P::Time::from(dt.into() * 0.5);
+    let mut rhs_half = state.clone();
+    problem.compute_rhs(
+        P::Time::from(0.0),
+        state,
+        &mut rhs_half,
+    )?;
+    let first_half_rhs = rhs_half.clone();
+    two_half_steps_state.update_state(&first_half_rhs, half_dt.into());
+
+    let mut second_rhs_half = two_half_steps_state.clone();
+    problem.compute_rhs(
+        P::Time::from(half_dt.into()),
+        &two_half_steps_state,
+        &mut second_rhs_half,
+    )?;
+    two_half_steps_state.update_state(&second_rhs_half, half_dt.into());
+
+    // Compute the error as the difference between the two states
+    let error = compute_state_difference(&single_step_state, &two_half_steps_state)?;
+
+    Ok(error)
+}
+
+// Helper function to compute the difference between two states
+fn compute_state_difference<S>(state1: &S, state2: &S) -> Result<f64, TimeSteppingError>
+where
+    S: Clone + UpdateState,
+{
+    // This assumes that the state has a method to calculate norm or difference.
+    // Replace with appropriate norm calculation for the state type.
+    let difference_norm = state1
+        .clone()
+        .difference(state2)
+        .norm(); // You need to implement difference and norm in the `UpdateState` trait
+
+    Ok(difference_norm)
+}
 
 ```
 
@@ -194,6 +262,17 @@ where
 `src/time_stepping/adaptivity/step_size_control.rs`
 
 ```rust
+pub fn adjust_step_size(
+    current_dt: f64,
+    error: f64,
+    tol: f64,
+    safety_factor: f64,
+    growth_factor: f64,
+) -> f64 {
+    let ratio = (tol / error).powf(0.5); // Using a 2nd-order method assumption
+    let new_dt = safety_factor * current_dt * ratio;
+    new_dt.clamp(current_dt / growth_factor, current_dt * growth_factor)
+}
 
 ```
 
@@ -211,6 +290,8 @@ pub mod backward_euler;
 `src/time_stepping/methods/euler.rs`
 
 ```rust
+use crate::time_stepping::adaptivity::error_estimate::estimate_error;
+use crate::time_stepping::adaptivity::step_size_control::adjust_step_size;
 use crate::time_stepping::{TimeStepper, TimeDependentProblem, TimeSteppingError};
 use crate::equation::fields::UpdateState;
 
@@ -267,12 +348,29 @@ where
 
     fn adaptive_step(
         &mut self,
-        _problem: &P,
-        _state: &mut P::State,
+        problem: &P,
+        state: &mut P::State,
+        tol: f64,
     ) -> Result<P::Time, TimeSteppingError> {
-        // For simplicity, not implemented
-        unimplemented!()
+        let mut error = f64::INFINITY;
+        let mut dt = self.time_step.into();
+        while error > tol {
+            // Compute high-order step
+            let mut temp_state = state.clone();
+            let mid_dt = P::Time::from(0.5 * dt);
+            self.step(problem, mid_dt, self.current_time, &mut temp_state)?;
+
+            // Compute full step for comparison
+            let mut high_order_state = temp_state.clone();
+            self.step(problem, mid_dt, self.current_time + mid_dt, &mut high_order_state)?;
+
+            error = estimate_error(problem, state, P::Time::from(dt))?;
+            dt = adjust_step_size(dt, error, tol, 0.9, 2.0);
+        }
+        self.set_time_step(P::Time::from(dt));
+        Ok(P::Time::from(dt))
     }
+    
 
     fn set_time_interval(&mut self, start_time: P::Time, end_time: P::Time) {
         self.start_time = start_time;
@@ -287,6 +385,7 @@ where
         self.time_step
     }
 }
+
 ```
 
 ---
@@ -351,6 +450,7 @@ where
         &mut self,
         _problem: &P,
         _state: &mut P::State,
+        _tol: f64,
     ) -> Result<P::Time, TimeSteppingError> {
         // Adaptive step logic (placeholder)
         Ok(self.time_step.into())
@@ -547,4 +647,4 @@ mod tests {
    - Compare results with analytical or benchmark problems.
    - Verify convergence and stability of time-stepping methods.
 
-Start by generating the complete code for Step 1 above.
+Evaluate the source code provided above, and complete the implementation of all functions, pointers, tests, etc. in the stubs provided. Provide basic documentation and comments for generated code.
