@@ -116,7 +116,7 @@ impl Equation {
 }
 
 
-/* #[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::interface_adapters::domain_adapter::DomainBuilder;
@@ -208,4 +208,3 @@ mod tests {
     }
 
 }
- */
