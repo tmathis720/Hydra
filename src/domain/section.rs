@@ -5,7 +5,7 @@ use std::ops::{AddAssign, Mul};
 use std::ops::{Add, Sub, Neg, Div};
 
 /// Represents a 3D vector with three floating-point components.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Vector3(pub [f64; 3]);
 
 impl AddAssign for Vector3 {
@@ -44,12 +44,33 @@ impl std::ops::Index<usize> for Vector3 {
     }
 }
 
+impl Sub for Vector3 {
+    type Output = Vector3;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vector3([
+            self.0[0] - rhs.0[0],
+            self.0[1] - rhs.0[1],
+            self.0[2] - rhs.0[2],
+        ])
+    }
+}
+
+impl Neg for Vector3 {
+    type Output = Vector3;
+
+    fn neg(self) -> Self::Output {
+        Vector3([-self.0[0], -self.0[1], -self.0[2]])
+    }
+}
+
 impl std::ops::IndexMut<usize> for Vector3 {
     /// Provides mutable access to the indexed component of the vector.
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.0[index]
     }
 }
+
 
 impl IntoIterator for Vector3 {
     type Item = f64;
@@ -72,7 +93,7 @@ impl<'a> IntoIterator for &'a Vector3 {
 }
 
 /// Represents a 3x3 tensor with floating-point components.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tensor3x3(pub [[f64; 3]; 3]);
 
 impl AddAssign for Tensor3x3 {
@@ -104,7 +125,7 @@ impl Mul<f64> for Tensor3x3 {
 }
 
 /// Represents a scalar value.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Scalar(pub f64);
 
 impl AddAssign for Scalar {
@@ -126,7 +147,7 @@ impl Mul<f64> for Scalar {
 }
 
 /// Represents a 2D vector with two floating-point components.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Vector2(pub [f64; 2]);
 
 impl AddAssign for Vector2 {
@@ -291,6 +312,29 @@ impl Div<f64> for Section<Scalar> {
         for mut entry in result.data.iter_mut() {
             let (_, value) = entry.pair_mut(); // Access mutable key-value pair
             value.0 /= rhs;
+        }
+        result
+    }
+}
+
+impl Sub for Section<Vector3> {
+    type Output = Section<Vector3>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        let result = Section::new();
+        for entry in rhs.data.iter() {
+            let (key, value) = entry.pair();
+            if let Some(current) = self.data.get(key) {
+                result.set_data(*key, *current.value() - *value);
+            } else {
+                result.set_data(*key, -*value);
+            }
+        }
+        for entry in self.data.iter() {
+            let (key, value) = entry.pair();
+            if !rhs.data.contains_key(key) {
+                result.set_data(*key, *value);
+            }
         }
         result
     }

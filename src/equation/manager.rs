@@ -95,7 +95,7 @@ impl TimeDependentProblem for EquationManager {
 }
 
 // Temporary no-op stepper for handling ownership.
-struct NoOpStepper;
+pub struct NoOpStepper;
 
 impl<P> TimeStepper<P> for NoOpStepper
 where
@@ -132,5 +132,93 @@ where
 
     fn get_time_step(&self) -> P::Time {
         P::Time::from(0.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        boundary::bc_handler::BoundaryConditionHandler,
+        domain::{mesh::Mesh, section::Scalar},
+        MeshEntity,
+    };
+    use std::sync::{Arc, RwLock};
+
+    struct MockEquation;
+    impl PhysicalEquation for MockEquation {
+        fn assemble(
+            &self,
+            _domain: &Mesh,
+            _fields: &Fields,
+            _fluxes: &mut Fluxes,
+            _boundary_handler: &BoundaryConditionHandler,
+            _current_time: f64,
+        ) {
+            // Mock behavior: adds a dummy flux
+            _fluxes.add_energy_flux(MeshEntity::Face(0), Scalar(1.0));
+        }
+    }
+
+    fn setup_environment() -> (Arc<RwLock<Mesh>>, Arc<RwLock<BoundaryConditionHandler>>) {
+        let domain = Arc::new(RwLock::new(Mesh::new()));
+        let boundary_handler = Arc::new(RwLock::new(BoundaryConditionHandler::new()));
+        (domain, boundary_handler)
+    }
+
+    #[test]
+    fn test_add_equation() {
+        let (domain, boundary_handler) = setup_environment();
+        let mut manager = EquationManager::new(Box::new(NoOpStepper), domain, boundary_handler);
+
+        manager.add_equation(MockEquation {});
+        assert_eq!(manager.equations.len(), 1);
+    }
+
+    #[test]
+    fn test_assemble_all() {
+        let (domain, boundary_handler) = setup_environment();
+        let mut manager = EquationManager::new(Box::new(NoOpStepper), domain, boundary_handler);
+
+        manager.add_equation(MockEquation {});
+        let fields = Fields::new();
+        let mut fluxes = Fluxes::new();
+
+        manager.assemble_all(&fields, &mut fluxes);
+
+        // Verify flux was added
+        assert_eq!(fluxes.energy_fluxes.data.len(), 1);
+    }
+
+    #[test]
+    fn test_step() {
+        let (domain, boundary_handler) = setup_environment();
+        let mut manager = EquationManager::new(Box::new(NoOpStepper), domain, boundary_handler);
+
+        let mut fields = Fields::new();
+        manager.step(&mut fields);
+
+        // Verify step completes without error
+    }
+
+    #[test]
+    fn test_compute_rhs() {
+        let (domain, boundary_handler) = setup_environment();
+        let manager = EquationManager::new(Box::new(NoOpStepper), domain, boundary_handler);
+
+        let fields = Fields::new();
+        let mut derivative = Fields::new();
+        let result = manager.compute_rhs(0.0, &fields, &mut derivative);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_initial_state() {
+        let (domain, boundary_handler) = setup_environment();
+        let manager = EquationManager::new(Box::new(NoOpStepper), domain, boundary_handler);
+
+        let state = manager.initial_state();
+        assert_eq!(state.scalar_fields.len(), 0);
     }
 }

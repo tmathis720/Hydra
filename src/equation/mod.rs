@@ -26,5 +26,5 @@ pub trait PhysicalEquation {
     );
 }
 
-// Removed generic parameter `T` from `PhysicalEquation`
-// Updated imports and structures to align with new `Fields` implementation
+#[cfg(test)]
+pub mod tests;
