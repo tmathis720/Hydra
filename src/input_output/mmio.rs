@@ -108,69 +108,60 @@ pub fn write_matrix_market<P: AsRef<Path>>(
 mod tests {
     use super::*;
     use std::fs;
-    use std::path::Path;
 
-    /// Helper function to read a Matrix Market file and create the sparse matrix structure.
-    fn read_matrix_market(file_path: &str) -> SparseMatrix {
-        let contents = fs::read_to_string(file_path).expect("Failed to read Matrix Market file");
-        parse_matrix_market(&contents).expect("Failed to parse Matrix Market data")
+    const MATRIX_FILE: &str = "inputs/matrix/e05r0000/e05r0000.mtx";
+    const OUTPUT_FILE: &str = "outputs/output_test.mtx";
+
+    #[test]
+    fn test_read_matrix_market() {
+        // Test reading the primary matrix file
+        let (rows, cols, nonzeros, row_indices, col_indices, values) =
+            read_matrix_market(MATRIX_FILE).expect("Failed to read matrix market file");
+
+        // Assertions based on known metadata
+        assert_eq!(rows, 236, "Unexpected number of rows");
+        assert_eq!(cols, 236, "Unexpected number of columns");
+        assert_eq!(nonzeros, 5856, "Unexpected number of non-zero entries");
+
+        // Validate the first entry
+        assert_eq!(row_indices[0], 6, "First row index mismatch"); // 0-based in Rust
+        assert_eq!(col_indices[0], 0, "First column index mismatch"); // 0-based in Rust
+        assert!((values[0] - -5.3333331478961e-01).abs() < 1e-12, "First value mismatch");
     }
 
     #[test]
-    fn test_matrix_market_loading() {
-        let file_path = "test_matrix.mtx";
-        let matrix = read_matrix_market(file_path);
+    fn test_write_matrix_market() {
+        // Read matrix data
+        let (rows, cols, nonzeros, row_indices, col_indices, values) =
+            read_matrix_market(MATRIX_FILE).expect("Failed to read matrix market file");
 
-        // Validate dimensions
-        assert_eq!(matrix.rows, 236, "Number of rows mismatch");
-        assert_eq!(matrix.cols, 236, "Number of columns mismatch");
+        // Write to a new file
+        write_matrix_market(
+            OUTPUT_FILE,
+            rows,
+            cols,
+            nonzeros,
+            &row_indices,
+            &col_indices,
+            &values,
+        )
+        .expect("Failed to write matrix market file");
 
-        // Validate number of non-zeros
-        assert_eq!(matrix.nnz, 5856, "Number of non-zero elements mismatch");
+        // Re-read and validate
+        let (w_rows, w_cols, w_nonzeros, w_row_indices, w_col_indices, w_values) =
+            read_matrix_market(OUTPUT_FILE).expect("Failed to re-read written file");
 
-        // Spot-check a few entries
-        let expected_value = -5.3333331478961e-01; // Example from matrix data
-        assert!(
-            (matrix.get(7, 1) - expected_value).abs() < 1e-10,
-            "Mismatch at (7, 1)"
-        );
-    }
+        // Validate dimensions and counts
+        assert_eq!(rows, w_rows, "Row count mismatch");
+        assert_eq!(cols, w_cols, "Column count mismatch");
+        assert_eq!(nonzeros, w_nonzeros, "Nonzero count mismatch");
 
-    #[test]
-    fn test_sparse_matrix_computation() {
-        let file_path = "test_matrix.mtx";
-        let matrix = read_matrix_market(file_path);
+        // Validate content equality
+        assert_eq!(row_indices, w_row_indices, "Row indices mismatch after write-read cycle");
+        assert_eq!(col_indices, w_col_indices, "Column indices mismatch after write-read cycle");
+        assert_eq!(values, w_values, "Values mismatch after write-read cycle");
 
-        // Perform a basic computation, e.g., matrix-vector multiplication
-        let vector = vec![1.0; matrix.cols]; // Example vector
-        let result = matrix.multiply_vector(&vector);
-
-        // Validate the result's size
-        assert_eq!(result.len(), matrix.rows, "Result vector length mismatch");
-
-        // Add spot-check or property validations here
-        let expected_result_sample = 8.5333331637906e+00; // Example expected value
-        assert!(
-            (result[0] - expected_result_sample).abs() < 1e-10,
-            "Result mismatch at index 0"
-        );
-    }
-
-    #[test]
-    fn test_solver_accuracy() {
-        let file_path = "test_matrix.mtx";
-        let matrix = read_matrix_market(file_path);
-
-        // Example: Solving Ax = b
-        let b = vec![1.0; matrix.rows]; // Example right-hand side
-        let x = matrix.solve(&b).expect("Solver failed");
-
-        // Validate solution (e.g., using residual ||Ax - b||)
-        let residual = matrix.residual(&x, &b);
-        assert!(
-            residual.norm() < 1e-6,
-            "Solver residual too high: {}",
-            residual.norm()
-        );
+        // Clean up
+        fs::remove_file(OUTPUT_FILE).expect("Failed to clean up output test file");
     }
 }

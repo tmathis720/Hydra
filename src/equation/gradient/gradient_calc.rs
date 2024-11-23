@@ -137,6 +137,12 @@ impl FiniteVolumeGradient {
                 BoundaryCondition::Cauchy { lambda, mu } => {
                     self.apply_cauchy_boundary(lambda, mu, flux_vector, grad_phi);
                 }
+                BoundaryCondition::SolidWallInviscid => {
+                    self.apply_solid_wall_inviscid_boundary(phi_c, flux_vector, grad_phi);
+                }
+                BoundaryCondition::SolidWallViscous { normal_velocity } => {
+                    self.apply_solid_wall_viscous_boundary(normal_velocity, flux_vector, grad_phi);
+                }
             }
         }
         Ok(())
@@ -169,6 +175,23 @@ impl FiniteVolumeGradient {
     fn apply_cauchy_boundary(&self, lambda: f64, mu: f64, flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
         for i in 0..3 {
             grad_phi[i] += lambda * flux_vector[i] + mu;
+        }
+    }
+
+    /// Applies an inviscid solid wall boundary condition by ensuring no normal flux.
+    fn apply_solid_wall_inviscid_boundary(&self, _phi_c: f64, flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
+        // For inviscid walls, the normal flux is zero; no contribution to grad_phi.
+        let no_flux = 0.0;
+        for i in 0..3 {
+            grad_phi[i] += no_flux * flux_vector[i];
+        }
+    }
+
+    /// Applies a viscous solid wall boundary condition by enforcing no-slip velocity.
+    fn apply_solid_wall_viscous_boundary(&self, normal_velocity: f64, flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
+        // For viscous walls, the velocity at the wall is equal to the normal velocity.
+        for i in 0..3 {
+            grad_phi[i] += normal_velocity * flux_vector[i];
         }
     }
     

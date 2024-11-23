@@ -23,6 +23,7 @@ use crate::boundary::neumann::NeumannBC;
 use crate::boundary::robin::RobinBC;
 use crate::boundary::mixed::MixedBC;
 use crate::boundary::cauchy::CauchyBC;
+use crate::boundary::solid_wall::SolidWallBC;
 use faer::MatMut;
 
 pub type BoundaryConditionFn = Arc<dyn Fn(f64, &[f64]) -> f64 + Send + Sync>;
@@ -66,6 +67,8 @@ pub enum BoundaryCondition {
     Robin { alpha: f64, beta: f64 },
     Mixed { gamma: f64, delta: f64 },
     Cauchy { lambda: f64, mu: f64 },
+    SolidWallInviscid,
+    SolidWallViscous { normal_velocity: f64 },
     DirichletFn(FunctionWrapper),
     NeumannFn(FunctionWrapper),
 }
@@ -146,6 +149,10 @@ impl BoundaryConditionHandler {
                         let robin_bc = RobinBC::new();
                         robin_bc.apply_robin(matrix, rhs, index, alpha, beta);
                     }
+                    BoundaryCondition::SolidWallInviscid | BoundaryCondition::SolidWallViscous { .. } => {
+                        let solid_wall_bc = SolidWallBC::new();
+                        solid_wall_bc.apply_bc(matrix, rhs, entity_to_index);
+                    }
                     BoundaryCondition::DirichletFn(wrapper) => {
                         let coords = [0.0, 0.0, 0.0];
                         let value = (wrapper.function)(time, &coords);
@@ -209,6 +216,10 @@ impl BoundaryConditionApply for BoundaryCondition {
             BoundaryCondition::Robin { alpha, beta } => {
                 let robin_bc = RobinBC::new();
                 robin_bc.apply_robin(matrix, rhs, index, *alpha, *beta);
+            }
+            BoundaryCondition::SolidWallInviscid | BoundaryCondition::SolidWallViscous { .. } => {
+                let solid_wall_bc = SolidWallBC::new();
+                solid_wall_bc.apply_bc(matrix, rhs, entity_to_index);
             }
             BoundaryCondition::DirichletFn(wrapper) => {
                 let coords = [0.0, 0.0, 0.0];
