@@ -22,13 +22,6 @@ use lazy_static::lazy_static;
 /// The `Mesh` struct is the central component for managing mesh entities and  
 /// their relationships. It stores entities such as vertices, edges, faces,  
 /// and cells, along with their geometric data and boundary-related information.  
-/// 
-/// Example usage:
-/// 
-///    let mesh = Mesh::new();  
-///    let entity = MeshEntity::Vertex(1);  
-///    mesh.entities.write().unwrap().insert(entity);  
-/// 
 #[derive(Clone, Debug)]
 pub struct Mesh {
     /// The sieve structure used for organizing the mesh entities' relationships.  
@@ -56,12 +49,6 @@ impl Mesh {
     ///
     /// The `Sender` and `Receiver` are unbounded channels used to pass boundary  
     /// data between mesh modules asynchronously.
-    /// 
-    /// Example usage:
-    /// 
-    ///    let mesh = Mesh::new();  
-    ///    assert!(mesh.entities.read().unwrap().is_empty());  
-    /// 
     pub fn new() -> Self {
         let (sender, receiver) = crossbeam::channel::unbounded();
         Mesh {

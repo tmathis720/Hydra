@@ -1,41 +1,24 @@
-// src/domain/mesh_entity.rs
-
 /// Represents an entity in a mesh, such as a vertex, edge, face, or cell, 
-/// using a unique identifier for each entity type.  
+/// using a unique identifier for each entity type.
 /// 
 /// The `MeshEntity` enum defines four types of mesh entities:
-/// - Vertex: Represents a point in the mesh.
-/// - Edge: Represents a connection between two vertices.
-/// - Face: Represents a polygonal area bounded by edges.
-/// - Cell: Represents a volumetric region of the mesh.
-///
-/// Example usage:
-///
-///    let vertex = MeshEntity::Vertex(1);  
-///    let edge = MeshEntity::Edge(2);  
-///    assert_eq!(vertex.get_id(), 1);  
-///    assert_eq!(vertex..get_entity_type(), "Vertex");  
-///    assert_eq!(edge.get_id(), 2);  
-/// 
+/// - `Vertex`: Represents a point in the mesh.
+/// - `Edge`: Represents a connection between two vertices.
+/// - `Face`: Represents a polygonal area bounded by edges.
+/// - `Cell`: Represents a volumetric region of the mesh.
 #[derive(Debug, Hash, Eq, PartialEq, PartialOrd, Clone, Copy)]
 pub enum MeshEntity {
-    Vertex(usize),  // Vertex id 
-    Edge(usize),    // Edge id 
-    Face(usize),    // Face id 
-    Cell(usize),    // Cell id 
+    Vertex(usize),  // Identifier for a vertex
+    Edge(usize),    // Identifier for an edge
+    Face(usize),    // Identifier for a face
+    Cell(usize),    // Identifier for a cell
 }
 
 impl MeshEntity {
-    /// Returns the unique identifier associated with the `MeshEntity`.  
+    /// Retrieves the unique identifier for the `MeshEntity`.
     ///
-    /// This function matches the enum variant and returns the id for that 
-    /// particular entity (e.g., for a `Vertex`, it will return the vertex id).  
-    ///
-    /// Example usage:
-    /// 
-    ///    let vertex = MeshEntity::Vertex(3);  
-    ///    assert_eq!(vertex.get_id(), 3);  
-    ///
+    /// Matches the entity type (Vertex, Edge, Face, or Cell) and returns its id.
+    /// This function is often used to distinguish between specific instances of entities.
     pub fn get_id(&self) -> usize {
         match *self {
             MeshEntity::Vertex(id) => id,
@@ -45,14 +28,9 @@ impl MeshEntity {
         }
     }
 
-    /// Returns the type of the `MeshEntity` as a string, indicating whether  
-    /// the entity is a Vertex, Edge, Face, or Cell.  
+    /// Retrieves the entity type as a string (`"Vertex"`, `"Edge"`, `"Face"`, or `"Cell"`).
     ///
-    /// Example usage:
-    /// 
-    ///    let face = MeshEntity::Face(1);  
-    ///    assert_eq!(face..get_entity_type(), "Face");  
-    ///
+    /// This is useful for logging, debugging, or general introspection of the entity type.
     pub fn get_entity_type(&self) -> &str {
         match *self {
             MeshEntity::Vertex(_) => "Vertex",
@@ -62,9 +40,10 @@ impl MeshEntity {
         }
     }
 
-    /// Creates a new `MeshEntity` with a specified id for each variant type.
-    /// This is a pseudo-set function since enums require construction with
-    /// new data to update the id.
+    /// Creates a new `MeshEntity` with a specified identifier.
+    ///
+    /// This function can be used to "update" an existing entity by creating a new instance
+    /// with a different identifier. Enums are immutable, so new data is required for changes.
     pub fn with_id(&self, new_id: usize) -> Self {
         match *self {
             MeshEntity::Vertex(_) => MeshEntity::Vertex(new_id),
@@ -75,71 +54,49 @@ impl MeshEntity {
     }
 }
 
-/// A struct representing a directed relationship between two mesh entities,  
-/// known as an `Arrow`. It holds the "from" and "to" entities, representing  
-/// a connection from one entity to another.  
-///
-/// Example usage:
-/// 
-///    let from = MeshEntity::Vertex(1);  
-///    let to = MeshEntity::Edge(2);  
-///    let arrow = Arrow::new(from, to);  
-///    let (start, end) = arrow.get_relation();  
-///    assert_eq!(*start, MeshEntity::Vertex(1));  
-///    assert_eq!(*end, MeshEntity::Edge(2));  
-/// 
+/// A struct representing a directed relationship between two `MeshEntity` elements,
+/// referred to as an `Arrow`. It stores a "from" entity and a "to" entity, signifying
+/// a directed connection or dependency between the two.
 pub struct Arrow {
-    pub from: MeshEntity,  // The starting entity of the relation 
-    pub to: MeshEntity,    // The ending entity of the relation 
+    pub from: MeshEntity,  // Source entity of the relationship
+    pub to: MeshEntity,    // Target entity of the relationship
 }
 
 impl Arrow {
-    /// Creates a new `Arrow` between two mesh entities.  
+    /// Creates a new `Arrow` between two `MeshEntity` instances.
     ///
-    /// Example usage:
-    /// 
-    ///    let from = MeshEntity::Cell(1);  
-    ///    let to = MeshEntity::Face(3);  
-    ///    let arrow = Arrow::new(from, to);  
-    ///
+    /// The `from` entity represents the starting point, and the `to` entity represents
+    /// the destination of the arrow.
     pub fn new(from: MeshEntity, to: MeshEntity) -> Self {
         Arrow { from, to }
     }
 
-    /// Converts a generic entity type that implements `Into<MeshEntity>` into  
-    /// a `MeshEntity`.  
+    /// Converts any type implementing `Into<MeshEntity>` into a `MeshEntity`.
     ///
-    /// Example usage:
-    /// 
-    ///    let vertex = MeshEntity::Vertex(5);  
-    ///    let entity = Arrow::add_entity(vertex);  
-    ///    assert_eq!(entity.get_id(), 5);  
-    ///
+    /// This function is a utility for constructing mesh entities from other data types
+    /// that can be converted into `MeshEntity`. It simplifies entity creation in contexts
+    /// where generic or derived data types are used.
     pub fn add_entity<T: Into<MeshEntity>>(entity: T) -> MeshEntity {
         entity.into()
     }
 
-    /// Returns a tuple reference of the "from" and "to" entities of the `Arrow`.  
+    /// Returns a reference to the `from` and `to` entities of the `Arrow`.
     ///
-    /// Example usage:
-    /// 
-    ///    let from = MeshEntity::Edge(1);  
-    ///    let to = MeshEntity::Face(2);  
-    ///    let arrow = Arrow::new(from, to);  
-    ///    let (start, end) = arrow.get_relation();  
-    ///    assert_eq!(*start, MeshEntity::Edge(1));  
-    ///    assert_eq!(*end, MeshEntity::Face(2));  
-    ///
+    /// This function is commonly used to inspect the relationship stored in the arrow.
     pub fn get_relation(&self) -> (&MeshEntity, &MeshEntity) {
         (&self.from, &self.to)
     }
 
-    /// Sets the `from` entity in the `Arrow`.
+    /// Updates the `from` entity in the `Arrow` with a new `MeshEntity`.
+    ///
+    /// This allows modifying the source of the arrow after its creation.
     pub fn set_from(&mut self, from: MeshEntity) {
         self.from = from;
     }
 
-    /// Sets the `to` entity in the `Arrow`.
+    /// Updates the `to` entity in the `Arrow` with a new `MeshEntity`.
+    ///
+    /// This allows modifying the destination of the arrow after its creation.
     pub fn set_to(&mut self, to: MeshEntity) {
         self.to = to;
     }
@@ -149,41 +106,50 @@ impl Arrow {
 mod tests {
     use super::*;
 
+    /// Verifies that the correct id and type are returned for various `MeshEntity` instances.
     #[test]
-    /// Test that verifies the id and type of a `MeshEntity` are correctly returned.  
     fn test_entity_id_and_type() {
         let vertex = MeshEntity::Vertex(1);
-        assert_eq!(vertex.get_id(), 1);
-        assert_eq!(vertex.get_entity_type(), "Vertex");
+        assert_eq!(vertex.get_id(), 1); // ID check
+        assert_eq!(vertex.get_entity_type(), "Vertex"); // Type check
     }
 
+    /// Verifies the creation of an `Arrow` and the retrieval of its relationship.
     #[test]
-    /// Test that verifies the creation of an `Arrow` and the correctness of  
-    /// the `get_relation` function.  
     fn test_arrow_creation_and_relation() {
         let vertex = MeshEntity::Vertex(1);
         let edge = MeshEntity::Edge(2);
+
+        // Create a new arrow between a vertex and an edge
         let arrow = Arrow::new(vertex, edge);
+
+        // Retrieve and verify the relationship
         let (from, to) = arrow.get_relation();
         assert_eq!(*from, MeshEntity::Vertex(1));
         assert_eq!(*to, MeshEntity::Edge(2));
     }
 
+    /// Verifies the addition of a new entity using the `add_entity` utility function.
     #[test]
-    /// Test that verifies the addition of an entity using the `add_entity` function.  
     fn test_add_entity() {
         let vertex = MeshEntity::Vertex(5);
+
+        // Convert into a `MeshEntity` using the utility function
         let added_entity = Arrow::add_entity(vertex);
 
-        assert_eq!(added_entity.get_id(), 5);
-        assert_eq!(added_entity.get_entity_type(), "Vertex");
+        assert_eq!(added_entity.get_id(), 5); // ID check
+        assert_eq!(added_entity.get_entity_type(), "Vertex"); // Type check
     }
 
+    /// Verifies that a new `MeshEntity` can be created with a different id using `with_id`.
     #[test]
     fn test_with_id() {
         let edge = MeshEntity::Edge(5);
+
+        // Create a new edge with a different id
         let new_edge = edge.with_id(10);
-        assert_eq!(new_edge.get_id(), 10);
-        assert_eq!(new_edge.get_entity_type(), "Edge");
+
+        assert_eq!(new_edge.get_id(), 10); // New ID check
+        assert_eq!(new_edge.get_entity_type(), "Edge"); // Type remains unchanged
     }
 }

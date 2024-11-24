@@ -3,30 +3,35 @@ use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use crate::domain::mesh_entity::MeshEntity;
 
-/// A `Sieve` struct that manages the relationships (arrows) between `MeshEntity`  
-/// elements, organized in an adjacency map.
-///
-/// The adjacency map tracks directed relations between entities in the mesh.  
-/// It supports operations such as adding relationships, querying direct  
-/// relations (cones), and computing closure and star sets for entities.
+/// A `Sieve` struct that manages the relationships (arrows) between `MeshEntity` elements.
+/// 
+/// The `Sieve` uses an adjacency map to represent directed relations between entities in the mesh.
+/// This structure enables querying relationships like cones, closures, and stars, making it a
+/// versatile tool for managing mesh topology.
 #[derive(Clone, Debug)]
 pub struct Sieve {
-    /// A thread-safe adjacency map where each key is a `MeshEntity`,  
-    /// and the value is a set of `MeshEntity` objects related to the key.  
+    /// Thread-safe adjacency map.
+    /// - **Key**: A `MeshEntity` representing the source entity in the relationship.
+    /// - **Value**: A `DashMap` of `MeshEntity` objects that are related to the key entity.
     pub adjacency: DashMap<MeshEntity, DashMap<MeshEntity, ()>>,
 }
 
 impl Sieve {
-    /// Creates a new empty `Sieve` instance with an empty adjacency map.
+    /// Creates a new `Sieve` instance with an empty adjacency map.
+    ///
+    /// # Returns
+    /// - A new `Sieve` with no relationships.
     pub fn new() -> Self {
         Sieve {
             adjacency: DashMap::new(),
         }
     }
 
-    /// Adds a directed relationship (arrow) between two `MeshEntity` elements.  
-    /// The relationship is stored in the adjacency map from the `from` entity  
-    /// to the `to` entity.
+    /// Adds a directed relationship (arrow) between two `MeshEntity` elements.
+    ///
+    /// # Parameters
+    /// - `from`: The source entity.
+    /// - `to`: The target entity related to the source.
     pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) {
         self.adjacency
             .entry(from)
@@ -34,22 +39,38 @@ impl Sieve {
             .insert(to, ());
     }
 
-    /// Retrieves all entities directly related to the given entity (`point`).  
-    /// This operation is referred to as retrieving the cone of the entity.  
-    /// Returns `None` if there are no related entities.
+    /// Retrieves all entities directly related to the given entity (`point`).
+    ///
+    /// This operation is referred to as retrieving the **cone** of the entity.
+    ///
+    /// # Parameters
+    /// - `point`: The `MeshEntity` for which the cone is retrieved.
+    ///
+    /// # Returns
+    /// - A `Vec<MeshEntity>` containing entities in the cone, or `None` if there are no related entities.
     pub fn cone(&self, point: &MeshEntity) -> Option<Vec<MeshEntity>> {
         self.adjacency.get(point).map(|cone| {
             cone.iter().map(|entry| entry.key().clone()).collect()
         })
     }
 
-    /// Computes the closure of a given `MeshEntity`.  
-    /// The closure includes the entity itself and all entities it covers (cones) recursively.
+    /// Computes the closure of a given `MeshEntity`.
+    ///
+    /// The closure includes:
+    /// - The entity itself.
+    /// - All entities it covers (cones) recursively.
+    ///
+    /// # Parameters
+    /// - `point`: The `MeshEntity` for which the closure is computed.
+    ///
+    /// # Returns
+    /// - A `DashMap` containing all entities in the closure.
     pub fn closure(&self, point: &MeshEntity) -> DashMap<MeshEntity, ()> {
         let result = DashMap::new();
         let stack = DashMap::new();
         stack.insert(point.clone(), ());
 
+        // Traverse all related entities using a stack
         while !stack.is_empty() {
             let keys: Vec<MeshEntity> = stack.iter().map(|entry| entry.key().clone()).collect();
             for p in keys {
@@ -66,8 +87,18 @@ impl Sieve {
         result
     }
 
-    /// Computes the star of a given `MeshEntity`.  
-    /// The star includes the entity itself and all entities that directly cover it (supports).
+    /// Computes the star of a given `MeshEntity`.
+    ///
+    /// The star includes:
+    /// - The entity itself.
+    /// - All entities that directly cover it (supports).
+    /// - All entities that the entity directly points to (cone).
+    ///
+    /// # Parameters
+    /// - `point`: The `MeshEntity` for which the star is computed.
+    ///
+    /// # Returns
+    /// - A `DashMap` containing all entities in the star.
     pub fn star(&self, point: &MeshEntity) -> DashMap<MeshEntity, ()> {
         let result = DashMap::new();
         result.insert(point.clone(), ());
@@ -88,8 +119,15 @@ impl Sieve {
         result
     }
 
-    /// Retrieves all entities that support the given entity (`point`).  
-    /// These are the entities that have an arrow pointing to `point`.
+    /// Retrieves all entities that support the given entity (`point`).
+    ///
+    /// These are entities that have an arrow pointing to `point`.
+    ///
+    /// # Parameters
+    /// - `point`: The `MeshEntity` for which supports are retrieved.
+    ///
+    /// # Returns
+    /// - A `Vec<MeshEntity>` containing all supporting entities.
     pub fn support(&self, point: &MeshEntity) -> Vec<MeshEntity> {
         let mut supports = Vec::new();
         self.adjacency.iter().for_each(|entry| {
@@ -101,8 +139,16 @@ impl Sieve {
         supports
     }
 
-    /// Computes the meet operation for two entities, `p` and `q`.  
-    /// This is the intersection of their closures.
+    /// Computes the meet operation for two entities, `p` and `q`.
+    ///
+    /// The meet is defined as the intersection of their closures.
+    ///
+    /// # Parameters
+    /// - `p`: The first `MeshEntity`.
+    /// - `q`: The second `MeshEntity`.
+    ///
+    /// # Returns
+    /// - A `DashMap` containing all entities in the intersection of the two closures.
     pub fn meet(&self, p: &MeshEntity, q: &MeshEntity) -> DashMap<MeshEntity, ()> {
         let closure_p = self.closure(p);
         let closure_q = self.closure(q);
@@ -118,8 +164,16 @@ impl Sieve {
         result
     }
 
-    /// Computes the join operation for two entities, `p` and `q`.  
-    /// This is the union of their stars.
+    /// Computes the join operation for two entities, `p` and `q`.
+    ///
+    /// The join is defined as the union of their stars.
+    ///
+    /// # Parameters
+    /// - `p`: The first `MeshEntity`.
+    /// - `q`: The second `MeshEntity`.
+    ///
+    /// # Returns
+    /// - A `DashMap` containing all entities in the union of the two stars.
     pub fn join(&self, p: &MeshEntity, q: &MeshEntity) -> DashMap<MeshEntity, ()> {
         let star_p = self.star(p);
         let star_q = self.star(q);
@@ -135,9 +189,13 @@ impl Sieve {
         result
     }
 
-    /// Applies a given function in parallel to all adjacency map entries.  
-    /// This function is executed concurrently over each entity and its  
-    /// corresponding set of related entities.
+    /// Applies a given function in parallel to all adjacency map entries.
+    ///
+    /// # Parameters
+    /// - `func`: A closure that operates on each key-value pair in the adjacency map.
+    ///   The function is called with a tuple containing:
+    ///   - A reference to a `MeshEntity` key.
+    ///   - A `Vec<MeshEntity>` of entities related to the key.
     pub fn par_for_each_adjacent<F>(&self, func: F)
     where
         F: Fn((&MeshEntity, Vec<MeshEntity>)) + Sync + Send,
@@ -155,11 +213,12 @@ impl Sieve {
         });
     }
 
-    /// Converts the internal adjacency map into a standard `HashMap` where each key
-    /// is a `MeshEntity` and the value is a vector of related `MeshEntity` objects.
-    /// 
-    /// This function is useful for processing the adjacency relationships in contexts
-    /// where thread-safety is not required.
+    /// Converts the internal adjacency map into a standard `HashMap`.
+    ///
+    /// The resulting map contains each `MeshEntity` as a key and its related entities as a `Vec<MeshEntity>`.
+    ///
+    /// # Returns
+    /// - An `FxHashMap` containing the adjacency relationships.
     pub fn to_adjacency_map(&self) -> FxHashMap<MeshEntity, Vec<MeshEntity>> {
         let mut adjacency_map: FxHashMap<MeshEntity, Vec<MeshEntity>> = FxHashMap::default();
 
@@ -173,6 +232,7 @@ impl Sieve {
         adjacency_map
     }
 }
+
 
 
 #[cfg(test)]
