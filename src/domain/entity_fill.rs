@@ -4,12 +4,17 @@ use rustc_hash::FxHashSet;
 
 impl Sieve {
     /// Infers and adds missing edges (in 2D) or faces (in 3D) based on existing cells and vertices.
-    /// For 2D meshes, this method generates edges by connecting vertices of a cell.
-    /// These edges are then associated with the corresponding vertices in the sieve.
+    ///
+    /// For 2D meshes, this method generates edges by connecting consecutive vertices of a cell.
+    /// These edges are then added to the sieve's adjacency map, along with their relationships
+    /// to the corresponding vertices and back-references from vertices to edges.
+    ///
+    /// - **Input**: Existing cells and vertices in the sieve.
+    /// - **Output**: Updated sieve with inferred edges and relationships.
     pub fn fill_missing_entities(&self) {
-        let mut edge_set: FxHashSet<(MeshEntity, MeshEntity)> = FxHashSet::default();
-        let mut next_edge_id = 0;
-        let mut arrows_to_add: Vec<(MeshEntity, MeshEntity)> = Vec::new();
+        let mut edge_set: FxHashSet<(MeshEntity, MeshEntity)> = FxHashSet::default(); // To track processed edges
+        let mut next_edge_id = 0; // Counter for assigning unique IDs to new edges
+        let mut arrows_to_add: Vec<(MeshEntity, MeshEntity)> = Vec::new(); // Temporary storage for relationships to add
 
         // Collect cells and their associated vertices to avoid modifying the map during iteration
         let cell_vertices: Vec<(MeshEntity, Vec<MeshEntity>)> = self.adjacency.iter()
@@ -24,6 +29,7 @@ impl Sieve {
             }).collect();
 
         for (cell, vertices) in cell_vertices {
+            // Skip cells with fewer than three vertices (not valid for forming edges)
             if vertices.len() < 3 {
                 eprintln!("Skipping cell with fewer than 3 vertices: {:?}", cell);
                 continue;
@@ -31,27 +37,34 @@ impl Sieve {
 
             eprintln!("Processing cell: {:?}", cell);
 
+            // Iterate over pairs of consecutive vertices, wrapping around for the last edge
             for i in 0..vertices.len() {
                 let (v1, v2) = (
                     vertices[i].clone(),
                     vertices[(i + 1) % vertices.len()].clone(),
                 );
+
+                // Ensure edges are consistently defined as (min, max) to avoid duplication
                 let edge_key = if v1 < v2 {
                     (v1.clone(), v2.clone())
                 } else {
                     (v2.clone(), v1.clone())
                 };
 
+                // Skip if the edge has already been processed
                 if edge_set.contains(&edge_key) {
                     eprintln!("Edge {:?} already processed, skipping.", edge_key);
                     continue;
                 }
+
+                // Mark the edge as processed
                 edge_set.insert(edge_key.clone());
 
+                // Create a new edge entity
                 let edge = MeshEntity::Edge(next_edge_id);
                 next_edge_id += 1;
 
-                // Collect arrows to add after iteration
+                // Collect arrows representing relationships between vertices and the new edge
                 arrows_to_add.push((v1.clone(), edge.clone()));
                 arrows_to_add.push((v2.clone(), edge.clone()));
                 arrows_to_add.push((edge.clone(), v1.clone()));
@@ -64,13 +77,12 @@ impl Sieve {
             }
         }
 
-        // Now add all arrows to self.adjacency outside the iteration
+        // Add all collected arrows to the sieve's adjacency map outside the iteration
         for (from, to) in arrows_to_add {
             self.add_arrow(from, to);
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -79,6 +91,7 @@ mod tests {
     use crate::domain::mesh_entity::MeshEntity;
     use crate::domain::sieve::Sieve;
 
+    /// Runs a test function with a timeout, ensuring it completes within 5 seconds.
     fn run_with_timeout<F: FnOnce()>(test_name: &str, func: F) {
         let start = Instant::now();
         func();
@@ -86,12 +99,14 @@ mod tests {
         assert!(elapsed.as_secs() < 5, "{} test timed out!", test_name);
     }
 
+    /// Verifies that `fill_missing_entities` does not add edges to an empty sieve.
     #[test]
     fn test_fill_missing_entities_with_empty_sieve() {
         run_with_timeout("test_fill_missing_entities_with_empty_sieve", || {
             let sieve = Sieve::new();
             sieve.fill_missing_entities();
 
+            // Check that no new edges or relationships were added
             assert!(
                 sieve.adjacency.is_empty(),
                 "No edges should be created for an empty sieve"
@@ -99,6 +114,7 @@ mod tests {
         });
     }
 
+    /// Tests that `fill_missing_entities` generates edges for a single cell with three vertices.
     #[test]
     fn test_fill_missing_entities_for_single_cell() {
         run_with_timeout("test_fill_missing_entities_for_single_cell", || {
@@ -110,6 +126,7 @@ mod tests {
                 MeshEntity::Vertex(3),
             ];
 
+            // Add the cell and its vertices to the sieve
             sieve
                 .adjacency
                 .entry(cell.clone())
@@ -118,8 +135,10 @@ mod tests {
                 sieve.add_arrow(cell.clone(), vertex.clone());
             }
 
+            // Fill in the missing edges
             sieve.fill_missing_entities();
 
+            // Verify that the expected edges were created
             let expected_edges = vec![
                 (MeshEntity::Vertex(1), MeshEntity::Vertex(2)),
                 (MeshEntity::Vertex(2), MeshEntity::Vertex(3)),
@@ -143,6 +162,7 @@ mod tests {
         });
     }
 
+    /// Ensures that `fill_missing_entities` does not duplicate edges shared by multiple cells.
     #[test]
     fn test_fill_missing_entities_no_duplicate_edges() {
         run_with_timeout("test_fill_missing_entities_no_duplicate_edges", || {
@@ -151,18 +171,19 @@ mod tests {
             let cell2 = MeshEntity::Cell(2);
             let shared_vertices = vec![MeshEntity::Vertex(1), MeshEntity::Vertex(2)];
 
+            // Define vertices for two cells, sharing some vertices
             let vertices1 = vec![
                 shared_vertices[0],
                 shared_vertices[1],
                 MeshEntity::Vertex(3),
             ];
-
             let vertices2 = vec![
                 shared_vertices[0],
                 shared_vertices[1],
                 MeshEntity::Vertex(4),
             ];
 
+            // Add the cells and their vertices to the sieve
             sieve
                 .adjacency
                 .entry(cell1.clone())
@@ -179,8 +200,10 @@ mod tests {
                 sieve.add_arrow(cell2.clone(), vertex.clone());
             }
 
+            // Fill in the missing edges
             sieve.fill_missing_entities();
 
+            // Verify that the shared edge is not duplicated
             let shared_edge = (shared_vertices[0], shared_vertices[1]);
             let edge_count = sieve.adjacency.get(&shared_edge.0).map_or(0, |adj| {
                 adj.iter()
