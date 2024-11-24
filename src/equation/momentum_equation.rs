@@ -262,7 +262,7 @@ impl MomentumEquation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::section::Scalar;
+    use crate::domain::section::{Vector3, Scalar};
     use crate::equation::fields::{Fields, Fluxes};
     use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler};
     use crate::interface_adapters::domain_adapter::DomainBuilder;
@@ -291,7 +291,7 @@ mod tests {
     }
 
     /// Initializes all necessary fields for the test.
-    fn _setup_fields(mesh: &Mesh) -> Fields {
+    fn setup_fields(mesh: &Mesh) -> Fields {
         let mut fields = Fields::new();
 
         // Get cell IDs from the mesh
@@ -325,7 +325,7 @@ mod tests {
     }
 
     /// Configures boundary conditions for the test mesh.
-    fn _setup_boundary_conditions(mesh: &Mesh) -> BoundaryConditionHandler {
+    fn setup_boundary_conditions(mesh: &Mesh) -> BoundaryConditionHandler {
         let bc_handler = BoundaryConditionHandler::new();
 
         // Retrieve a face from the mesh
@@ -343,7 +343,7 @@ mod tests {
         bc_handler
     }
 
-    /* #[test]
+    #[test]
     fn test_calculate_momentum_fluxes() {
         let mesh = setup_simple_mesh();
         let fields = setup_fields(&mesh);
@@ -376,7 +376,7 @@ mod tests {
         assert!(momentum_flux.0[0].is_finite(), "Momentum flux x-component is not finite");
         assert!(momentum_flux.0[1].is_finite(), "Momentum flux y-component is not finite");
         assert!(momentum_flux.0[2].is_finite(), "Momentum flux z-component is not finite");
-    } */
+    }
 
     #[test]
     fn test_boundary_condition_application() {
@@ -425,7 +425,7 @@ mod tests {
         assert_eq!(flux_value.0[0], 7.0); // 5.0 (Dirichlet) + 2.0 (Neumann)
     }
 
-    /* #[test]
+    #[test]
     fn test_gradient_computation_integration() {
         let mesh = setup_simple_mesh();
         let fields = setup_fields(&mesh);
@@ -463,6 +463,6 @@ mod tests {
             assert!(gradient.0[1].is_finite(), "Expected finite y-gradient for cell {}", cell_id);
             assert!(gradient.0[2].is_finite(), "Expected finite z-gradient for cell {}", cell_id);
         }
-    } */
+    }
     
 }
