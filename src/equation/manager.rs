@@ -7,14 +7,27 @@ use crate::{
 use super::{Fields, Fluxes, PhysicalEquation};
 use std::sync::{Arc, RwLock};
 
+/// The `EquationManager` struct manages a collection of equations
+/// governing the physical processes on a mesh. It integrates the equations
+/// using a specified time-stepping scheme and handles domain and boundary conditions.
 pub struct EquationManager {
+    /// A collection of equations that implement the `PhysicalEquation` trait.
     equations: Vec<Box<dyn PhysicalEquation>>,
+    /// The time-stepping scheme to evolve the equations.
     time_stepper: Box<dyn TimeStepper<Self>>,
+    /// The computational domain represented by a mesh.
     domain: Arc<RwLock<Mesh>>,
+    /// Handler for boundary conditions associated with the domain.
     boundary_handler: Arc<RwLock<BoundaryConditionHandler>>,
 }
 
 impl EquationManager {
+    /// Constructs a new `EquationManager` with the given time stepper, domain, and boundary handler.
+    ///
+    /// # Arguments
+    /// - `time_stepper`: A boxed implementation of a `TimeStepper`.
+    /// - `domain`: A shared, thread-safe reference to the computational mesh.
+    /// - `boundary_handler`: A shared, thread-safe reference to the boundary condition handler.
     pub fn new(
         time_stepper: Box<dyn TimeStepper<Self>>,
         domain: Arc<RwLock<Mesh>>,
@@ -28,10 +41,24 @@ impl EquationManager {
         }
     }
 
+    /// Adds a new equation to the manager.
+    ///
+    /// The equation must implement the `PhysicalEquation` trait.
+    ///
+    /// # Type Parameters
+    /// - `E`: The type of the equation.
+    ///
+    /// # Arguments
+    /// - `equation`: The equation to add.
     pub fn add_equation<E: PhysicalEquation + 'static>(&mut self, equation: E) {
         self.equations.push(Box::new(equation));
     }
 
+    /// Assembles all equations in the manager, updating fluxes based on the current fields.
+    ///
+    /// # Arguments
+    /// - `fields`: The current field data.
+    /// - `fluxes`: A mutable reference to the flux data to be updated.
     pub fn assemble_all(
         &self,
         fields: &Fields,
@@ -40,20 +67,28 @@ impl EquationManager {
         let current_time = self.time_stepper.current_time();
         let domain = self.domain.read().unwrap();
         let boundary_handler = self.boundary_handler.read().unwrap();
+        
         for equation in &self.equations {
             equation.assemble(&domain, fields, fluxes, &boundary_handler, current_time);
         }
     }
 
+    /// Advances the solution by a single time step using the associated time stepper.
+    ///
+    /// # Arguments
+    /// - `fields`: The field data to be updated.
     pub fn step(&mut self, fields: &mut Fields) {
+        // Replace the current time stepper temporarily to ensure exclusive ownership during the step.
         let mut time_stepper = std::mem::replace(&mut self.time_stepper, Box::new(NoOpStepper));
         let current_time = time_stepper.current_time();
         let time_step = time_stepper.get_time_step();
 
+        // Perform the time-stepping operation.
         time_stepper
             .step(self, time_step, current_time, fields)
             .expect("Time-stepping failed");
 
+        // Restore the time stepper after the step.
         self.time_stepper = time_stepper;
     }
 }
@@ -62,6 +97,16 @@ impl TimeDependentProblem for EquationManager {
     type State = Fields;
     type Time = f64;
 
+    /// Computes the right-hand side (RHS) for the time-stepping scheme.
+    ///
+    /// # Arguments
+    /// - `_time`: The current time (unused here but required for the trait).
+    /// - `state`: The current state of the fields.
+    /// - `derivative`: The output structure to hold the computed derivatives.
+    ///
+    /// # Returns
+    /// - `Ok(())` on successful computation of the RHS.
+    /// - `Err(TimeSteppingError)` if an error occurs.
     fn compute_rhs(
         &self,
         _time: Self::Time,
@@ -70,20 +115,33 @@ impl TimeDependentProblem for EquationManager {
     ) -> Result<(), TimeSteppingError> {
         let mut fluxes = Fluxes::new();
 
+        // Assemble all fluxes from the equations.
         self.assemble_all(state, &mut fluxes);
+
+        // Update the derivative fields based on the computed fluxes.
         derivative.update_from_fluxes(&fluxes);
 
         Ok(())
     }
 
+    /// Provides the initial state for the time-dependent problem.
+    ///
+    /// # Returns
+    /// - A new `Fields` instance with default-initialized fields.
     fn initial_state(&self) -> Self::State {
         Fields::new()
     }
 
+    /// Returns the system matrix, if applicable (not used in this implementation).
     fn get_matrix(&self) -> Option<Box<dyn Matrix<Scalar = f64>>> {
         None
     }
 
+    /// Solves the linear system, if applicable (not used in this implementation).
+    ///
+    /// # Returns
+    /// - `Ok(())` on success.
+    /// - `Err(TimeSteppingError)` if an error occurs.
     fn solve_linear_system(
         &self,
         _matrix: &mut dyn Matrix<Scalar = f64>,
@@ -94,7 +152,7 @@ impl TimeDependentProblem for EquationManager {
     }
 }
 
-// Temporary no-op stepper for handling ownership.
+/// A temporary no-operation time stepper used to handle ownership of the time stepper during operations.
 pub struct NoOpStepper;
 
 impl<P> TimeStepper<P> for NoOpStepper
@@ -134,6 +192,7 @@ where
         P::Time::from(0.0)
     }
 }
+
 
 #[cfg(test)]
 mod tests {
