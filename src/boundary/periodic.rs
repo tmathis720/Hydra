@@ -1,7 +1,7 @@
 //! Periodic Boundary Conditions
 //! Implements periodic boundary conditions for mesh entities.
 
-use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
+use crate::boundary::bc_handler::BoundaryConditionApply;
 use faer::MatMut;
 use dashmap::DashMap;
 use crate::domain::mesh_entity::MeshEntity;
@@ -46,21 +46,21 @@ impl PeriodicBC {
     ) {
         for entry in self.pairs.iter() {
             let (entity, counterpart) = entry.pair();
-            if let (Some(&idx1), Some(&idx2)) = (
+            if let (Some(idx1), Some(idx2)) = (
                 entity_to_index.get(entity),
                 entity_to_index.get(counterpart),
             ) {
                 // Enforce periodic constraints by modifying the system matrix.
                 for col in 0..matrix.ncols() {
-                    let avg = (matrix.read(idx1, col) + matrix.read(idx2, col)) / 2.0;
-                    matrix.write(idx1, col, avg);
-                    matrix.write(idx2, col, avg);
+                    let avg = (matrix.read(*idx1, col) + matrix.read(*idx2, col)) / 2.0;
+                    matrix.write(*idx1, col, avg);
+                    matrix.write(*idx2, col, avg);
                 }
 
                 // Adjust the RHS vector to match periodic conditions.
-                let rhs_avg = (rhs.read(idx1, 0) + rhs.read(idx2, 0)) / 2.0;
-                rhs.write(idx1, 0, rhs_avg);
-                rhs.write(idx2, 0, rhs_avg);
+                let rhs_avg = (rhs.read(*idx1, 0) + rhs.read(*idx2, 0)) / 2.0;
+                rhs.write(*idx1, 0, rhs_avg);
+                rhs.write(*idx2, 0, rhs_avg);
             }
         }
     }
@@ -84,20 +84,20 @@ impl BoundaryConditionApply for PeriodicBC {
         _time: f64,
     ) {
         if let Some(counterpart) = self.pairs.get(entity) {
-            if let (Some(&idx1), Some(&idx2)) = (
+            if let (Some(idx1), Some(idx2)) = (
                 entity_to_index.get(entity),
                 entity_to_index.get(counterpart.key()),
             ) {
                 // Enforce periodic constraint for this specific pair.
                 for col in 0..matrix.ncols() {
-                    let avg = (matrix.read(idx1, col) + matrix.read(idx2, col)) / 2.0;
-                    matrix.write(idx1, col, avg);
-                    matrix.write(idx2, col, avg);
+                    let avg = (matrix.read(*idx1, col) + matrix.read(*idx2, col)) / 2.0;
+                    matrix.write(*idx1, col, avg);
+                    matrix.write(*idx2, col, avg);
                 }
 
-                let rhs_avg = (rhs.read(idx1, 0) + rhs.read(idx2, 0)) / 2.0;
-                rhs.write(idx1, 0, rhs_avg);
-                rhs.write(idx2, 0, rhs_avg);
+                let rhs_avg = (rhs.read(*idx1, 0) + rhs.read(*idx2, 0)) / 2.0;
+                rhs.write(*idx1, 0, rhs_avg);
+                rhs.write(*idx2, 0, rhs_avg);
             }
         }
     }

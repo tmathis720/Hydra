@@ -111,6 +111,50 @@ impl DomainBuilder {
         self
     }
 
+    pub fn add_tetrahedron_cell(&mut self, vertex_ids: Vec<usize>) -> &mut Self {
+        assert_eq!(vertex_ids.len(), 4, "Tetrahedron must have 4 vertices");
+        let cell_id = self.mesh.entities.read().unwrap().len() + 1;
+        let cell = MeshEntity::Cell(cell_id);
+
+        let face_id_start = self.mesh.count_entities(&MeshEntity::Face(0)) + 1;
+
+        let face_vertices = vec![
+            vec![vertex_ids[0], vertex_ids[1], vertex_ids[2]], // Face 1
+            vec![vertex_ids[0], vertex_ids[1], vertex_ids[3]], // Face 2
+            vec![vertex_ids[1], vertex_ids[2], vertex_ids[3]], // Face 3
+            vec![vertex_ids[2], vertex_ids[0], vertex_ids[3]], // Face 4
+        ];
+
+        for (i, fv) in face_vertices.iter().enumerate() {
+            let face_id = face_id_start + i;
+            let face = MeshEntity::Face(face_id);
+
+            // Add arrows from face to vertices
+            for &vid in fv {
+                let vertex = MeshEntity::Vertex(vid);
+                self.mesh.add_arrow(face.clone(), vertex.clone());
+                self.mesh.add_arrow(vertex.clone(), face.clone());
+            }
+
+            self.mesh.entities.write().unwrap().insert(face.clone());
+
+            // Add arrows from cell to face
+            self.mesh.add_arrow(cell.clone(), face.clone());
+            self.mesh.add_arrow(face.clone(), cell.clone());
+        }
+
+        // Add arrows from cell to vertices
+        for &vid in &vertex_ids {
+            let vertex = MeshEntity::Vertex(vid);
+            self.mesh.add_arrow(cell.clone(), vertex.clone());
+            self.mesh.add_arrow(vertex.clone(), cell.clone());
+        }
+
+        self.mesh.entities.write().unwrap().insert(cell);
+
+        self
+    }
+
     /// Applies reordering to improve solver performance using the Cuthill-McKee algorithm.
     pub fn apply_reordering(&mut self) {
         let entities: Vec<_> = self

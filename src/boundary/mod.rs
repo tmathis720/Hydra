@@ -11,4 +11,4 @@ pub mod solid_wall;
 pub mod injection;
 pub mod symmetry;
 pub mod far_field; */
-// pub mod periodic;
+pub mod periodic;

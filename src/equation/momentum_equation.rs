@@ -1,8 +1,19 @@
 use crate::{
-    boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler}, geometry::Geometry, FaceShape, Mesh, MeshEntity, Section
+    boundary::bc_handler::{BoundaryCondition, 
+        BoundaryConditionHandler}, 
+        geometry::Geometry, 
+        FaceShape, 
+        Mesh, 
+        MeshEntity, 
+        Section
 };
 use super::{
-    fields::{Fields, Fluxes}, gradient::{Gradient, GradientCalculationMethod}, reconstruction::reconstruct::reconstruct_face_value, PhysicalEquation
+    fields::{Fields, 
+        Fluxes}, 
+        gradient::{Gradient, 
+            GradientCalculationMethod}, 
+            reconstruction::reconstruct::reconstruct_face_value, 
+            PhysicalEquation
 };
 use crate::domain::section::{Vector3, Scalar};
 
@@ -270,22 +281,19 @@ mod tests {
     /// Sets up a simple 2D mesh with two cells and connected faces.
     fn setup_simple_mesh() -> Mesh {
         let mut builder = DomainBuilder::new();
-
-        // Add vertices
+    
+        // Add vertices of a tetrahedron
         builder
             .add_vertex(1, [0.0, 0.0, 0.0])
             .add_vertex(2, [1.0, 0.0, 0.0])
             .add_vertex(3, [0.0, 1.0, 0.0])
-            .add_vertex(4, [1.0, 1.0, 0.0])
-            .add_vertex(5, [2.0, 0.0, 0.0])
-            .add_vertex(6, [2.0, 1.0, 0.0]);
-
-        // Add first cell
-        builder.add_cell(vec![1, 2, 4, 3]);
-
-        // Add second cell
-        builder.add_cell(vec![2, 5, 6, 4]);
-
+            .add_vertex(4, [0.0, 0.0, 1.0])
+            .add_vertex(5, [1.0, 1.0, 0.0]);
+    
+        // Add a tetrahedral cell
+        builder.add_tetrahedron_cell(vec![1, 2, 3, 4]);
+        builder.add_tetrahedron_cell(vec![2, 3, 5, 4]);
+    
         // Return the built mesh
         builder.build()
     }
