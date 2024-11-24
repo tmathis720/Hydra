@@ -80,10 +80,13 @@ impl MomentumEquation {
         for face in domain.get_faces() {
             if let Some(normal) = domain.get_face_normal(&face, None) {
                 let area = domain.get_face_area(&face).unwrap_or(0.0);
-                let face_center = geometry.compute_face_centroid(
-                    FaceShape::Triangle, // Replace this with dynamic shape determination if needed
-                    &domain.get_face_vertices(&face),
-                );
+                let face_vertices = domain.get_face_vertices(&face);
+                let face_shape = match face_vertices.len() {
+                    3 => FaceShape::Triangle,
+                    4 => FaceShape::Quadrilateral,
+                    _ => continue, // Skip unsupported face shapes
+                };
+                let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
 
                 // Retrieve cells sharing the face
                 let cells = domain.get_cells_sharing_face(&face);
