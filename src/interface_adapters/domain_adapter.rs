@@ -80,8 +80,15 @@ impl DomainBuilder {
     
             let vertex1 = MeshEntity::Vertex(v1);
             let vertex2 = MeshEntity::Vertex(v2);
-            self.mesh.add_arrow(face, vertex1);
-            self.mesh.add_arrow(face, vertex2);
+    
+            // Add relationships in the sieve
+            self.mesh.add_arrow(face.clone(), vertex1.clone());
+            self.mesh.add_arrow(face.clone(), vertex2.clone());
+            
+            // Optionally, add reverse relationships if needed
+            self.mesh.add_arrow(vertex1, face.clone());
+            self.mesh.add_arrow(vertex2, face.clone());
+    
             self.mesh.entities.write().unwrap().insert(face);
     
             // Compute and store the face area in GeometryCache

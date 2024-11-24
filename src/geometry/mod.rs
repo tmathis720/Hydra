@@ -88,17 +88,22 @@ impl Geometry {
         if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.centroid) {
             return cached;
         }
-
+    
         let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
         let cell_vertices = mesh.get_cell_vertices(cell);
-
+    
+        // Validate that cell vertices are retrieved correctly
+        if cell_vertices.is_empty() {
+            panic!("Cell {:?} has no vertices; centroid cannot be computed.", cell);
+        }
+    
         let centroid = match cell_shape {
             CellShape::Tetrahedron => self.compute_tetrahedron_centroid(&cell_vertices),
             CellShape::Hexahedron => self.compute_hexahedron_centroid(&cell_vertices),
             CellShape::Prism => self.compute_prism_centroid(&cell_vertices),
             CellShape::Pyramid => self.compute_pyramid_centroid(&cell_vertices),
         };
-
+    
         self.cache.lock().unwrap().entry(cell_id).or_default().centroid = Some(centroid);
         centroid
     }
@@ -110,17 +115,22 @@ impl Geometry {
         if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.volume) {
             return cached;
         }
-
+    
         let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
         let cell_vertices = mesh.get_cell_vertices(cell);
-
+    
+        // Validate vertices
+        if cell_vertices.len() < 4 { // Example: tetrahedron requires 4 vertices
+            panic!("Cell {:?} does not have enough vertices to compute volume.", cell);
+        }
+    
         let volume = match cell_shape {
             CellShape::Tetrahedron => self.compute_tetrahedron_volume(&cell_vertices),
             CellShape::Hexahedron => self.compute_hexahedron_volume(&cell_vertices),
             CellShape::Prism => self.compute_prism_volume(&cell_vertices),
             CellShape::Pyramid => self.compute_pyramid_volume(&cell_vertices),
         };
-
+    
         self.cache.lock().unwrap().entry(cell_id).or_default().volume = Some(volume);
         volume
     }
