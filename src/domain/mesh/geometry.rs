@@ -44,6 +44,7 @@ impl Mesh {
     pub fn get_face_area(&self, face: &MeshEntity) -> Option<f64> {
         let face_vertices = self.get_face_vertices(face);
         let face_shape = match face_vertices.len() {
+            2 => FaceShape::Edge,
             3 => FaceShape::Triangle,
             4 => FaceShape::Quadrilateral,
             _ => return None, // Unsupported face shape
@@ -158,6 +159,7 @@ impl Mesh {
         // Retrieve face vertices
         let face_vertices = self.get_face_vertices(face);
         let face_shape = match face_vertices.len() {
+            2 => FaceShape::Edge,        // Added support for Edge
             3 => FaceShape::Triangle,
             4 => FaceShape::Quadrilateral,
             _ => return None, // Unsupported face shape
@@ -165,6 +167,7 @@ impl Mesh {
 
         let geometry = Geometry::new();
         let normal = match face_shape {
+            FaceShape::Edge => geometry.compute_edge_normal(&face_vertices),
             FaceShape::Triangle => geometry.compute_triangle_normal(&face_vertices),
             FaceShape::Quadrilateral => geometry.compute_quadrilateral_normal(&face_vertices),
         };

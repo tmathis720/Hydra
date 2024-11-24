@@ -92,6 +92,54 @@ impl<'a> IntoIterator for &'a Vector3 {
     }
 }
 
+impl Add for Vector3 {
+    type Output = Vector3;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Vector3([
+            self.0[0] + rhs.0[0],
+            self.0[1] + rhs.0[1],
+            self.0[2] + rhs.0[2],
+        ])
+    }
+}
+
+impl<'a> Add for &'a Vector3 {
+    type Output = Vector3;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Vector3([
+            self.0[0] + rhs.0[0],
+            self.0[1] + rhs.0[1],
+            self.0[2] + rhs.0[2],
+        ])
+    }
+}
+
+impl Mul<Vector3> for f64 {
+    type Output = Vector3;
+
+    fn mul(self, rhs: Vector3) -> Self::Output {
+        Vector3([
+            self * rhs.0[0],
+            self * rhs.0[1],
+            self * rhs.0[2],
+        ])
+    }
+}
+
+impl Mul<&Vector3> for f64 {
+    type Output = Vector3;
+
+    fn mul(self, rhs: &Vector3) -> Self::Output {
+        Vector3([
+            self * rhs.0[0],
+            self * rhs.0[1],
+            self * rhs.0[2],
+        ])
+    }
+}
+
 /// Represents a 3x3 tensor with floating-point components.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tensor3x3(pub [[f64; 3]; 3]);
@@ -349,6 +397,15 @@ mod tests {
     // Helper function to create a MeshEntity for testing
     fn create_test_mesh_entity(id: usize) -> MeshEntity {
         MeshEntity::Vertex(id) // Adjust according to the MeshEntity variant in your implementation
+    }
+
+    #[test]
+    fn test_vector3_add() {
+        let v1 = Vector3([1.0, 2.0, 3.0]);
+        let v2 = Vector3([4.0, 5.0, 6.0]);
+        let result = v1 + v2;
+
+        assert_eq!(result.0, [5.0, 7.0, 9.0]);
     }
 
     #[test]

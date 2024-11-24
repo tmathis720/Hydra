@@ -51,6 +51,7 @@ pub enum CellShape {
 /// * Quadrilateral
 #[derive(Debug, Clone, Copy)]
 pub enum FaceShape {
+    Edge,
     Triangle,
     Quadrilateral,
 }
@@ -87,17 +88,22 @@ impl Geometry {
         if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.centroid) {
             return cached;
         }
-
+    
         let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
         let cell_vertices = mesh.get_cell_vertices(cell);
-
+    
+        // Validate that cell vertices are retrieved correctly
+        if cell_vertices.is_empty() {
+            panic!("Cell {:?} has no vertices; centroid cannot be computed.", cell);
+        }
+    
         let centroid = match cell_shape {
             CellShape::Tetrahedron => self.compute_tetrahedron_centroid(&cell_vertices),
             CellShape::Hexahedron => self.compute_hexahedron_centroid(&cell_vertices),
             CellShape::Prism => self.compute_prism_centroid(&cell_vertices),
             CellShape::Pyramid => self.compute_pyramid_centroid(&cell_vertices),
         };
-
+    
         self.cache.lock().unwrap().entry(cell_id).or_default().centroid = Some(centroid);
         centroid
     }
@@ -109,17 +115,22 @@ impl Geometry {
         if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.volume) {
             return cached;
         }
-
+    
         let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
         let cell_vertices = mesh.get_cell_vertices(cell);
-
+    
+        // Validate vertices
+        if cell_vertices.len() < 4 { // Example: tetrahedron requires 4 vertices
+            panic!("Cell {:?} does not have enough vertices to compute volume.", cell);
+        }
+    
         let volume = match cell_shape {
             CellShape::Tetrahedron => self.compute_tetrahedron_volume(&cell_vertices),
             CellShape::Hexahedron => self.compute_hexahedron_volume(&cell_vertices),
             CellShape::Prism => self.compute_prism_volume(&cell_vertices),
             CellShape::Pyramid => self.compute_pyramid_volume(&cell_vertices),
         };
-
+    
         self.cache.lock().unwrap().entry(cell_id).or_default().volume = Some(volume);
         volume
     }
@@ -139,6 +150,7 @@ impl Geometry {
         }
 
         let area = match face_shape {
+            FaceShape::Edge => self.compute_edge_length(face_vertices),
             FaceShape::Triangle => self.compute_triangle_area(face_vertices),
             FaceShape::Quadrilateral => self.compute_quadrilateral_area(face_vertices),
         };
@@ -157,6 +169,7 @@ impl Geometry {
     /// * `[f64; 3]` - The 3D coordinates of the face centroid.
     pub fn compute_face_centroid(&self, face_shape: FaceShape, face_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
         match face_shape {
+            FaceShape::Edge => self.compute_edge_midpoint(face_vertices),
             FaceShape::Triangle => self.compute_triangle_centroid(face_vertices),
             FaceShape::Quadrilateral => self.compute_quadrilateral_centroid(face_vertices),
         }
@@ -189,12 +202,14 @@ impl Geometry {
 
         let face_vertices = mesh.get_face_vertices(face);
         let face_shape = match face_vertices.len() {
+            2 => FaceShape::Edge,
             3 => FaceShape::Triangle,
             4 => FaceShape::Quadrilateral,
             _ => return None, // Unsupported face shape
         };
 
         let normal = match face_shape {
+            FaceShape::Edge => self.compute_edge_normal(&face_vertices),
             FaceShape::Triangle => self.compute_triangle_normal(&face_vertices),
             FaceShape::Quadrilateral => self.compute_quadrilateral_normal(&face_vertices),
         };
@@ -203,6 +218,64 @@ impl Geometry {
         self.cache.lock().unwrap().entry(face_id).or_default().normal = Some(normal);
 
         Some(domain::section::Vector3(normal))
+    }
+
+    /// Computes the normal vector of an edge (2D face).
+    pub fn compute_edge_normal(&self, face_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
+        // Ensure that we have exactly 2 vertices
+        assert_eq!(face_vertices.len(), 2, "Edge must have exactly 2 vertices");
+
+        let p1 = face_vertices[0];
+        let p2 = face_vertices[1];
+
+        // Compute the edge vector
+        let edge_vector = [
+            p2[0] - p1[0],
+            p2[1] - p1[1],
+            p2[2] - p1[2],
+        ];
+
+        // In 2D, assuming Z=0, the normal is perpendicular to the edge vector
+        // Rotate the vector by 90 degrees counterclockwise
+        let normal = [
+            -edge_vector[1],
+            edge_vector[0],
+            0.0,
+        ];
+
+        // Normalize the normal vector
+        let magnitude = (normal[0].powi(2) + normal[1].powi(2)).sqrt();
+        if magnitude != 0.0 {
+            [normal[0] / magnitude, normal[1] / magnitude, 0.0]
+        } else {
+            [0.0, 0.0, 0.0]
+        }
+    }
+
+    /// Computes the length of an edge.
+    pub fn compute_edge_length(&self, face_vertices: &Vec<[f64; 3]>) -> f64 {
+        // Ensure that we have exactly 2 vertices
+        assert_eq!(face_vertices.len(), 2, "Edge must have exactly 2 vertices");
+
+        let p1 = face_vertices[0];
+        let p2 = face_vertices[1];
+
+        Geometry::compute_distance(&p1, &p2)
+    }
+
+    /// Computes the midpoint of an edge.
+    pub fn compute_edge_midpoint(&self, face_vertices: &Vec<[f64; 3]>) -> [f64; 3] {
+        // Ensure that we have exactly 2 vertices
+        assert_eq!(face_vertices.len(), 2, "Edge must have exactly 2 vertices");
+
+        let p1 = face_vertices[0];
+        let p2 = face_vertices[1];
+
+        [
+            (p1[0] + p2[0]) / 2.0,
+            (p1[1] + p2[1]) / 2.0,
+            (p1[2] + p2[2]) / 2.0,
+        ]
     }
 
     /// Invalidate the cache when geometry changes (e.g., vertex updates).
@@ -259,6 +332,85 @@ mod tests {
     use crate::domain::{MeshEntity, mesh::Mesh, Sieve};
     use rustc_hash::{FxHashMap, FxHashSet};
     use std::sync::{Arc, RwLock};
+
+    #[test]
+    fn test_compute_edge_normal() {
+        let geometry = Geometry::new();
+
+        // Define vertices for an edge
+        let vertices = vec![
+            [0.0, 0.0, 0.0], // Vertex 1
+            [1.0, 0.0, 0.0], // Vertex 2
+        ];
+
+        let normal = geometry.compute_edge_normal(&vertices);
+        // Expected normal is [0.0, 1.0, 0.0] for an edge along X-axis
+
+        assert!((normal[0] - 0.0).abs() < 1e-6);
+        assert!((normal[1] - 1.0).abs() < 1e-6);
+        assert!((normal[2] - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_compute_edge_length() {
+        let geometry = Geometry::new();
+
+        // Define vertices for an edge
+        let vertices = vec![
+            [0.0, 0.0, 0.0], // Vertex 1
+            [3.0, 4.0, 0.0], // Vertex 2
+        ];
+
+        let length = geometry.compute_edge_length(&vertices);
+        // Expected length is 5.0 (3-4-5 triangle)
+
+        assert!((length - 5.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_compute_edge_midpoint() {
+        let geometry = Geometry::new();
+
+        // Define vertices for an edge
+        let vertices = vec![
+            [1.0, 2.0, 3.0], // Vertex 1
+            [4.0, 5.0, 6.0], // Vertex 2
+        ];
+
+        let midpoint = geometry.compute_edge_midpoint(&vertices);
+        // Expected midpoint is [2.5, 3.5, 4.5]
+
+        assert_eq!(midpoint, [2.5, 3.5, 4.5]);
+    }
+
+    /* #[test]
+    fn test_compute_face_normal_edge_in_mesh() {
+        let mut mesh = Mesh::new();
+
+        // Add vertices
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
+
+        // Add edge (face in 2D)
+        let edge = MeshEntity::Face(1);
+        mesh.add_entity(edge.clone());
+        mesh.add_arrow(edge.clone(), MeshEntity::Vertex(1));
+        mesh.add_arrow(edge.clone(), MeshEntity::Vertex(2));
+
+        // Create Geometry instance
+        let mut geometry = Geometry::new();
+
+        // Compute normal
+        let normal_option = geometry.compute_face_normal(&mesh, &edge, None);
+        assert!(normal_option.is_some());
+
+        let normal = normal_option.unwrap();
+        // Expected normal is [0.0, 1.0, 0.0] for an edge along X-axis
+
+        assert!((normal[0] - 0.0).abs() < 1e-6);
+        assert!((normal[1] - 1.0).abs() < 1e-6);
+        assert!((normal[2] - 0.0).abs() < 1e-6);
+    } */
 
     #[test]
     fn test_set_vertex() {
@@ -499,6 +651,7 @@ mod tests {
 
         // Attempt to compute the normal for an unsupported shape
         let normal = match face_shape {
+            FaceShape::Edge => Some(geometry.compute_edge_normal(&vertices)),
             FaceShape::Triangle => Some(geometry.compute_triangle_normal(&vertices)),
             FaceShape::Quadrilateral => Some(geometry.compute_quadrilateral_normal(&vertices)),
         };

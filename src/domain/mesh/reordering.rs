@@ -1,8 +1,11 @@
 use super::Mesh;
 use crate::domain::mesh_entity::MeshEntity;
+use dashmap::DashMap;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 use rayon::prelude::*;
+
+
 
 /// Reorders mesh entities using the Cuthill-McKee algorithm.  
 /// This algorithm improves memory locality by reducing the bandwidth of sparse matrices,  
@@ -52,17 +55,42 @@ pub fn cuthill_mckee(
 }
 
 impl Mesh {
-    /// Applies a reordering to the mesh entities based on the given new order.  
-    ///
-    /// This method can be used to reorder entities or update a sparse matrix  
-    /// structure based on the new ordering.
-    ///
-    /// Example usage:
-    /// 
-    ///    mesh.apply_reordering(&new_order);  
-    ///
-    pub fn apply_reordering(&mut self, _new_order: &[usize]) {
-        // Implement the application of reordering to mesh entities or sparse matrix structure.
+    /// Applies reordering to the mesh entities based on the provided new IDs.
+    /// The new IDs are applied to entities in the order given.
+    pub fn apply_reordering(&mut self, new_order: &[usize]) {
+        // Collect current entities and create a mapping from old entities to new entities
+        let entities: Vec<_> = self.entities.read().unwrap().iter().cloned().collect();
+        let mut id_mapping: FxHashMap<MeshEntity, MeshEntity> = FxHashMap::default();
+
+        for (new_id, entity) in new_order.iter().zip(entities.iter()) {
+            let new_entity = entity.with_id(*new_id);
+            id_mapping.insert(*entity, new_entity);
+        }
+
+        // Update the entities set with new IDs
+        let mut entities_write = self.entities.write().unwrap();
+        entities_write.clear();
+        for new_entity in id_mapping.values() {
+            entities_write.insert(*new_entity);
+        }
+
+        // Update the sieve with new entity IDs
+        let new_adjacency = DashMap::new();
+        for entry in self.sieve.adjacency.iter() {
+            let old_from = *entry.key();
+            let new_from = *id_mapping.get(&old_from).unwrap_or(&old_from);
+
+            let new_cone = DashMap::new();
+            for cone_entry in entry.value().iter() {
+                let old_to = *cone_entry.key();
+                let new_to = *id_mapping.get(&old_to).unwrap_or(&old_to);
+                new_cone.insert(new_to, ());
+            }
+            new_adjacency.insert(new_from, new_cone);
+        }
+        let mut sieve = Arc::clone(&self.sieve);
+        Arc::make_mut(&mut sieve).adjacency = new_adjacency;
+        self.sieve = sieve;
     }
 
     /// Computes the reverse Cuthill-McKee (RCM) ordering starting from a given node.  
