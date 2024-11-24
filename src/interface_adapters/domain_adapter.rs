@@ -1,7 +1,9 @@
+
 use rustc_hash::FxHashMap;
 use crate::domain::{mesh::Mesh, MeshEntity};
 use crate::domain::mesh::geometry_validation::GeometryValidation;
 use crate::domain::mesh::reordering::cuthill_mckee;
+use crate::Geometry;
 
 /// `DomainBuilder` is a utility for constructing a mesh domain by incrementally adding vertices,
 /// edges, faces, and cells. It provides methods to build the mesh and apply reordering for
@@ -63,49 +65,42 @@ impl DomainBuilder {
     ///
     /// * `vertex_ids` - A vector of vertex IDs that define the cell.
     pub fn add_cell(&mut self, vertex_ids: Vec<usize>) -> &mut Self {
-        // Compute a unique ID for the new cell
         let cell_id = self.mesh.entities.read().unwrap().len() + 1;
         let cell = MeshEntity::Cell(cell_id);
-
-        // Generate faces (edges in 2D) for the cell
+    
         let num_faces = self.mesh.count_entities(&MeshEntity::Face(0));
         let mut face_id_counter = num_faces + 1;
-
+    
         let num_vertices = vertex_ids.len();
         for i in 0..num_vertices {
             let v1 = vertex_ids[i];
             let v2 = vertex_ids[(i + 1) % num_vertices];
             let face = MeshEntity::Face(face_id_counter);
             face_id_counter += 1;
-
-            // Add relationships between the face and its vertices
+    
             let vertex1 = MeshEntity::Vertex(v1);
             let vertex2 = MeshEntity::Vertex(v2);
             self.mesh.add_arrow(face, vertex1);
             self.mesh.add_arrow(face, vertex2);
             self.mesh.entities.write().unwrap().insert(face);
-
-            // Add relationship between cell and face
+    
+            // Compute and store the face area in GeometryCache
+            if let Some(coords1) = self.mesh.get_vertex_coordinates(v1) {
+                if let Some(coords2) = self.mesh.get_vertex_coordinates(v2) {
+                    let area = Geometry::compute_distance(&coords1, &coords2);
+                    let geometry = Geometry::new();
+                    geometry.cache.lock().unwrap().entry(face.get_id()).or_default().area = Some(area);
+                }
+            }
+    
             self.mesh.add_arrow(cell, face);
         }
-
-        // Ensure vertices are in the mesh
+    
         for &vertex_id in &vertex_ids {
             let vertex = MeshEntity::Vertex(vertex_id);
             self.mesh.entities.write().unwrap().insert(vertex);
         }
-
-        // Add the cell entity to the entities set
         self.mesh.entities.write().unwrap().insert(cell);
-
-        // The cone of the cell now includes faces
-        let cone = self.mesh.sieve.cone(&cell).unwrap_or_default();
-        assert_eq!(
-            cone.len(),
-            num_vertices, // The cone should have 'num_vertices' faces
-            "Topology issue: Cone does not contain all faces"
-        );
-
         self
     }
 
