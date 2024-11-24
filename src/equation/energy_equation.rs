@@ -6,11 +6,23 @@ use crate::Mesh;
 
 use super::fields::{Fields, Fluxes};
 
+/// Represents the energy equation governing heat transfer in the domain.
+/// Includes functionality for computing fluxes due to conduction and convection,
+/// and handles various boundary conditions.
 pub struct EnergyEquation {
-    pub thermal_conductivity: f64, // Coefficient for thermal conduction
+    /// Coefficient for thermal conduction, representing the material's conductivity.
+    pub thermal_conductivity: f64,
 }
 
 impl PhysicalEquation for EnergyEquation {
+    /// Assembles the energy equation by computing energy fluxes for each face in the domain.
+    ///
+    /// # Parameters
+    /// - `domain`: The mesh defining the simulation domain.
+    /// - `fields`: The current field data, such as temperature and velocity.
+    /// - `fluxes`: The fluxes to be computed and updated.
+    /// - `boundary_handler`: Handler for boundary conditions.
+    /// - `current_time`: The current simulation time.
     fn assemble(
         &self,
         domain: &Mesh,
@@ -30,11 +42,16 @@ impl PhysicalEquation for EnergyEquation {
 }
 
 impl EnergyEquation {
+    /// Creates a new energy equation with a specified thermal conductivity.
     pub fn new(thermal_conductivity: f64) -> Self {
         EnergyEquation { thermal_conductivity }
     }
 
-    pub fn calculate_energy_fluxes(
+    /// Calculates energy fluxes across all faces in the domain.
+    ///
+    /// This method computes conductive and convective fluxes, taking into account
+    /// boundary conditions and internal cell interactions.
+    fn calculate_energy_fluxes(
         &self,
         domain: &Mesh,
         fields: &Fields,
@@ -45,6 +62,7 @@ impl EnergyEquation {
         let mut geometry = Geometry::new();
 
         for face in domain.get_faces() {
+            // Determine face shape and centroid
             let face_vertices = domain.get_face_vertices(&face);
             let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
@@ -53,6 +71,7 @@ impl EnergyEquation {
             };
             let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
 
+            // Retrieve associated cells and scalar field data
             let cells = domain.get_cells_sharing_face(&face);
             let cell_a = cells
                 .iter()
@@ -65,6 +84,7 @@ impl EnergyEquation {
             let grad_temp_a = fields.get_vector_field_value("temperature_gradient", &cell_a)
                 .expect("Temperature gradient not found for cell");
 
+            // Reconstruct the temperature at the face
             let mut face_temperature = self.reconstruct_face_value(
                 temp_a,
                 grad_temp_a,
@@ -72,6 +92,7 @@ impl EnergyEquation {
                 face_center,
             );
 
+            // Retrieve velocity and face normal
             let velocity = fields.get_vector_field_value("velocity", &face)
                 .expect("Velocity not found at face");
             let face_normal = geometry
@@ -83,7 +104,7 @@ impl EnergyEquation {
             let total_flux;
 
             if cells.len() == 1 {
-                // Boundary face
+                // Boundary face handling
                 if let Some(bc) = boundary_handler.get_bc(&face) {
                     match bc {
                         BoundaryCondition::Dirichlet(value) => {
@@ -141,7 +162,7 @@ impl EnergyEquation {
                     );
                 }
             } else {
-                // Internal face
+                // Internal face handling
                 total_flux = self.compute_flux(
                     temp_a,
                     face_temperature,
@@ -152,10 +173,12 @@ impl EnergyEquation {
                 );
             }
 
+            // Add computed flux to the flux container
             fluxes.add_energy_flux(face, total_flux);
         }
     }
 
+    /// Reconstructs the scalar field value at a face using the cell value and gradient.
     fn reconstruct_face_value(
         &self,
         cell_value: Scalar,
@@ -172,6 +195,7 @@ impl EnergyEquation {
         )
     }
 
+    /// Computes the total energy flux across a face, combining conduction and convection effects.
     fn compute_flux(
         &self,
         _temp_a: Scalar,
@@ -186,7 +210,7 @@ impl EnergyEquation {
                 + grad_temp_a.0[1] * face_normal.0[1]
                 + grad_temp_a.0[2] * face_normal.0[2]);
 
-        let rho = 1.0;
+        let rho = 1.0; // Assumed density
         let convective_flux = rho
             * face_temperature.0
             * (velocity.0[0] * face_normal.0[0]

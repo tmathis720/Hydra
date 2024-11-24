@@ -2,9 +2,22 @@ use crate::domain::{mesh::Mesh, Section};
 use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler};
 use crate::domain::section::{Vector3, Scalar};
 
+/// Represents a generic equation framework for computing fluxes
+/// in a simulation domain. This implementation is designed to handle
+/// flux calculations based on velocity fields, boundary conditions, and
+/// mesh geometry.
 pub struct Equation {}
 
 impl Equation {
+    /// Calculates the fluxes for the given domain and stores them in the `fluxes` section.
+    ///
+    /// # Parameters
+    /// - `domain`: The mesh representing the simulation domain.
+    /// - `velocity_field`: Section containing velocity vectors for faces.
+    /// - `_pressure_field`: Section containing scalar pressure values (not currently used).
+    /// - `fluxes`: Section where computed fluxes will be stored.
+    /// - `boundary_handler`: Handler for boundary conditions.
+    /// - `current_time`: Current time in the simulation for time-dependent boundary conditions.
     pub fn calculate_fluxes(
         &self,
         domain: &Mesh,
@@ -14,57 +27,65 @@ impl Equation {
         boundary_handler: &BoundaryConditionHandler,
         current_time: f64,
     ) {
+        // Generate a mapping from entities to indices for matrix assembly.
         let entity_to_index = domain.get_entity_to_index();
         let boundary_entities = boundary_handler.get_boundary_faces();
-    
-        // Map boundary entities to indices
+
+        // Map boundary entities to indices.
         for (i, entity) in boundary_entities.iter().enumerate() {
             entity_to_index.insert(entity.clone(), i);
         }
-    
+
+        // Process each face in the domain for flux calculations.
         for face in domain.get_faces() {
             println!("Processing face: {:?}", face);
-    
+
+            // Retrieve face normal and area.
             let normal = match domain.get_face_normal(&face, None) {
                 Some(normal) => normal,
                 None => {
                     println!("Face {:?} has no normal! Skipping.", face);
-                    continue; // Skip faces with no normal
+                    continue; // Skip faces with no normal.
                 }
             };
-    
+
             let area = match domain.get_face_area(&face) {
                 Some(area) => area,
                 None => {
                     println!("Face {:?} has no area! Skipping.", face);
-                    continue; // Skip faces with no area
+                    continue; // Skip faces with no area.
                 }
             };
-    
+
+            // Compute the flux based on the velocity field.
             if let Some(velocity) = velocity_field.restrict(&face) {
                 let velocity_dot_normal: f64 = velocity.iter()
                     .zip(normal.iter())
                     .map(|(v, n)| v * n)
                     .sum();
-    
+
+                // Compute the base flux using the velocity and face properties.
                 let base_flux = Vector3([
                     velocity_dot_normal * area,
                     velocity_dot_normal * normal[1] * area,
                     velocity_dot_normal * normal[2] * area,
                 ]);
-    
+
                 fluxes.set_data(face.clone(), base_flux);
             } else {
                 println!("Face {:?} missing velocity data! Skipping.", face);
                 continue;
             }
-    
+
+            // Apply boundary conditions to modify the flux.
             if let Some(bc) = boundary_handler.get_bc(&face) {
                 match bc {
                     BoundaryCondition::Dirichlet(value) => {
+                        // Dirichlet condition: Set a fixed flux value.
                         fluxes.set_data(face.clone(), Vector3([value, 0.0, 0.0]));
                     }
                     BoundaryCondition::Neumann(flux_value) => {
+                        // Neumann condition: Modify the existing flux.
                         let existing_flux = fluxes.restrict(&face).unwrap_or(Vector3([0.0, 0.0, 0.0]));
                         let updated_flux = Vector3([
                             existing_flux[0] + flux_value,
@@ -74,6 +95,7 @@ impl Equation {
                         fluxes.set_data(face.clone(), updated_flux);
                     }
                     BoundaryCondition::Robin { alpha, beta } => {
+                        // Robin condition: Scale the flux with `alpha` and add `beta`.
                         let existing_flux = fluxes.restrict(&face).unwrap_or(Vector3([0.0, 0.0, 0.0]));
                         let updated_flux = Vector3([
                             existing_flux[0] * alpha + beta,
@@ -82,20 +104,25 @@ impl Equation {
                         ]);
                         fluxes.set_data(face.clone(), updated_flux);
                     }
-                    _ => println!("Unsupported boundary condition for face {:?}: {:?}", face, bc),
+                    _ => {
+                        // Handle unsupported boundary conditions.
+                        println!("Unsupported boundary condition for face {:?}: {:?}", face, bc);
+                    }
                 }
             } else {
                 println!("No boundary condition for face {:?}", face);
-                continue; // Skip faces with no boundary conditions
+                continue; // Skip faces with no boundary conditions.
             }
         }
-    
+
+        // Prepare for matrix assembly for boundary condition enforcement.
         let num_boundary_entities = boundary_entities.len();
         let mut matrix_storage = faer::Mat::<f64>::zeros(num_boundary_entities, num_boundary_entities);
         let mut rhs_storage = faer::Mat::<f64>::zeros(num_boundary_entities, 1);
         let mut matrix = matrix_storage.as_mut();
         let mut rhs = rhs_storage.as_mut();
-    
+
+        // Apply boundary conditions to construct the system of equations.
         boundary_handler.apply_bc(
             &mut matrix,
             &mut rhs,
@@ -104,8 +131,8 @@ impl Equation {
             current_time,
         );
     }
-    
 }
+
 
 
 
