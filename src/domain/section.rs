@@ -158,6 +158,18 @@ impl<'a> Add for &'a Vector3 {
     }
 }
 
+impl Vector3 {
+    /// Computes the magnitude (norm) of the vector.
+    pub fn magnitude(&self) -> f64 {
+        self.0.iter().map(|&v| v * v).sum::<f64>().sqrt()
+    }
+
+    /// Computes the dot product of two vectors.
+    pub fn dot(&self, other: &Vector3) -> f64 {
+        self.0.iter().zip(&other.0).map(|(a, b)| a * b).sum()
+    }
+}
+
 impl Mul<Vector3> for f64 {
     type Output = Vector3;
 
