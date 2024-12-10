@@ -17,6 +17,7 @@ pub mod fields;          // Management of scalar, vector, and tensor fields.
 pub mod manager;         // Orchestrates equations and fields over a domain.
 pub mod energy_equation; // Defines the energy equation and related computations.
 pub mod momentum_equation; // Defines the momentum equation and related computations.
+pub mod turbulence_models; // Defines the turbulence closure model and handles related computations.
 
 /// A trait representing a physical equation in the simulation.
 ///
