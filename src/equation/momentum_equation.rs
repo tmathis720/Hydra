@@ -13,16 +13,28 @@ use super::{
 
 /// Parameters required for the momentum equation
 pub struct MomentumParameters {
-    pub density: f64,   // Fluid density
-    pub viscosity: f64, // Fluid viscosity
+    pub density: f64,   // Fluid density (e.g., kg/m^3).
+    pub viscosity: f64, // Fluid dynamic viscosity (e.g., Pa·s).
 }
 
-/// Implements the momentum equation
+/// Implementation of the momentum equation for fluid simulations.
+///
+/// This struct encapsulates the behavior of the momentum equation,
+/// including the computation of convective, diffusive, and pressure fluxes
+/// at mesh faces, and the handling of boundary conditions.
 pub struct MomentumEquation {
-    pub params: MomentumParameters,
+    pub params: MomentumParameters, // Parameters (density, viscosity) for the momentum equation.
 }
 
 impl PhysicalEquation for MomentumEquation {
+    /// Assembles the momentum equation by calculating fluxes for all mesh faces.
+    ///
+    /// # Parameters
+    /// - `domain`: The computational mesh describing the simulation geometry.
+    /// - `fields`: Contains field data (e.g., velocity, pressure).
+    /// - `fluxes`: Stores calculated flux values.
+    /// - `boundary_handler`: Handles boundary condition specifications.
+    /// - `current_time`: Current simulation time (useful for time-dependent BCs).
     fn assemble(
         &self,
         domain: &Mesh,
@@ -36,7 +48,14 @@ impl PhysicalEquation for MomentumEquation {
 }
 
 impl MomentumEquation {
-    /// Main driver for computing momentum fluxes across all faces.
+    /// Main method to calculate momentum fluxes for all faces in the domain.
+    ///
+    /// This method computes:
+    /// - Convective fluxes based on the velocity field.
+    /// - Diffusive fluxes based on velocity gradients.
+    /// - Pressure fluxes using pressure values at cell centers.
+    /// 
+    /// Boundary conditions are also applied to adjust the computed fluxes.
     pub fn calculate_momentum_fluxes(
         &self,
         domain: &Mesh,
@@ -47,10 +66,13 @@ impl MomentumEquation {
     ) {
         let geometry = Geometry::new();
 
+        // Compute velocity gradients for all cells using a specific gradient method.
         let (gradient_u, gradient_v, gradient_w) =
             self.compute_velocity_gradients(domain, fields, boundary_handler, current_time);
 
+        // Iterate over each face in the mesh to compute fluxes.
         for face in domain.get_faces() {
+            // Determine face geometry and properties.
             let face_vertices = domain.get_face_vertices(&face);
             let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
@@ -59,19 +81,19 @@ impl MomentumEquation {
             };
 
             let normal = match domain.get_face_normal(&face, None) {
-                Some(n) => n,
-                None => continue,
+                Some(n) => n, // Use the face normal if available.
+                None => continue, // Skip if normal vector is missing.
             };
 
             let area = match domain.get_face_area(&face) {
-                Some(a) => a,
-                None => continue,
+                Some(a) => a, // Use the face area if available.
+                None => continue, // Skip if area is missing.
             };
 
             let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
             let cells = domain.get_cells_sharing_face(&face);
 
-            // Extract cell data
+            // Extract data from the cells adjacent to the face.
             let (_cell_a, velocity_a, pressure_a, center_a, grads_a) =
                 self.extract_cell_data(domain, fields, &gradient_u, &gradient_v, &gradient_w, &cells, 0);
             let (has_cell_b, velocity_b, pressure_b, center_b, grads_b) =
@@ -83,7 +105,7 @@ impl MomentumEquation {
                     (false, velocity_a, pressure_a, center_a, grads_a)
                 };
 
-            // Reconstruct fields at face
+            // Reconstruct field values at the face from the adjacent cells.
             let velocity_face_a = self.reconstruct_face_velocity(velocity_a, &grads_a, center_a, face_center);
             let velocity_face_b = if has_cell_b {
                 self.reconstruct_face_velocity(velocity_b, &grads_b, center_b, face_center)
@@ -98,7 +120,7 @@ impl MomentumEquation {
                 pressure_face_a
             };
 
-            // Compute fluxes
+            // Compute the individual flux components.
             let convective_flux = self.compute_convective_flux(velocity_face_a, velocity_face_b, &normal, area);
             let pressure_flux = self.compute_pressure_flux(pressure_face_a, pressure_face_b, &normal, area);
             let diffusive_flux = self.compute_diffusive_flux(
@@ -108,10 +130,11 @@ impl MomentumEquation {
                 area,
             );
 
+            // Combine fluxes and update the flux container.
             let total_flux = convective_flux - pressure_flux + diffusive_flux;
             fluxes.add_momentum_flux(face.clone(), total_flux);
 
-            // Apply boundary conditions if any
+            // Apply boundary conditions for the current face.
             if let Some(bc) = boundary_handler.get_bc(&face) {
                 self.apply_boundary_conditions(bc, fluxes, &face, &normal.0, area);
             }

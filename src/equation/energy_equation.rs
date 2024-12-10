@@ -7,11 +7,12 @@ use crate::Mesh;
 use super::fields::{Fields, Fluxes};
 use super::reconstruction::reconstruct::reconstruct_face_value;
 
-/// Represents the energy equation governing heat transfer in the domain.
-/// Includes functionality for computing fluxes due to conduction and convection,
-/// and handles various boundary conditions.
+/// Struct representing the energy equation, modeling heat transfer processes
+/// in the simulation domain.
+/// Provides methods for calculating conductive and convective fluxes, and
+/// handles various boundary conditions.
 pub struct EnergyEquation {
-    /// Coefficient for thermal conduction, representing the material's conductivity.
+    /// Thermal conductivity coefficient (W/m·K), a material property.
     pub thermal_conductivity: f64,
 }
 
@@ -43,7 +44,10 @@ impl PhysicalEquation for EnergyEquation {
 }
 
 impl EnergyEquation {
-    /// Creates a new energy equation with a specified thermal conductivity.
+    /// Constructs a new `EnergyEquation` with the specified thermal conductivity.
+    ///
+    /// # Parameters
+    /// - `thermal_conductivity`: The material's thermal conductivity (W/m·K).
     pub fn new(thermal_conductivity: f64) -> Self {
         EnergyEquation { thermal_conductivity }
     }
@@ -67,7 +71,7 @@ impl EnergyEquation {
             let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
                 4 => FaceShape::Quadrilateral,
-                _ => continue,
+                _ => continue, // Unsupported face shape
             };
             let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
 
@@ -95,9 +99,11 @@ impl EnergyEquation {
                 .expect("Normal not found for face");
             let face_area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
 
+            // Compute total flux considering boundary conditions or cell-cell interactions
             let total_flux;
 
             if cells.len() == 1 {
+                // Boundary face handling
                 if let Some(bc) = boundary_handler.get_bc(&face) {
                     match bc {
                         BoundaryCondition::Dirichlet(value) => {
@@ -127,6 +133,7 @@ impl EnergyEquation {
                     );
                 }
             } else {
+                // Interface face handling
                 total_flux = self.compute_flux_combined(
                     temp_a, Scalar(face_temperature), &grad_temp_a, &face_normal, &velocity, face_area,
                 );
@@ -136,7 +143,18 @@ impl EnergyEquation {
         }
     }
 
-    /// Computes the combined flux due to conduction and convection.
+    /// Computes the combined flux from conduction and convection mechanisms.
+    ///
+    /// # Parameters
+    /// - `temp_a`: Temperature at cell center A.
+    /// - `face_temperature`: Reconstructed temperature at the face.
+    /// - `grad_temp_a`: Temperature gradient at cell A.
+    /// - `face_normal`: Normal vector of the face.
+    /// - `velocity`: Velocity vector at the face.
+    /// - `face_area`: Area of the face.
+    ///
+    /// # Returns
+    /// Combined energy flux through the face.
     fn compute_flux_combined(
         &self,
         _temp_a: Scalar,
