@@ -48,6 +48,18 @@ pub struct Minmod;
 ///   clamping them within the original range, and selects the larger of the two.
 pub struct Superbee;
 
+/// Implementation of the Van Leer flux limiter.
+pub struct VanLeer;
+
+/// Implementation of the Van Albada flux limiter.
+pub struct VanAlbada;
+
+/// Implementation of the Koren flux limiter.
+pub struct Koren;
+
+/// Implementation of the Beam-Warming flux limiter.
+pub struct BeamWarming;
+
 impl FluxLimiter for Minmod {
     /// Applies the Minmod flux limiter to two neighboring values.
     ///
@@ -103,5 +115,59 @@ impl FluxLimiter for Superbee {
 
             result
         }
+    }
+}
+
+impl FluxLimiter for VanLeer {
+    fn limit(&self, left_value: f64, right_value: f64) -> f64 {
+        if left_value * right_value <= 0.0 {
+            println!("VanLeer: Different signs or zero - returning 0.0");
+            0.0
+        } else {
+            let r = left_value / right_value;
+            let result = (r.abs() + r) / (1.0 + r.abs());
+            println!(
+                "VanLeer: left_value = {}, right_value = {}, r = {}, result = {}",
+                left_value, right_value, r, result
+            );
+            result
+        }
+    }
+}
+
+
+impl FluxLimiter for VanAlbada {
+    fn limit(&self, left_value: f64, right_value: f64) -> f64 {
+        if left_value * right_value <= 0.0 {
+            0.0
+        } else {
+            let numerator = left_value * right_value * (left_value + right_value);
+            let denominator = left_value.powi(2) + right_value.powi(2);
+            numerator / (denominator + f64::EPSILON)
+        }
+    }
+}
+
+impl FluxLimiter for Koren {
+    fn limit(&self, left_value: f64, right_value: f64) -> f64 {
+        if left_value * right_value <= 0.0 {
+            println!("Koren: Different signs or zero - returning 0.0");
+            0.0
+        } else {
+            let r = left_value / right_value;
+            let result = (2.0 * r).min(1.0).min((1.0 / 3.0) + (2.0 * r / 3.0));
+            println!(
+                "Koren: left_value = {}, right_value = {}, r = {}, result = {}",
+                left_value, right_value, r, result
+            );
+            result
+        }
+    }
+}
+
+
+impl FluxLimiter for BeamWarming {
+    fn limit(&self, left_value: f64, _right_value: f64) -> f64 {
+        left_value
     }
 }
