@@ -143,6 +143,21 @@ impl FiniteVolumeGradient {
                 BoundaryCondition::SolidWallViscous { normal_velocity } => {
                     self.apply_solid_wall_viscous_boundary(normal_velocity, flux_vector, grad_phi);
                 }
+                BoundaryCondition::FarField(value) => {
+                    self.apply_dirichlet_boundary(value, phi_c, flux_vector, grad_phi);
+                }
+                BoundaryCondition::Injection(value) => {
+                    self.apply_injection_boundary(value, flux_vector, grad_phi);
+                }
+                BoundaryCondition::InletOutlet => {
+                    self.apply_inlet_outlet_boundary(phi_c, flux_vector, grad_phi);
+                }
+                BoundaryCondition::Symmetry => {
+                    self.apply_symmetry_boundary(phi_c, flux_vector, grad_phi);
+                }
+                BoundaryCondition::Periodic { .. } => {
+                    return Err("Periodic boundary condition not applicable for gradient computation".into());
+                }
             }
         }
         Ok(())
@@ -192,6 +207,29 @@ impl FiniteVolumeGradient {
         // For viscous walls, the velocity at the wall is equal to the normal velocity.
         for i in 0..3 {
             grad_phi[i] += normal_velocity * flux_vector[i];
+        }
+    }
+
+    /// Applies an injection boundary condition by adding injected flux.
+    fn apply_injection_boundary(&self, value: f64, flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
+        for i in 0..3 {
+            grad_phi[i] += value * flux_vector[i];
+        }
+    }
+
+    /// Applies an inlet-outlet boundary condition by assuming zero gradient.
+    fn apply_inlet_outlet_boundary(&self, _phi_c: f64, _flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
+        // Assume no contribution to the gradient from inlet/outlet
+        for i in 0..3 {
+            grad_phi[i] += 0.0;
+        }
+    }
+
+    /// Applies a symmetry boundary condition by ensuring no flux contribution.
+    fn apply_symmetry_boundary(&self, _phi_c: f64, _flux_vector: Vector3, grad_phi: &mut [f64; 3]) {
+        // For symmetry, the flux vector normal to the boundary does not contribute.
+        for i in 0..3 {
+            grad_phi[i] += 0.0;
         }
     }
     

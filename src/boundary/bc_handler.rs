@@ -24,6 +24,11 @@ use crate::boundary::robin::RobinBC;
 use crate::boundary::mixed::MixedBC;
 use crate::boundary::cauchy::CauchyBC;
 use crate::boundary::solid_wall::SolidWallBC;
+use crate::boundary::far_field::FarFieldBC;
+use crate::boundary::injection::InjectionBC;
+use crate::boundary::inlet_outlet::InletOutletBC;
+use crate::boundary::periodic::PeriodicBC;
+use crate::boundary::symmetry::SymmetryBC;
 use faer::MatMut;
 
 pub type BoundaryConditionFn = Arc<dyn Fn(f64, &[f64]) -> f64 + Send + Sync>;
@@ -55,9 +60,15 @@ impl std::fmt::Debug for FunctionWrapper {
 /// - `Robin { alpha, beta }`: Combines Dirichlet and Neumann conditions.
 /// - `Mixed { gamma, delta }`: A hybrid boundary condition.
 /// - `Cauchy { lambda, mu }`: Used in fluid-structure interaction problems.
+/// - `SolidWallInviscid`: Represents a slip wall boundary condition.
+/// - `SolidWallViscous { normal_velocity: f64 }`: Represents a no-slip wall boundary condition.
 /// - `DirichletFn(FunctionWrapper)`: Functional Dirichlet condition with metadata.
 /// - `NeumannFn(FunctionWrapper)`: Functional Neumann condition with metadata.
 /// - `Periodic { pairs }`: Specifies a Periodic boundary condition between pairs.
+/// - `FarField(f64)`: Represents far-field boundary conditions for simulating infinite domains.
+/// - `Injection(f64)`: Represents injection of a specified property (e.g., mass, momentum, or energy).
+/// - `InletOutlet`: Represents combined inlet and outlet conditions.
+/// - `Symmetry`: Represents symmetry plane conditions.
 ///
 /// # Notes
 /// Functional boundary conditions allow time-dependent or spatially varying constraints.
@@ -72,7 +83,14 @@ pub enum BoundaryCondition {
     SolidWallViscous { normal_velocity: f64 },
     DirichletFn(FunctionWrapper),
     NeumannFn(FunctionWrapper),
+    Periodic { pairs: Vec<(MeshEntity, MeshEntity)> },
+    FarField(f64),
+    Injection(f64),
+    InletOutlet,
+    Symmetry,
 }
+
+
 
 /// The BoundaryConditionHandler struct is responsible for managing
 /// boundary conditions associated with specific mesh entities.
@@ -174,10 +192,34 @@ impl BoundaryConditionHandler {
                         let cauchy_bc = CauchyBC::new();
                         cauchy_bc.apply_cauchy(matrix, rhs, index, lambda, mu);
                     }
+                    BoundaryCondition::FarField(value) => {
+                        let far_field_bc = FarFieldBC::new();
+                        far_field_bc.apply_far_field(matrix, rhs, index, value);
+                    }
+                    BoundaryCondition::Injection(value) => {
+                        let injection_bc = InjectionBC::new();
+                        injection_bc.apply_injection(matrix, rhs, index, value);
+                    }
+                    BoundaryCondition::InletOutlet => {
+                        let inlet_outlet_bc = InletOutletBC::new();
+                        inlet_outlet_bc.apply_bc(matrix, rhs, entity_to_index);
+                    }
+                    BoundaryCondition::Symmetry => {
+                        let symmetry_bc = SymmetryBC::new();
+                        symmetry_bc.apply_symmetry_plane(matrix, rhs, index);
+                    }
+                    BoundaryCondition::Periodic { pairs } => {
+                        let periodic_bc = PeriodicBC::new();
+                        for (entity1, entity2) in pairs {
+                            periodic_bc.set_pair(entity1.clone(), entity2.clone());
+                        }
+                        periodic_bc.apply_bc(matrix, rhs, entity_to_index);
+                    }
                 }
             }
         }
     }
+
 }
 
 
@@ -194,7 +236,6 @@ pub trait BoundaryConditionApply {
         time: f64,
     );
 }
-
 impl BoundaryConditionApply for BoundaryCondition {
     fn apply(
         &self,
@@ -242,9 +283,33 @@ impl BoundaryConditionApply for BoundaryCondition {
                 let cauchy_bc = CauchyBC::new();
                 cauchy_bc.apply_cauchy(matrix, rhs, index, *lambda, *mu);
             }
+            BoundaryCondition::FarField(value) => {
+                let far_field_bc = FarFieldBC::new();
+                far_field_bc.apply_far_field(matrix, rhs, index, *value);
+            }
+            BoundaryCondition::Injection(value) => {
+                let injection_bc = InjectionBC::new();
+                injection_bc.apply_injection(matrix, rhs, index, *value);
+            }
+            BoundaryCondition::InletOutlet => {
+                let inlet_outlet_bc = InletOutletBC::new();
+                inlet_outlet_bc.apply_bc(matrix, rhs, entity_to_index);
+            }
+            BoundaryCondition::Symmetry => {
+                let symmetry_bc = SymmetryBC::new();
+                symmetry_bc.apply_symmetry_plane(matrix, rhs, index);
+            }
+            BoundaryCondition::Periodic { pairs } => {
+                let periodic_bc = PeriodicBC::new();
+                for (entity1, entity2) in pairs {
+                    periodic_bc.set_pair(entity1.clone(), entity2.clone());
+                }
+                periodic_bc.apply_bc(matrix, rhs, entity_to_index);
+            }
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
