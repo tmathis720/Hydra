@@ -1,110 +1,61 @@
-# HYDRA: Finite Volume Solver for Geophysical Fluid Dynamics
+# Hydra Project
 
-## Project Overview
+Hydra is an advanced computational framework designed for geophysical fluid dynamics simulations. It uses Finite Volume Methods (FVM) on unstructured 3D meshes to deliver robust, scalable, and accurate solutions for complex fluid flow problems. With a modular architecture, Hydra is a flexible tool for researchers and engineers working on diverse computational fluid dynamics (CFD) applications.
 
-The HYDRA project aims to develop a **Finite Volume Method (FVM)** solver for **geophysical fluid dynamics (GFD)**, focusing on environments like coastal zones, estuaries, rivers, lakes, and reservoirs. The solver is designed to solve the **Reynolds-Averaged Navier-Stokes (RANS) equations**, a widely-used framework for simulating fluid flow in these domains. The ultimate goal is to model complex GFD problems efficiently and accurately, leveraging state-of-the-art numerical techniques and parallel computing.
+## Features
+- **Finite Volume Method (FVM):** A reliable approach for solving partial differential equations over arbitrary 3D geometries.
+- **Unstructured Mesh Support:** Handles complex domains with high flexibility in grid generation and adaptation.
+- **Geophysical Applications:** Tailored for large-scale fluid flow simulations, including atmospheric, oceanic, and subsurface applications.
+- **Modular Design:** Independent modules for solvers, mesh handling, boundary conditions, and physical models allow for easy customization and extension.
 
-HYDRA takes inspiration from **PETSc**, adopting a similar structure and functional approach to handle tasks like mesh management, parallelization, and solver routines. The project emphasizes flexibility, modularity, and scalability to address the computational challenges of geophysical simulations.
-
-## Key Features and Goals
-
-- **FVM Solver**: Targeting 3D fluid dynamics problems in complex domains using the FVM approach.
-- **RANS Equations**: Solving the Reynolds-Averaged Navier-Stokes equations for turbulent flow.
-- **Geophysical Focus**: Applications in environmental fluid dynamics, including modeling of natural water bodies.
-- **Modular and Extensible**: Designed with flexibility in mind, allowing users to easily extend the framework with additional solvers, preconditioners, and boundary conditions.
-- **Parallel Computing**: Future versions will support parallel computing using MPI and Rust’s concurrency features.
-- **PETSc-Inspired**: Following PETSc’s approach, we adopt structured modules for solvers (e.g., KSP for Krylov subspace solvers), preconditioners (e.g., Jacobi), and mesh management.
-
-## Repository Structure
-
-- `.github/`: GitHub-specific configuration files.
-- `.vscode/`: Visual Studio Code configuration.
-- `Cargo.toml`: Cargo configuration file for Rust.
-- `Cargo.lock`: Dependency lock file.
-- `src/`: Contains the source code for the HYDRA project.
-  - **solver/**: Implements various solvers and preconditioners.
-    - `cg.rs`: Conjugate Gradient solver implementation.
-    - `jacobi.rs`: Jacobi preconditioner.
-    - `ksp.rs`: Krylov subspace solver manager.
-  - **domain/**: Contains modules for mesh management, including:
-    - `mesh_entity.rs`: Defines the basic geometric entities.
-    - `sieve.rs`: For managing the structure and relationship between entities.
-    - `section.rs`: For relating data to mesh entities.
-  - **boundary/**: Handles boundary conditions (e.g., Dirichlet, Neumann).
-- `test.msh2`: Sample mesh file for testing.
-- `README.md`: This file.
-- `ROADMAP.md`: Future development plans and goals for HYDRA.
-
-## Current Progress
-
-### Implemented Components
-
-1. **Conjugate Gradient (CG) Solver**: A Krylov subspace solver for solving symmetric positive definite systems, integrated with the option to use preconditioners.
-   - **Jacobi Preconditioner**: Applied to improve the convergence of the CG solver, especially for ill-conditioned systems.
-   - **Singular Matrix Detection**: Added detection for non-convergence when the matrix is singular or nearly singular.
-   
-2. **Unit Testing**: Comprehensive tests for both the CG solver and the Jacobi preconditioner have been implemented.
-   - **Tests for singular matrices**: Verifying that the solver correctly fails for non-invertible systems.
-   - **Preconditioner tests**: Validating the functionality of the Jacobi preconditioner on simple matrix systems.
-
-### Work in Progress
-
-- **Boundary Conditions**: Implementing modules for handling various types of boundary conditions (Dirichlet, Neumann).
-- **Solver Extensions**: Exploring additional solvers like GMRES for non-symmetric systems and other preconditioners.
-- **Performance Optimization**: Profiling and optimizing key components, including solver convergence and matrix assembly efficiency.
-
-## Future Plans
-
-The next steps for HYDRA include:
-
-1. **Parallel Computing**: Implementing support for distributed meshes and parallel solvers using MPI or Rust concurrency.
-2. **Mesh Infrastructure**: Developing a robust mesh management system inspired by PETSc's `DMPlex`, allowing for efficient handling of complex geometries and partitioning for parallel processing.
-3. **RANS Equations**: Integrating the full Reynolds-Averaged Navier-Stokes equations into the solver framework for modeling turbulent fluid flow.
-4. **Advanced Preconditioning**: Adding more advanced preconditioners like ILU and multi-grid methods.
-5. **Documentation and User Guide**: Expanding documentation for users and developers, including a detailed user guide and API references.
+## Current Status
+Hydra is actively under development. The current focus is on enhancing the following aspects:
+- Improving solver efficiency and scalability.
+- Expanding test coverage for key modules.
+- Refining boundary condition handling for a variety of flow scenarios.
+- Documentation and codebase organization for easier contributions.
 
 ## Getting Started
-
 ### Prerequisites
+- **Rust:** Hydra is implemented in Rust, leveraging its performance and memory safety features.
+- **Cargo:** Use Cargo to build and manage dependencies.
 
-To build and run the HYDRA project, you need the following:
-
-- **Rust**: The programming language used for HYDRA. Install it from [rust-lang.org](https://www.rust-lang.org/).
-- **Cargo**: The Rust package manager, used to build and manage dependencies.
-- **MPI (optional)**: For parallel computing support in future releases.
-
-### Build Instructions
-
+### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/tmathis720/HYDRA.git
-   cd HYDRA
+   git clone https://github.com/tmathis720/hydra.git
+   cd hydra
    ```
-
 2. Build the project:
    ```bash
-   cargo build
+   cargo build --release
    ```
-
-3. Run tests to verify the setup:
+3. Run tests to verify the installation:
    ```bash
    cargo test
    ```
 
-## Contributions
+### Example Usage
+Hydra can be run with configuration files that define the mesh, boundary conditions, and simulation parameters:
+```bash
+./hydra simulate --config ./examples/config.yaml
+```
 
-Contributions are welcome! To contribute:
+## Contributing
+We welcome contributions to Hydra! Here are some ways you can help:
+- Submit bug reports and feature requests via GitHub Issues.
+- Propose and discuss ideas by opening a GitHub Discussion.
+- Contribute code by submitting a pull request (PR). Please follow the [contribution guidelines](CONTRIBUTING.md).
 
-1. Fork the repository.
-2. Create a new feature branch.
-3. Submit a pull request with detailed descriptions of changes.
-
-For more details, see the `CONTRIBUTING.md` file.
+## Documentation
+Documentation is a work in progress. You can find initial guides and reference material in the `docs/` directory. Detailed examples and tutorials are planned for future updates.
 
 ## License
+Hydra is licensed under the MIT License. See the [LICENSE](LICENSE.md) file for details.
 
-HYDRA is licensed under the MIT License. See `LICENSE` for more information.
+## Contact
+For further inquiries, reach out via our GitHub Discussions or email us at [tmathis720@gmail.com](mailto:tmathis720@gmail.com).
 
 ---
 
-**HYDRA** is actively developed and maintained with a focus on advancing the state of fluid dynamics simulation, particularly for complex geophysical applications.
+Hydra aims to be a reliable and extensible platform for fluid dynamics research and engineering. Thank you for your interest and contributions!
