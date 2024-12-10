@@ -40,6 +40,8 @@ pub struct GeometryCache {
 /// * Pyramid
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CellShape {
+    Triangle,
+    Quadrilateral,
     Tetrahedron,
     Hexahedron,
     Prism,
@@ -98,6 +100,8 @@ impl Geometry {
         }
     
         let centroid = match cell_shape {
+            CellShape::Triangle => self.compute_triangle_centroid(&cell_vertices),
+            CellShape::Quadrilateral => self.compute_quadrilateral_centroid(&cell_vertices),
             CellShape::Tetrahedron => self.compute_tetrahedron_centroid(&cell_vertices),
             CellShape::Hexahedron => self.compute_hexahedron_centroid(&cell_vertices),
             CellShape::Prism => self.compute_prism_centroid(&cell_vertices),
@@ -120,11 +124,13 @@ impl Geometry {
         let cell_vertices = mesh.get_cell_vertices(cell);
     
         // Validate vertices
-        if cell_vertices.len() < 4 { // Example: tetrahedron requires 4 vertices
+        if cell_vertices.len() < 3 { // Example: tetrahedron requires 4 vertices
             panic!("Cell {:?} does not have enough vertices to compute volume.", cell);
         }
     
         let volume = match cell_shape {
+            CellShape::Triangle => self.compute_triangle_area(&cell_vertices),
+            CellShape::Quadrilateral => self.compute_quadrilateral_area(&cell_vertices),
             CellShape::Tetrahedron => self.compute_tetrahedron_volume(&cell_vertices),
             CellShape::Hexahedron => self.compute_hexahedron_volume(&cell_vertices),
             CellShape::Prism => self.compute_prism_volume(&cell_vertices),

@@ -1,19 +1,26 @@
-// src/boundary/mesh/topology.rs
-
 use crate::domain::mesh_entity::MeshEntity;
 use crate::domain::sieve::Sieve;
 use crate::domain::mesh::Mesh;
 use rustc_hash::FxHashSet;
 use std::sync::{Arc, RwLock};
 
-/// `TopologyValidation` struct responsible for checking mesh entity connectivity and uniqueness.
+/// The `TopologyValidation` struct is responsible for validating the connectivity
+/// and uniqueness of mesh entities. It ensures:
+/// - Cells are correctly connected to faces and vertices.
+/// - Edges within a cell are unique.
+///
+/// This structure leverages the sieve data structure and mesh entities to perform
+/// validation checks on the topology of the mesh.
 pub struct TopologyValidation<'a> {
-    sieve: &'a Sieve,
-    entities: &'a Arc<RwLock<FxHashSet<MeshEntity>>>,
+    sieve: &'a Sieve, // Reference to the sieve containing adjacency relationships.
+    entities: &'a Arc<RwLock<FxHashSet<MeshEntity>>>, // Shared access to mesh entities.
 }
 
 impl<'a> TopologyValidation<'a> {
-    /// Creates a new `TopologyValidation` instance for a given mesh.
+    /// Constructs a new `TopologyValidation` instance using a reference to a mesh.
+    ///
+    /// # Arguments
+    /// * `mesh` - The `Mesh` instance whose topology needs to be validated.
     pub fn new(mesh: &'a Mesh) -> Self {
         TopologyValidation {
             sieve: &mesh.sieve,
@@ -21,8 +28,14 @@ impl<'a> TopologyValidation<'a> {
         }
     }
 
-    /// Validates that each `Cell` in the mesh has the correct connections to `Faces` and `Vertices`.
-    /// Returns `true` if all cells are correctly connected, `false` otherwise.
+    /// Validates the connectivity of all `Cell` entities in the mesh.
+    ///
+    /// Ensures that:
+    /// - Each cell is connected to valid `Face` entities.
+    /// - Each face is connected to valid `Vertex` entities.
+    ///
+    /// # Returns
+    /// * `true` if all cells are correctly connected, `false` otherwise.
     pub fn validate_connectivity(&self) -> bool {
         for cell in self.get_cells() {
             if !self.validate_cell_connectivity(&cell) {
@@ -32,13 +45,18 @@ impl<'a> TopologyValidation<'a> {
         true
     }
 
-    /// Validates that `Edges` in the mesh are unique and not duplicated within any `Cell`.
-    /// Returns `true` if all edges are unique, `false` otherwise.
+    /// Validates that edges within cells are unique.
+    ///
+    /// Checks for duplicate edges within the same cell and ensures that all edges
+    /// adhere to the expected topology.
+    ///
+    /// # Returns
+    /// * `true` if all edges are unique, `false` otherwise.
     pub fn validate_unique_relationships(&self) -> bool {
         for cell in self.get_cells() {
             println!("Validating edges for cell: {:?}", cell); // Debugging statement
-            let mut edge_set = FxHashSet::default(); // Reset edge_set for each cell
-    
+            let mut edge_set = FxHashSet::default(); // Tracks edges within the current cell.
+
             if !self.validate_unique_edges_in_cell(&cell, &mut edge_set) {
                 println!("Duplicate edge detected in cell: {:?}", cell); // Debugging statement
                 return false;
@@ -48,58 +66,94 @@ impl<'a> TopologyValidation<'a> {
     }
 
     /// Retrieves all `Cell` entities from the mesh.
+    ///
+    /// Filters the list of entities to include only cells.
+    ///
+    /// # Returns
+    /// * `Vec<MeshEntity>` - A vector of all `Cell` entities.
     fn get_cells(&self) -> Vec<MeshEntity> {
         let entities = self.entities.read().unwrap();
-        entities.iter()
-            .filter(|e| matches!(e, MeshEntity::Cell(_)))
+        entities
+            .iter()
+            .filter(|e| matches!(e, MeshEntity::Cell(_))) // Include only `Cell` entities.
             .cloned()
             .collect()
     }
 
-    /// Checks if a `Cell` is connected to valid `Faces` and `Vertices`.
+    /// Validates the connectivity of a single cell.
+    ///
+    /// Ensures that:
+    /// - The cell is connected to valid `Face` entities.
+    /// - Each face is connected to valid `Vertex` entities.
+    ///
+    /// # Arguments
+    /// * `cell` - The `Cell` entity to validate.
+    ///
+    /// # Returns
+    /// * `true` if the cell is correctly connected, `false` otherwise.
     fn validate_cell_connectivity(&self, cell: &MeshEntity) -> bool {
         if let Some(connected_faces) = self.sieve.cone(cell) {
             for face in connected_faces {
+                // Validate that the entity is a `Face`.
                 if !matches!(face, MeshEntity::Face(_)) {
                     return false;
                 }
-                // Check each face is connected to valid vertices
+                // Validate that each face is connected to valid `Vertex` entities.
                 if let Some(vertices) = self.sieve.cone(&face) {
                     if !vertices.iter().all(|v| matches!(v, MeshEntity::Vertex(_))) {
                         return false;
                     }
                 } else {
-                    return false;
+                    return false; // Face is not connected to any vertices.
                 }
             }
             true
         } else {
-            false
+            false // Cell is not connected to any faces.
         }
     }
 
-    /// Checks if `Edges` within a `Cell` are unique.
-    fn validate_unique_edges_in_cell(&self, cell: &MeshEntity, edge_set: &mut FxHashSet<MeshEntity>) -> bool {
+    /// Validates that edges within a cell are unique.
+    ///
+    /// Ensures no duplicate edges exist within the same cell and all edges
+    /// adhere to the expected topology.
+    ///
+    /// # Arguments
+    /// * `cell` - The `Cell` entity to validate.
+    /// * `edge_set` - A mutable set used to track edges within the cell.
+    ///
+    /// # Returns
+    /// * `true` if all edges are unique, `false` otherwise.
+    fn validate_unique_edges_in_cell(
+        &self,
+        cell: &MeshEntity,
+        edge_set: &mut FxHashSet<MeshEntity>,
+    ) -> bool {
         if let Some(edges) = self.sieve.cone(cell) {
             for edge in edges {
+                // Validate that the entity is an `Edge`.
                 if !matches!(edge, MeshEntity::Edge(_)) {
                     return false;
                 }
-                // Debugging: Print edge and current edge set
-                println!("Checking edge {:?} in cell {:?}. Current edge set: {:?}", edge, cell, edge_set);
-                
-                // Check for duplication in `edge_set`
+                // Debugging: Print edge and current edge set.
+                println!(
+                    "Checking edge {:?} in cell {:?}. Current edge set: {:?}",
+                    edge, cell, edge_set
+                );
+
+                // Check for duplicates in `edge_set`.
                 if !edge_set.insert(edge) {
-                    println!("Duplicate edge {:?} found in cell {:?}", edge, cell); // Debugging statement
-                    return false; // Duplicate edge found
+                    println!("Duplicate edge {:?} found in cell {:?}", edge, cell); // Debugging statement.
+                    return false; // Duplicate edge detected.
                 }
             }
             true
         } else {
-            false
+            false // Cell is not connected to any edges.
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {

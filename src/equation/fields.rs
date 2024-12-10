@@ -2,21 +2,28 @@ use rustc_hash::FxHashMap;
 use crate::{domain::Section, MeshEntity};
 use super::super::domain::section::{Vector3, Tensor3x3, Scalar, Vector2};
 
+/// Trait `UpdateState` defines methods for updating and comparing the state of objects.
 pub trait UpdateState {
+    /// Updates the state of an object using a derivative and a time step (`dt`).
     fn update_state(&mut self, derivative: &Self, dt: f64);
-    fn difference(&self, other: &Self) -> Self; // Returns the difference between states
-    fn norm(&self) -> f64; // Returns the norm (magnitude) of the state
+
+    /// Computes the difference between the current state and another state.
+    fn difference(&self, other: &Self) -> Self;
+
+    /// Computes the norm (magnitude) of the state for convergence checks.
+    fn norm(&self) -> f64;
 }
 
+/// Represents the fields (scalar, vector, and tensor) stored for a simulation domain.
 #[derive(Clone, Debug)]
 pub struct Fields {
-    pub scalar_fields: FxHashMap<String, Section<Scalar>>,
-    pub vector_fields: FxHashMap<String, Section<Vector3>>,
-    pub tensor_fields: FxHashMap<String, Section<Tensor3x3>>,
+    pub scalar_fields: FxHashMap<String, Section<Scalar>>, // Scalar fields (e.g., temperature, energy).
+    pub vector_fields: FxHashMap<String, Section<Vector3>>, // Vector fields (e.g., velocity, momentum).
+    pub tensor_fields: FxHashMap<String, Section<Tensor3x3>>, // Tensor fields (e.g., stress tensors).
 }
 
-
 impl Fields {
+    /// Creates a new, empty instance of `Fields`.
     pub fn new() -> Self {
         Self {
             scalar_fields: FxHashMap::default(),
@@ -25,10 +32,12 @@ impl Fields {
         }
     }
 
+    /// Retrieves the scalar field value for a specific entity.
     pub fn get_scalar_field_value(&self, name: &str, entity: &MeshEntity) -> Option<Scalar> {
         self.scalar_fields.get(name)?.restrict(entity)
     }
 
+    /// Sets the scalar field value for a specific entity, creating the field if it doesn't exist.
     pub fn set_scalar_field_value(&mut self, name: &str, entity: MeshEntity, value: Scalar) {
         if let Some(field) = self.scalar_fields.get_mut(name) {
             field.set_data(entity, value);
@@ -39,10 +48,12 @@ impl Fields {
         }
     }
 
+    /// Retrieves the vector field value for a specific entity.
     pub fn get_vector_field_value(&self, name: &str, entity: &MeshEntity) -> Option<Vector3> {
         self.vector_fields.get(name)?.restrict(entity)
     }
 
+    /// Sets the vector field value for a specific entity, creating the field if it doesn't exist.
     pub fn set_vector_field_value(&mut self, name: &str, entity: MeshEntity, value: Vector3) {
         if let Some(field) = self.vector_fields.get_mut(name) {
             field.set_data(entity, value);
@@ -53,6 +64,8 @@ impl Fields {
         }
     }
 
+    /// Updates the fields using the given fluxes.
+    /// This operation typically happens after fluxes are computed across the mesh.
     pub fn update_from_fluxes(&mut self, fluxes: &Fluxes) {
         for entry in fluxes.energy_fluxes.data.iter() {
             let field = self
@@ -83,20 +96,37 @@ impl Fields {
 }
 
 impl UpdateState for Fields {
+    /// Updates the current state of scalar and vector fields by applying
+    /// the derivative (rate of change) multiplied by a time step (`dt`).
+    ///
+    /// This function iterates over each field in the `derivative` structure, adding
+    /// the scaled derivative values to the corresponding fields in `self`. If a field
+    /// does not exist in the current state, it creates a new field and applies the update.
+    ///
+    /// # Arguments
+    /// * `derivative` - A `Fields` instance representing the rate of change for each field.
+    /// * `dt` - The time step, used to scale the derivative before updating.
     fn update_state(&mut self, derivative: &Fields, dt: f64) {
+        // Update scalar fields
         for (key, section) in &derivative.scalar_fields {
             if let Some(state_section) = self.scalar_fields.get_mut(key) {
+                // Update existing scalar field with the derivative
                 state_section.update_with_derivative(section, dt);
             } else {
+                // Create a new scalar field if it does not exist
                 let new_section = Section::new();
                 new_section.update_with_derivative(section, dt);
                 self.scalar_fields.insert(key.clone(), new_section);
             }
         }
+
+        // Update vector fields
         for (key, section) in &derivative.vector_fields {
             if let Some(state_section) = self.vector_fields.get_mut(key) {
+                // Update existing vector field with the derivative
                 state_section.update_with_derivative(section, dt);
             } else {
+                // Create a new vector field if it does not exist
                 let new_section = Section::new();
                 new_section.update_with_derivative(section, dt);
                 self.vector_fields.insert(key.clone(), new_section);
@@ -104,42 +134,70 @@ impl UpdateState for Fields {
         }
     }
 
+    /// Computes the difference between the current state and another `Fields` instance.
+    ///
+    /// The difference is calculated for each field by subtracting the values in the `other`
+    /// instance from the corresponding fields in `self`. If a field is not present in the
+    /// current state, it is skipped.
+    ///
+    /// # Arguments
+    /// * `other` - A `Fields` instance to compare against.
+    ///
+    /// # Returns
+    /// A new `Fields` instance containing the difference for each field.
     fn difference(&self, other: &Self) -> Self {
         let mut result = self.clone();
+
+        // Compute the difference for scalar fields
         for (key, section) in &other.scalar_fields {
             if let Some(state_section) = self.scalar_fields.get(key) {
                 result.scalar_fields.insert(key.clone(), state_section.clone() - section.clone());
             }
         }
+
+        // Compute the difference for vector fields
         for (key, section) in &other.vector_fields {
             if let Some(state_section) = self.vector_fields.get(key) {
                 result.vector_fields.insert(key.clone(), state_section.clone() - section.clone());
             }
         }
+
         result
     }
 
+    /// Computes the norm (magnitude) of the current state.
+    ///
+    /// The norm is calculated by summing the squares of all scalar field values and
+    /// then taking the square root of the total. This provides a scalar metric
+    /// representing the overall magnitude of the state, useful for convergence checks.
+    ///
+    /// # Returns
+    /// A `f64` value representing the norm of the state.
     fn norm(&self) -> f64 {
         self.scalar_fields
             .values()
             .flat_map(|section| {
+                // Iterate over each scalar field value, computing its square
                 section
                     .data
                     .iter()
                     .map(|entry| entry.value().0 * entry.value().0)
             })
-            .sum::<f64>()
-            .sqrt()
+            .sum::<f64>() // Sum all squared values
+            .sqrt() // Take the square root of the sum
     }
 }
 
+
+/// Represents flux data for various field quantities.
 pub struct Fluxes {
-    pub momentum_fluxes: Section<Vector3>,
-    pub energy_fluxes: Section<Scalar>,
-    pub turbulence_fluxes: Section<Vector2>,
+    pub momentum_fluxes: Section<Vector3>, // Fluxes for momentum.
+    pub energy_fluxes: Section<Scalar>,   // Fluxes for energy.
+    pub turbulence_fluxes: Section<Vector2>, // Fluxes for turbulence models.
 }
 
 impl Fluxes {
+    /// Creates a new instance of `Fluxes` with empty sections.
     pub fn new() -> Self {
         Self {
             momentum_fluxes: Section::new(),
@@ -148,6 +206,7 @@ impl Fluxes {
         }
     }
 
+    /// Adds a momentum flux for the given entity.
     pub fn add_momentum_flux(&mut self, entity: MeshEntity, value: Vector3) {
         if let Some(mut current) = self.momentum_fluxes.data.get_mut(&entity) {
             *current.value_mut() += value;
@@ -156,6 +215,7 @@ impl Fluxes {
         }
     }
 
+    /// Adds an energy flux for the given entity.
     pub fn add_energy_flux(&mut self, entity: MeshEntity, value: Scalar) {
         if let Some(mut current) = self.energy_fluxes.data.get_mut(&entity) {
             *current.value_mut() += value;
@@ -164,6 +224,7 @@ impl Fluxes {
         }
     }
 
+    /// Adds a turbulence flux for the given entity.
     pub fn add_turbulence_flux(&mut self, entity: MeshEntity, value: Vector2) {
         if let Some(mut current) = self.turbulence_fluxes.data.get_mut(&entity) {
             *current.value_mut() += value;
@@ -172,6 +233,7 @@ impl Fluxes {
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {

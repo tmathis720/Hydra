@@ -57,6 +57,7 @@ impl std::fmt::Debug for FunctionWrapper {
 /// - `Cauchy { lambda, mu }`: Used in fluid-structure interaction problems.
 /// - `DirichletFn(FunctionWrapper)`: Functional Dirichlet condition with metadata.
 /// - `NeumannFn(FunctionWrapper)`: Functional Neumann condition with metadata.
+/// - `Periodic { pairs }`: Specifies a Periodic boundary condition between pairs.
 ///
 /// # Notes
 /// Functional boundary conditions allow time-dependent or spatially varying constraints.

@@ -198,6 +198,7 @@ impl FiniteVolumeGradient {
     /// Determines face shape based on vertex count.
     fn determine_face_shape(&self, vertex_count: usize) -> Result<FaceShape, Box<dyn Error>> {
         match vertex_count {
+            2 => Ok(FaceShape::Edge),
             3 => Ok(FaceShape::Triangle),
             4 => Ok(FaceShape::Quadrilateral),
             _ => Err(format!(

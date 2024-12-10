@@ -186,3 +186,141 @@ impl MeshGenerator {
     }
 
 }
+
+#[cfg(test)]
+mod tests {
+    use super::MeshGenerator;
+    use crate::domain::MeshEntity;
+
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
+
+    #[test]
+    fn test_generate_rectangle_2d() {
+        let width = 2.0;
+        let height = 1.0;
+        let nx = 2;
+        let ny = 1;
+
+        let mesh = MeshGenerator::generate_rectangle_2d(width, height, nx, ny);
+        // The mesh should have (nx+1)*(ny+1) vertices
+        let expected_vertices = (nx + 1) * (ny + 1);
+        // The mesh should have nx*ny cells
+        let expected_cells = nx * ny;
+
+        // Check vertex count
+        let vertex_count = mesh.count_entities(&MeshEntity::Vertex(0));
+        assert_eq!(vertex_count, expected_vertices, "Incorrect number of vertices for 2D rectangle.");
+
+        // Check cell count
+        let cell_count = mesh.count_entities(&MeshEntity::Cell(0));
+        assert_eq!(cell_count, expected_cells, "Incorrect number of cells for 2D rectangle.");
+
+        // Verify vertex coordinates
+        // Expected coordinates: 
+        // For nx=2, ny=1: vertices at (0,0), (1,0), (2,0), (0,1), (1,1), (2,1)
+        for i in 0..=nx {
+            for j in 0..=ny {
+                let id = j * (nx + 1) + i;
+                let coords = mesh.get_vertex_coordinates(id).expect("Vertex not found");
+                assert!(approx_eq(coords[0], i as f64 * (width/nx as f64), 1e-12));
+                assert!(approx_eq(coords[1], j as f64 * (height/ny as f64), 1e-12));
+                assert!(approx_eq(coords[2], 0.0, 1e-12));
+            }
+        }
+    }
+
+    #[test]
+    fn test_generate_rectangle_3d() {
+        let width = 2.0;
+        let height = 1.0;
+        let depth = 3.0;
+        let nx = 2;
+        let ny = 1;
+        let nz = 2;
+
+        let mesh = MeshGenerator::generate_rectangle_3d(width, height, depth, nx, ny, nz);
+        // (nx+1)*(ny+1)*(nz+1) vertices
+        let expected_vertices = (nx + 1) * (ny + 1) * (nz + 1);
+        // nx*ny*nz cells
+        let expected_cells = nx * ny * nz;
+
+        let vertex_count = mesh.count_entities(&MeshEntity::Vertex(0));
+        assert_eq!(vertex_count, expected_vertices, "Incorrect number of vertices for 3D rectangle.");
+
+        let cell_count = mesh.count_entities(&MeshEntity::Cell(0));
+        assert_eq!(cell_count, expected_cells, "Incorrect number of cells for 3D rectangle.");
+
+        // Check a few sample coordinates:
+        // vertex at (i, j, k) => x = i*dx, y = j*dy, z = k*dz
+        let dx = width / nx as f64;
+        let dy = height / ny as f64;
+        let dz = depth / nz as f64;
+
+        // A vertex in the "top corner" (i=nx, j=ny, k=nz):
+        let corner_id = nz * (ny + 1)*(nx + 1) + ny*(nx + 1) + nx;
+        let corner_coords = mesh.get_vertex_coordinates(corner_id).expect("Corner vertex not found");
+        assert!(approx_eq(corner_coords[0], nx as f64 * dx, 1e-12));
+        assert!(approx_eq(corner_coords[1], ny as f64 * dy, 1e-12));
+        assert!(approx_eq(corner_coords[2], nz as f64 * dz, 1e-12));
+    }
+
+    #[test]
+    fn test_generate_circle() {
+        let radius = 1.0;
+        let divisions = 4; // e.g., 4 divisions form a square-like approximation
+
+        let mesh = MeshGenerator::generate_circle(radius, divisions);
+
+        // The mesh should have num_divisions + 1 vertices (including center)
+        let expected_vertices = divisions + 1;
+        // It forms num_divisions triangular cells
+        let expected_cells = divisions;
+
+        let vertex_count = mesh.count_entities(&MeshEntity::Vertex(0));
+        assert_eq!(vertex_count, expected_vertices, "Incorrect vertex count for circle mesh.");
+
+        let cell_count = mesh.count_entities(&MeshEntity::Cell(0));
+        assert_eq!(cell_count, expected_cells, "Incorrect cell count for circle mesh.");
+
+        // Check center vertex at index 0
+        let center_coords = mesh.get_vertex_coordinates(0).expect("Center vertex not found");
+        assert!(approx_eq(center_coords[0], 0.0, 1e-12));
+        assert!(approx_eq(center_coords[1], 0.0, 1e-12));
+        assert!(approx_eq(center_coords[2], 0.0, 1e-12));
+
+        // Check boundary vertices are on a circle of given radius
+        for i in 1..=divisions {
+            let coords = mesh.get_vertex_coordinates(i).expect("Boundary vertex not found");
+            let r = (coords[0]*coords[0] + coords[1]*coords[1]).sqrt();
+            assert!(approx_eq(r, radius, 1e-12), "Vertex not on the expected radius.");
+            assert!(approx_eq(coords[2], 0.0, 1e-12));
+        }
+
+        // Check that each cell forms a triangle with the center vertex
+        for c in 0..cell_count {
+            // We know each cell is formed as (center, i, i+1)
+            // Just ensure no panic occurs and we have correct indexing
+            // Detailed topological checks can be done if needed
+            let cells = mesh.get_cells();
+            let cell_entity = cells[c];
+            let cone = mesh.sieve.cone(&cell_entity).unwrap_or_default();
+            assert_eq!(cone.len(), 3, "Each cell should have exactly 3 vertices for triangular mesh.");
+        }
+    }
+
+    #[test]
+    fn test_empty_meshes() {
+        // Edge cases: if nx or ny is zero
+        let mesh_2d = MeshGenerator::generate_rectangle_2d(2.0, 1.0, 0, 1);
+        // If nx=0, we actually have no cells, just a line of vertices:
+        assert_eq!(mesh_2d.count_entities(&MeshEntity::Vertex(0)), 2, "Expect a line of vertices when nx=0");
+        assert_eq!(mesh_2d.count_entities(&MeshEntity::Cell(0)), 0, "No cells should be generated if nx=0");
+
+        let mesh_circle = MeshGenerator::generate_circle(1.0, 0);
+        // If num_divisions=0, circle degenerates to a single point
+        assert_eq!(mesh_circle.count_entities(&MeshEntity::Vertex(0)), 1, "Only center vertex if no divisions");
+        assert_eq!(mesh_circle.count_entities(&MeshEntity::Cell(0)), 0, "No cells without divisions");
+    }
+}
