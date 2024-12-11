@@ -6,7 +6,8 @@ use crate::{
 };
 
 use crate::equation::gradient::{Gradient, GradientCalculationMethod};
-use crate::equation::reconstruction::reconstruct::reconstruct_face_value;
+
+use super::reconstruction::{LinearReconstruction, ReconstructionMethod};
 
 /// A trait defining the required interface for turbulence models.
 ///
@@ -171,16 +172,17 @@ impl TurbulenceModel for GOTMModel {
             };
 
             // Reconstruct scalars at face
-            let scalar_1_face_a = reconstruct_face_value(scalar_1_a, grad_1_a.0, center_a, face_center);
-            let scalar_2_face_a = reconstruct_face_value(scalar_2_a, grad_2_a.0, center_a, face_center);
+            let reconstruction: Box<dyn ReconstructionMethod> = Box::new(LinearReconstruction);
+            let scalar_1_face_a = reconstruction.reconstruct(scalar_1_a, grad_1_a.0, center_a, face_center);
+            let scalar_2_face_a = reconstruction.reconstruct(scalar_2_a, grad_2_a.0, center_a, face_center);
 
             let scalar_1_face_b = if has_cell_b {
-                reconstruct_face_value(scalar_1_b, grad_1_b.0, center_b, face_center)
+                reconstruction.reconstruct(scalar_1_b, grad_1_b.0, center_b, face_center)
             } else {
                 scalar_1_face_a
             };
             let scalar_2_face_b = if has_cell_b {
-                reconstruct_face_value(scalar_2_b, grad_2_b.0, center_b, face_center)
+                reconstruction.reconstruct(scalar_2_b, grad_2_b.0, center_b, face_center)
             } else {
                 scalar_2_face_a
             };

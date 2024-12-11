@@ -5,7 +5,7 @@ use crate::domain::section::{Scalar, Vector3};
 use crate::Mesh;
 
 use super::fields::{Fields, Fluxes};
-use super::reconstruction::reconstruct::reconstruct_face_value;
+use super::reconstruction::{LinearReconstruction, ReconstructionMethod};
 
 /// Struct representing the energy equation, modeling heat transfer processes
 /// in the simulation domain.
@@ -86,7 +86,8 @@ impl EnergyEquation {
             let grad_temp_a = fields.get_vector_field_value("temperature_gradient", &cell_a)
                 .expect("Temperature gradient not found for cell");
 
-            let face_temperature = reconstruct_face_value(
+            let reconstruction: Box<dyn ReconstructionMethod> = Box::new(LinearReconstruction);
+            let face_temperature = reconstruction.reconstruct(
                 temp_a.0,
                 grad_temp_a.0,
                 geometry.compute_cell_centroid(domain, &cell_a),

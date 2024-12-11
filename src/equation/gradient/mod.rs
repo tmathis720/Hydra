@@ -13,13 +13,16 @@ use crate::geometry::Geometry;
 use std::error::Error;
 
 pub mod gradient_calc;
+pub mod least_squares;
 pub mod tests;
 
 use gradient_calc::FiniteVolumeGradient;
+use least_squares::LeastSquaresGradient;
 
 /// Enum representing the available gradient calculation methods.
 pub enum GradientCalculationMethod {
     FiniteVolume,
+    LeastSquares,
     // Additional methods can be added here as needed
 }
 
@@ -28,6 +31,7 @@ impl GradientCalculationMethod {
     pub fn create_method(&self) -> Box<dyn GradientMethod> {
         match self {
             GradientCalculationMethod::FiniteVolume => Box::new(FiniteVolumeGradient {}),
+            GradientCalculationMethod::LeastSquares => Box::new(LeastSquaresGradient {}),
             // Extend here with other methods as needed
         }
     }

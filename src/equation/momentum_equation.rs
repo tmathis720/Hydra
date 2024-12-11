@@ -7,7 +7,7 @@ use crate::{
 use super::{
     fields::{Fields, Fluxes},
     gradient::{Gradient, GradientCalculationMethod},
-    reconstruction::reconstruct::reconstruct_face_value,
+    reconstruction::{LinearReconstruction, ReconstructionMethod},
     PhysicalEquation,
 };
 
@@ -220,10 +220,11 @@ impl MomentumEquation {
         cell_center: [f64; 3],
         face_center: [f64; 3],
     ) -> Vector3 {
+        let reconstruction: Box<dyn ReconstructionMethod> = Box::new(LinearReconstruction);
         Vector3([
-            reconstruct_face_value(velocity.0[0], grads[0].0, cell_center, face_center),
-            reconstruct_face_value(velocity.0[1], grads[1].0, cell_center, face_center),
-            reconstruct_face_value(velocity.0[2], grads[2].0, cell_center, face_center),
+            reconstruction.reconstruct(velocity.0[0], grads[0].0, cell_center, face_center),
+            reconstruction.reconstruct(velocity.0[1], grads[1].0, cell_center, face_center),
+            reconstruction.reconstruct(velocity.0[2], grads[2].0, cell_center, face_center),
         ])
     }
 
@@ -235,7 +236,8 @@ impl MomentumEquation {
         cell_center: [f64; 3],
         face_center: [f64; 3],
     ) -> f64 {
-        reconstruct_face_value(pressure.0, pressure_grad.0, cell_center, face_center)
+        let reconstruction: Box<dyn ReconstructionMethod> = Box::new(LinearReconstruction);
+        reconstruction.reconstruct(pressure.0, pressure_grad.0, cell_center, face_center)
     }
 
     /// Computes the convective flux using the average face velocity and face normal.
