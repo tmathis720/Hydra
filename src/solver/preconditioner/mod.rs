@@ -2,11 +2,13 @@ pub mod jacobi;
 pub mod lu;
 pub mod ilu;
 pub mod cholesky;
+pub mod amg;
 
 pub use jacobi::Jacobi;
 pub use lu::LU;
 pub use ilu::ILU;
 pub use cholesky::CholeskyPreconditioner;
+pub use amg::AMG;
 
 use crate::linalg::{Matrix, Vector};
 use faer::mat::Mat;
@@ -59,5 +61,18 @@ impl PreconditionerFactory {
     /// `Arc<dyn Preconditioner>` instance of the LU preconditioner.
     pub fn create_lu(matrix: &Mat<f64>) -> Arc<dyn Preconditioner> {
         Arc::new(LU::new(matrix))
+    }
+
+        /// Creates an AMG preconditioner wrapped in `Arc`.
+    ///
+    /// # Arguments
+    /// - `matrix`: The system matrix.
+    /// - `max_levels`: Maximum number of coarsening levels.
+    /// - `coarsening_threshold`: Threshold for coarsening decisions.
+    ///
+    /// # Returns
+    /// `Arc<dyn Preconditioner>` instance of the AMG preconditioner.
+    pub fn create_amg(matrix: &Mat<f64>, max_levels: usize, coarsening_threshold: f64) -> Arc<dyn Preconditioner> {
+        Arc::new(AMG::new(matrix, max_levels, coarsening_threshold))
     }
 }

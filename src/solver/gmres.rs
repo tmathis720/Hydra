@@ -73,6 +73,7 @@ impl KSP for GMRES {
 
         // Compute initial residual r = b - Ax
         compute_initial_residual(a, b, x, &mut temp_vec, &mut r);
+        
 
         // Apply the preconditioner if available
         if let Some(preconditioner) = &self.preconditioner {
@@ -98,6 +99,12 @@ impl KSP for GMRES {
 
         // Initialize variables for GMRES iterations
         let mut iterations = 0;
+        let _adaptive_restart = if iterations > self.restart {
+            // Increase the restart window if iterations exceed the restart threshold
+            self.restart * 2
+        } else {
+            self.restart
+        };
         let mut v = vec![vec![0.0; n]; self.restart + 1]; // Krylov basis vectors
         let mut h = vec![vec![0.0; self.restart]; self.restart + 1]; // Hessenberg matrix
         let mut g = vec![0.0; self.restart + 1]; // Residual projections
@@ -166,6 +173,20 @@ impl KSP for GMRES {
                 r.copy_from_slice(&preconditioned_vec);
             }
             residual_norm = euclidean_norm(&r as &dyn Vector<Scalar = f64>);
+
+            /* // Track residuals for stagnation detection
+            let previous_residual = residual_norm;
+            let stagnation_tolerance = 1e-3;
+
+            if (residual_norm - previous_residual).abs() < stagnation_tolerance {
+                eprintln!("GMRES detected stagnation; aborting.");
+                return SolverResult {
+                    converged: false,
+                    iterations,
+                    residual_norm,
+                };
+            }
+            let _previous_residual = residual_norm; */
 
             // Check for numerical stability issues
             if residual_norm.is_nan() || residual_norm.is_infinite() {
