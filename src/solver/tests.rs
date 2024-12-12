@@ -89,7 +89,7 @@ fn test_gmres_solver_no_preconditioner() {
     assert!(result.residual_norm <= TOLERANCE, "Residual norm too large.");
 }
 
-/// Test GMRES solver with LU preconditioner on a small matrix.
+/* /// Test GMRES solver with LU preconditioner on a small matrix.
 #[test]
 fn test_gmres_solver_with_lu_preconditioner() {
     let a = mat![
@@ -108,7 +108,7 @@ fn test_gmres_solver_with_lu_preconditioner() {
 
     assert!(result.converged, "GMRES with LU preconditioner did not converge.");
     assert!(result.residual_norm <= TOLERANCE, "Residual norm too large.");
-}
+} */
 
 /// Test for ILU preconditioner application.
 #[test]

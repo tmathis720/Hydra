@@ -19,6 +19,8 @@ pub struct GMRES {
     pub tol: f64,
     pub restart: usize,
     pub preconditioner: Option<Arc<dyn Preconditioner>>,
+    pub haptol: f64,
+    pub use_iter_refine: bool, // whether to use iterative refinement in orthogonalization
 }
 
 impl GMRES {
@@ -34,6 +36,8 @@ impl GMRES {
             tol,
             restart,
             preconditioner: None,
+            haptol: 1e-30,
+            use_iter_refine: true,
         }
     }
 
@@ -45,18 +49,10 @@ impl GMRES {
     pub fn set_preconditioner(&mut self, preconditioner: Arc<dyn Preconditioner>) {
         self.preconditioner = Some(preconditioner);
     }
+
 }
 
 impl KSP for GMRES {
-    /// Executes the GMRES algorithm to solve the system `Ax = b` for a given sparse matrix `A`.
-    ///
-    /// # Arguments
-    /// - `a`: The matrix `A` of the system, represented as a `Matrix` trait object.
-    /// - `b`: The right-hand side vector `b`.
-    /// - `x`: The solution vector `x`, which will be updated in place with the computed solution.
-    ///
-    /// # Returns
-    /// - `SolverResult`: Contains information on convergence, number of iterations, and the final residual norm.
     fn solve(
         &mut self,
         a: &dyn Matrix<Scalar = f64>,
@@ -64,142 +60,108 @@ impl KSP for GMRES {
         x: &mut dyn Vector<Scalar = f64>,
     ) -> SolverResult {
         let n = b.len();
-        let epsilon = 1e-12; // Tolerance for numerical stability
+        let epsilon = 1e-14;
 
-        // Initial residual vectors and workspace for computation
         let mut r = vec![0.0; n];
         let mut temp_vec = vec![0.0; n];
         let mut preconditioned_vec = vec![0.0; n];
 
-        // Compute initial residual r = b - Ax
+        // Compute initial residual
         compute_initial_residual(a, b, x, &mut temp_vec, &mut r);
-        
 
-        // Apply the preconditioner if available
+        // Apply preconditioner if available
         if let Some(preconditioner) = &self.preconditioner {
-            preconditioner.apply(
-                a,
-                &r as &dyn Vector<Scalar = f64>,
-                &mut preconditioned_vec as &mut dyn Vector<Scalar = f64>,
-            );
+            preconditioner.apply(a, &r, &mut preconditioned_vec);
             r.copy_from_slice(&preconditioned_vec);
         }
 
-        // Calculate initial residual norm
-        let mut residual_norm = euclidean_norm(&r as &dyn Vector<Scalar = f64>);
+        let mut residual_norm = euclidean_norm(&r);
 
-        // Check initial convergence conditions
-        if should_terminate_initial_residual(residual_norm, &r, x) {
+        // Check trivial convergence
+        if residual_norm <= self.tol {
             return SolverResult {
-                converged: false,
+                converged: true,
                 iterations: 0,
-                residual_norm: f64::NAN,
+                residual_norm,
             };
         }
 
-        // Initialize variables for GMRES iterations
         let mut iterations = 0;
-        let _adaptive_restart = if iterations > self.restart {
-            // Increase the restart window if iterations exceed the restart threshold
-            self.restart * 2
-        } else {
-            self.restart
-        };
-        let mut v = vec![vec![0.0; n]; self.restart + 1]; // Krylov basis vectors
-        let mut h = vec![vec![0.0; self.restart]; self.restart + 1]; // Hessenberg matrix
-        let mut g = vec![0.0; self.restart + 1]; // Residual projections
 
-        // Variables for Givens rotations (cosines and sines)
-        let mut cosines = vec![0.0; self.restart];
-        let mut sines = vec![0.0; self.restart];
+        // Outer restart loop
+        'outer: loop {
+            // Allocate Krylov space
+            let mut v = vec![vec![0.0; n]; self.restart + 1];
+            let mut h = vec![vec![0.0; self.restart]; self.restart + 1];
+            let mut g = vec![0.0; self.restart + 1];
+            let mut cosines = vec![0.0; self.restart];
+            let mut sines = vec![0.0; self.restart];
 
-        loop {
-            // Normalize the initial residual to form the first Krylov vector v[0]
+            // Normalize residual to get v[0]
             if !normalize_residual_and_init_krylov(&r, &mut v[0], epsilon) {
+                // If we cannot normalize, likely we are done or have numerical issues
                 return SolverResult {
                     converged: false,
                     iterations,
                     residual_norm: f64::NAN,
                 };
             }
-
-            // Initialize g with the current residual norm
             g[0] = residual_norm;
-            let mut inner_iterations = 0;
 
-            // Arnoldi process for generating the Krylov subspace and filling Hessenberg matrix
+            // Arnoldi + Givens rotations
+            let mut inner_iterations = 0;
             for k in 0..self.restart {
                 inner_iterations = k;
-                if let Some(result) = arnoldi_process(
+
+                let (happy_breakdown, arnoldi_ok) = arnoldi_process(
                     k,
                     a,
                     &mut v,
                     &mut temp_vec,
                     &mut preconditioned_vec,
-                    &self.preconditioner, // Pass &Option<Arc<...>>
+                    &self.preconditioner,
                     &mut h,
                     epsilon,
-                ) {
-                    return result;
+                    self.use_iter_refine,
+                    self.haptol,
+                );
+                if !arnoldi_ok {
+                    return SolverResult {
+                        converged: false,
+                        iterations,
+                        residual_norm: f64::NAN,
+                    };
                 }
 
-                // Apply Givens rotations to maintain upper Hessenberg structure
                 apply_givens_rotations(&mut h, &mut g, &mut cosines, &mut sines, k);
 
-                // Check convergence after each step
                 residual_norm = g[k + 1].abs();
-                if residual_norm < self.tol {
+                if happy_breakdown || residual_norm <= self.tol {
                     break;
                 }
             }
 
-            // Solve least-squares problem to update y in x = V * y
             let m = inner_iterations + 1;
             let mut y = vec![0.0; m];
             back_substitution(&h, &g, &mut y, m);
 
-            // Update solution vector x
             update_solution(x, &v, &y, n);
             iterations += m;
 
-            // Recompute the residual for restart
+            // Recompute residual
             compute_residual(a, b, x, &mut temp_vec, &mut r);
             if let Some(preconditioner) = &self.preconditioner {
-                preconditioner.apply(
-                    a,
-                    &r as &dyn Vector<Scalar = f64>,
-                    &mut preconditioned_vec as &mut dyn Vector<Scalar = f64>,
-                );
+                preconditioner.apply(a, &r, &mut preconditioned_vec);
                 r.copy_from_slice(&preconditioned_vec);
             }
-            residual_norm = euclidean_norm(&r as &dyn Vector<Scalar = f64>);
+            residual_norm = euclidean_norm(&r);
 
-            /* // Track residuals for stagnation detection
-            let previous_residual = residual_norm;
-            let stagnation_tolerance = 1e-3;
-
-            if (residual_norm - previous_residual).abs() < stagnation_tolerance {
-                eprintln!("GMRES detected stagnation; aborting.");
-                return SolverResult {
-                    converged: false,
-                    iterations,
-                    residual_norm,
-                };
-            }
-            let _previous_residual = residual_norm; */
-
-            // Check for numerical stability issues
-            if residual_norm.is_nan() || residual_norm.is_infinite() {
-                return SolverResult {
-                    converged: false,
-                    iterations,
-                    residual_norm: f64::NAN,
-                };
+            if residual_norm <= self.tol {
+                break 'outer;
             }
 
-            // Final convergence check
-            if iterations >= self.max_iter || residual_norm <= self.tol {
-                break;
+            if iterations >= self.max_iter {
+                break 'outer;
             }
         }
 
@@ -229,37 +191,12 @@ fn compute_initial_residual(
     temp_vec: &mut Vec<f64>,
     residual: &mut Vec<f64>,
 ) {
-    // Compute A * x and store it in `temp_vec`
-    a.mat_vec(x, temp_vec); 
-    
-    // Compute residual in parallel: residual[i] = b[i] - (A * x)[i]
+    a.mat_vec(x, temp_vec);
     residual.par_iter_mut().enumerate().for_each(|(i, r_i)| {
         *r_i = b.get(i) - temp_vec[i];
     });
 }
 
-/// Checks if the initial residual norm indicates that the solver should terminate early.
-/// Returns `true` if residual norm is NaN or infinite (numerical failure) or if `x` contains NaN values.
-/// 
-/// # Arguments
-/// - `residual_norm`: The Euclidean norm of the residual.
-/// - `_residual`: The residual vector (unused here, but may be useful in other termination checks).
-/// - `x`: The current solution vector.
-///
-/// # Returns
-/// - `true` if termination conditions are met, otherwise `false`.
-fn should_terminate_initial_residual(residual_norm: f64, _residual: &Vec<f64>, x: &dyn Vector<Scalar = f64>) -> bool {
-    if residual_norm.is_nan() || residual_norm.is_infinite() {
-        return true;
-    }
-
-    // Check if residual norm is very small or if solution vector `x` contains NaNs
-    if residual_norm <= 1e-12 && x.as_slice().contains(&f64::NAN) {
-        return true;
-    }
-
-    false
-}
 
 /// Normalizes the initial residual vector and sets up the first Krylov basis vector.
 /// Returns `true` if normalization is successful, or `false` if the norm is zero, NaN, or infinite.
@@ -276,17 +213,13 @@ fn normalize_residual_and_init_krylov(
     krylov_vector: &mut Vec<f64>,
     epsilon: f64,
 ) -> bool {
-    // Compute the Euclidean norm of the residual
     let r_norm = euclidean_norm(residual as &dyn Vector<Scalar = f64>);
-    if r_norm < epsilon || r_norm.is_nan() || r_norm.is_infinite() {
+    if r_norm.is_nan() || r_norm.is_infinite() || r_norm < epsilon {
         return false;
     }
-
-    // Normalize residual to obtain the first Krylov basis vector in parallel
     krylov_vector.par_iter_mut().zip(residual).for_each(|(k_i, &res_i)| {
         *k_i = res_i / r_norm;
     });
-
     true
 }
 
@@ -311,48 +244,55 @@ fn arnoldi_process(
     v: &mut Vec<Vec<f64>>,
     temp_vec: &mut Vec<f64>,
     preconditioned_vec: &mut Vec<f64>,
-    preconditioner: &Option<Arc<dyn Preconditioner>>, // Change from Box to Arc
+    preconditioner: &Option<Arc<dyn Preconditioner>>,
     h: &mut Vec<Vec<f64>>,
     epsilon: f64,
-) -> Option<SolverResult> {
-    // Compute the matrix-vector product A * v[k] and store it in `temp_vec`
-    a.mat_vec(&v[k] as &dyn Vector<Scalar = f64>, temp_vec);
-
-    // Apply the preconditioner if it exists
+    use_iter_refine: bool,
+    haptol: f64,
+) -> (bool, bool) {
+    a.mat_vec(&v[k], temp_vec);
     if let Some(preconditioner) = preconditioner {
-        preconditioner.apply(
-            a,
-            temp_vec as &dyn Vector<Scalar = f64>,
-            preconditioned_vec as &mut dyn Vector<Scalar = f64>,
-        );
-        temp_vec.copy_from_slice(&preconditioned_vec); // Update `temp_vec` with preconditioned result
+        preconditioner.apply(a, temp_vec, preconditioned_vec);
+        temp_vec.copy_from_slice(&preconditioned_vec);
     }
 
-    // Perform Modified Gram-Schmidt to orthogonalize `temp_vec` against all previous Krylov vectors
+    // Modified Gram-Schmidt
     for j in 0..=k {
-        h[j][k] = dot_product(
-            &v[j] as &dyn Vector<Scalar = f64>,
-            temp_vec as &dyn Vector<Scalar = f64>,
-        );
+        let hjk = dot_product(&v[j], temp_vec as &dyn Vector<Scalar = f64>);
+        h[j][k] = hjk;
         for i in 0..temp_vec.len() {
             temp_vec[i] -= h[j][k] * v[j][i];
         }
     }
 
-    // Normalize `temp_vec` to obtain the next Krylov vector if norm is above tolerance `epsilon`
+    if use_iter_refine {
+        // Second orth step for better stability
+        for j in 0..=k {
+            let tmp = dot_product(&v[j], temp_vec as &dyn Vector<Scalar = f64>);
+            h[j][k] += tmp;
+            for i in 0..temp_vec.len() {
+                temp_vec[i] -= tmp * v[j][i];
+            }
+        }
+    }
+
     h[k + 1][k] = euclidean_norm(temp_vec as &dyn Vector<Scalar = f64>);
+
+    if h[k + 1][k].abs() < haptol {
+        // Happy breakdown: exact solution found in this subspace
+        return (true, true);
+    }
+
     if h[k + 1][k].abs() < epsilon {
-        h[k + 1][k] = 0.0;
+        // Breakdown without convergence
+        return (false, false);
     }
 
-    // If norm is valid, normalize and store `temp_vec` as the next Krylov vector
-    if h[k + 1][k].abs() > epsilon {
-        temp_vec.par_iter().zip(&mut v[k + 1]).for_each(|(temp_i, v_k1_i)| {
-            *v_k1_i = *temp_i / h[k + 1][k];
-        });
+    for i in 0..temp_vec.len() {
+        v[k + 1][i] = temp_vec[i] / h[k + 1][k];
     }
 
-    None
+    (false, true)
 }
 
 /// Updates the solution vector `x` by computing `x += V * y`, where `V` is the Krylov basis and `y` is the solution
@@ -370,8 +310,10 @@ fn update_solution(
     n: usize,
 ) {
     for j in 0..y.len() {
+        let alpha = y[j];
         for i in 0..n {
-            x.set(i, x.get(i) + y[j] * v[j][i]);
+            let val = x.get(i) + alpha * v[j][i];
+            x.set(i, val);
         }
     }
 }
@@ -392,7 +334,7 @@ fn compute_residual(
     temp_vec: &mut Vec<f64>,
     residual: &mut Vec<f64>,
 ) {
-    a.mat_vec(x, temp_vec); // Compute A * x and store in `temp_vec`
+    a.mat_vec(x, temp_vec);
     residual.par_iter_mut().enumerate().for_each(|(i, r_i)| {
         *r_i = b.get(i) - temp_vec[i];
     });
@@ -408,11 +350,8 @@ fn compute_residual(
 /// # Returns
 /// - Dot product value of the two vectors.
 fn dot_product(u: &dyn Vector<Scalar = f64>, v: &dyn Vector<Scalar = f64>) -> f64 {
-    u.as_slice()
-        .par_iter()
-        .zip(v.as_slice().par_iter())
-        .map(|(&ui, &vi)| ui * vi)
-        .sum()
+    u.as_slice().par_iter().zip(v.as_slice().par_iter())
+        .map(|(&ui,&vi)| ui*vi).sum()
 }
 
 /// Computes the Euclidean norm of a vector in parallel, returning `sqrt(sum(u_i^2))`.
@@ -423,7 +362,7 @@ fn dot_product(u: &dyn Vector<Scalar = f64>, v: &dyn Vector<Scalar = f64>) -> f6
 /// # Returns
 /// - Euclidean norm (L2 norm) of the vector.
 fn euclidean_norm(u: &dyn Vector<Scalar = f64>) -> f64 {
-    u.as_slice().par_iter().map(|&ui| ui * ui).sum::<f64>().sqrt()
+    u.as_slice().par_iter().map(|&x| x*x).sum::<f64>().sqrt()
 }
 
 /// Applies a sequence of Givens rotations to maintain the upper Hessenberg structure of `H`.
@@ -434,6 +373,7 @@ fn euclidean_norm(u: &dyn Vector<Scalar = f64>) -> f64 {
 /// - `g`: Vector `g` for updating the residual in the least-squares solution.
 /// - `cosines`, `sines`: Arrays for storing the rotation parameters (cosines and sines).
 /// - `k`: Current column in `H` to which rotations are applied.
+// Apply Givens rotations to H and update g
 fn apply_givens_rotations(
     h: &mut Vec<Vec<f64>>,
     g: &mut Vec<f64>,
@@ -442,17 +382,16 @@ fn apply_givens_rotations(
     k: usize,
 ) {
     for i in 0..k {
-        let temp = cosines[i] * h[i][k] + sines[i] * h[i + 1][k];
-        h[i + 1][k] = -sines[i] * h[i][k] + cosines[i] * h[i + 1][k];
+        let temp = cosines[i]*h[i][k] + sines[i]*h[i+1][k];
+        h[i+1][k] = -sines[i]*h[i][k] + cosines[i]*h[i+1][k];
         h[i][k] = temp;
     }
 
     let h_kk = h[k][k];
-    let h_k1k = h[k + 1][k];
+    let h_k1k = h[k+1][k];
+    let r = (h_kk * h_kk + h_k1k * h_k1k).sqrt();
 
-    let r = (h_kk.powi(2) + h_k1k.powi(2)).sqrt();
-
-    if r.abs() < 1e-12 {
+    if r.abs() < 1e-14 {
         cosines[k] = 1.0;
         sines[k] = 0.0;
     } else {
@@ -460,11 +399,11 @@ fn apply_givens_rotations(
         sines[k] = h_k1k / r;
     }
 
-    h[k][k] = cosines[k] * h_kk + sines[k] * h_k1k;
-    h[k + 1][k] = 0.0;
+    h[k][k] = cosines[k]*h_kk + sines[k]*h_k1k;
+    h[k+1][k] = 0.0;
 
-    let temp = cosines[k] * g[k] + sines[k] * g[k + 1];
-    g[k + 1] = -sines[k] * g[k] + cosines[k] * g[k + 1];
+    let temp = cosines[k]*g[k] + sines[k]*g[k+1];
+    g[k+1] = -sines[k]*g[k] + cosines[k]*g[k+1];
     g[k] = temp;
 }
 
@@ -476,16 +415,17 @@ fn apply_givens_rotations(
 /// - `g`: Vector `g`, modified by the Givens rotations, containing the residual norm information.
 /// - `y`: Solution vector for the least-squares problem, computed here.
 /// - `m`: Number of iterations within the current GMRES cycle.
+// Back substitution in upper-triangular H to find y
 fn back_substitution(h: &Vec<Vec<f64>>, g: &Vec<f64>, y: &mut Vec<f64>, m: usize) {
     for i in (0..m).rev() {
         y[i] = g[i];
-        for j in (i + 1)..m {
-            y[i] -= h[i][j] * y[j];
+        for j in (i+1)..m {
+            y[i] -= h[i][j]*y[j];
         }
-        if h[i][i].abs() > 1e-12 {
+        if h[i][i].abs() > 1e-14 {
             y[i] /= h[i][i];
         } else {
-            y[i] = 0.0; // Avoid division by zero for near-zero diagonal elements
+            y[i] = 0.0;
         }
     }
 }
