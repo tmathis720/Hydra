@@ -2,3 +2,4 @@
 /target/release
 /target/doc
 /target/.rustc_info.json
+gp.md

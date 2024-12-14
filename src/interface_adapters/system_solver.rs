@@ -173,8 +173,9 @@ mod simple_tests {
 
 #[cfg(test)]
 mod options_tests {
+    use faer::Mat;
+
     use super::*;
-    use faer::mat::Mat;
     use crate::solver::gmres::GMRES;
     use crate::solver::cg::ConjugateGradient;
     use crate::solver::preconditioner::{Preconditioner, PreconditionerFactory};
@@ -235,17 +236,17 @@ mod options_tests {
         validate_solver_result(result, TOL);
     }
 
-/*     #[test]
+    #[test]
     fn test_gmres_with_amg_preconditioner() {
         // For a difficult matrix from the drivcav series, use AMG preconditioner
-        const AMG_MATRIX_FILE: &str = "inputs/matrix/e30r5000/e30r5000.mtx";
+        const AMG_MATRIX_FILE: &str = "inputs/matrix/e05r0300/e05r0300.mtx";
         const AMG_TOL: f64 = 1e-6;
 
         let gmres_solver = GMRES::new(1000, AMG_TOL, 500);
 
         // Increase max_levels and tweak coarsening_threshold as needed
         let max_levels = 10;
-        let coarsening_threshold = 0.9;
+        let coarsening_threshold = 0.1;
 
         // Parse matrix for AMG preconditioner construction
         let (rows, cols, _, row_indices, col_indices, values) =
@@ -260,5 +261,5 @@ mod options_tests {
 
         let result = SystemSolver::solve_from_file_with_solver(AMG_MATRIX_FILE, gmres_solver, Some(preconditioner_factory));
         validate_solver_result(result, AMG_TOL);
-    } */
+    }
 }

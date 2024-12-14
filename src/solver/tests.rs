@@ -1,9 +1,7 @@
 // src/solver/tests.rs
 
-use std::sync::Arc;
-
 use crate::solver::{ConjugateGradient, GMRES, KSP};
-use crate::solver::preconditioner::{Jacobi, LU, ILU};
+use crate::solver::preconditioner::{Jacobi, ILU};
 use faer::mat;
 use faer::Mat;
 
