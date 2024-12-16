@@ -3,6 +3,7 @@
 pub mod traits;
 pub mod mat_impl;
 pub mod matrix_builder;
+pub mod sparse_matrix;
 
 pub use traits::Matrix;
 pub use traits::MatrixOperations;

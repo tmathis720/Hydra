@@ -106,6 +106,18 @@ impl Mesh {
             .collect()
     }
 
+    /// Retrieves all `Vertex` entities from the mesh.
+    /// 
+    /// Similar to `get_cells` and `get_faces`, this method filters
+    /// the mesh's `entities` set and collects all elements classified as vertices.
+    pub fn get_vetices(&self) -> Vec<MeshEntity> {
+        let entities = self.entities.read().unwrap();
+        entities.iter()
+            .filter(|e| matches!(e, MeshEntity::Vertex(_)))
+            .cloned()
+            .collect()
+    }
+
     /// Retrieves the vertices of a given face entity.
     ///
     /// This method queries the sieve structure to find all vertices directly
@@ -170,5 +182,37 @@ impl Mesh {
         });
 
         entity_to_index
+    }
+
+    /// Generates a mapping from `MeshEntity` to matrix or RHS indices.
+    ///
+    /// # Returns
+    /// - `DashMap<MeshEntity, usize>`: A mapping where the key is a `MeshEntity`
+    ///   and the value is its corresponding index in the system matrix or RHS vector.
+    ///
+    /// # Notes
+    /// - This function assumes a consistent ordering of mesh entities (e.g., cells, faces, vertices)
+    ///   as determined by the mesh generation process.
+    /// - The indices are typically used for assembling sparse system matrices or RHS vectors.
+    pub fn entity_to_index_map(&self) -> DashMap<MeshEntity, usize> {
+        let index_map = DashMap::new();
+
+        // Iterate over all entities in the mesh and assign them indices.
+        // This example assumes cells, faces, and vertices are stored in separate collections.
+        
+        // Assign indices for cells.
+        for (i, cell) in self.get_cells().iter().enumerate() {
+            index_map.insert(MeshEntity::Cell(cell.get_id()), i);
+        }
+
+        // Offset for face indices.
+        let face_offset = self.get_cells().len();
+
+        // Assign indices for faces.
+        for (i, face) in self.get_faces().iter().enumerate() {
+            index_map.insert(MeshEntity::Face(face.get_id()), face_offset + i);
+        }
+
+        index_map
     }
 }

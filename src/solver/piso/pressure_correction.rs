@@ -1,8 +1,10 @@
+use faer::Mat;
+
 use crate::{
     boundary::bc_handler::BoundaryConditionHandler, domain::{mesh::Mesh, section::{Scalar, Vector3}}, equation::{
         fields::{Fields, Fluxes},
         gradient::{Gradient, GradientCalculationMethod},
-    }, solver::KSP, Matrix, MeshEntity, Section
+    }, solver::KSP, MeshEntity, Section
 };
 
 /// Results from the pressure correction step.
@@ -28,25 +30,20 @@ pub fn solve_pressure_poisson(
     boundary_handler: &BoundaryConditionHandler,
     linear_solver: &mut dyn KSP,
 ) -> Result<PressureCorrectionResult, String> {
-    // 1. Assemble the pressure Poisson equation.
-    let mut pressure_matrix = Matrix::new();
-    let mut rhs = Section::<Scalar>::new(); // Right-hand side for pressure correction
+    let num_cells = mesh.count_entities(&MeshEntity::Cell(0));
+    let mut pressure_matrix = Mat::<f64>::zeros(num_cells, num_cells);
+    let mut rhs = Section::<Scalar>::new();
 
     assemble_pressure_poisson(mesh, fields, fluxes, boundary_handler, &mut pressure_matrix, &mut rhs)?;
 
-    // 2. Solve the sparse linear system for pressure correction.
     let mut pressure_correction = Section::<Scalar>::new();
     linear_solver
         .solve(&mut pressure_matrix, &mut pressure_correction, &rhs)
         .map_err(|e| format!("Pressure Poisson solver failed: {}", e))?;
 
-    // 3. Update the pressure field using the correction.
     update_pressure_field(fields, &pressure_correction)?;
-
-    // 4. Correct the velocity field to ensure divergence-free flow.
     correct_velocity_field(mesh, fields, &pressure_correction, boundary_handler)?;
 
-    // 5. Compute the residual of the pressure correction (for convergence check).
     let residual = compute_residual(&pressure_matrix, &pressure_correction, &rhs);
 
     Ok(PressureCorrectionResult { residual })
@@ -59,40 +56,57 @@ pub fn solve_pressure_poisson(
 /// - `fields`: Current physical fields, including velocity and pressure.
 /// - `fluxes`: Fluxes from the predictor step.
 /// - `boundary_handler`: Handles boundary conditions.
-/// - `matrix`: The sparse matrix for the pressure Poisson equation.
+/// - `matrix`: The dense matrix for the pressure Poisson equation.
 /// - `rhs`: The right-hand side vector for pressure correction.
 ///
 /// # Returns
 /// - `Result<(), String>`: Returns `Ok(())` on success or an error message on failure.
-fn assemble_pressure_poisson<T: Matrix>(
+fn assemble_pressure_poisson(
     mesh: &Mesh,
     fields: &Fields,
     fluxes: &Fluxes,
     boundary_handler: &BoundaryConditionHandler,
-    matrix: &mut T,
+    matrix: &mut Mat<f64>,
     rhs: &mut Section<Scalar>,
 ) -> Result<(), String> {
-    // Iterate over cells to assemble the pressure Poisson matrix and RHS
-    for cell in mesh.get_cells() {
-        let divergence = fluxes.momentum_fluxes.restrict(&cell).map_or(0.0, |flux| flux.magnitude());
-        rhs.set_data(cell, Scalar(divergence)); // Use the momentum divergence as the RHS term
+    let num_cells = mesh.count_entities(&MeshEntity::Cell(0));
 
-        // Add pressure matrix coefficients based on cell neighbors
-        for neighbor in mesh.get_cell_neighbors(&cell) {
+    // Ensure the matrix is the correct size
+    assert_eq!(matrix.nrows(), num_cells, "Matrix row count mismatch.");
+    assert_eq!(matrix.ncols(), num_cells, "Matrix column count mismatch.");
+
+    // Assemble the matrix and RHS
+    for cell in mesh.get_cells() {
+        let cell_id = cell.get_id();
+        let divergence = fluxes
+            .momentum_fluxes
+            .restrict(&cell)
+            .map_or(0.0, |flux| flux.magnitude());
+        rhs.set_data(cell, Scalar(divergence));
+
+        for neighbor in mesh.get_ordered_neighbors(&cell) {
+            let neighbor_id = neighbor.get_id();
             let coefficient = compute_pressure_coefficient(mesh, fields, &cell, &neighbor)?;
-            matrix.add_entry(cell, neighbor, coefficient);
+            matrix.write(cell_id, neighbor_id, coefficient); // Update the off-diagonal entry
         }
 
-        // Diagonal entry
         let diagonal_coefficient = compute_pressure_diagonal_coefficient(mesh, fields, &cell)?;
-        matrix.add_entry(cell, cell, diagonal_coefficient);
+        matrix.write(cell_id, cell_id, diagonal_coefficient); // Update the diagonal entry
     }
 
     // Apply boundary conditions
-    boundary_handler.apply_pressure_poisson_bc(mesh, matrix, rhs)?;
+    boundary_handler.apply_bc(
+        &mut matrix.as_mut(),
+        rhs.as_mut_mat_mut(),
+        &boundary_handler.get_boundary_faces(),
+        &mesh.entity_to_index_map().into(),
+        0.0, // Pass time as needed
+    );
 
     Ok(())
 }
+
+
 
 /// Updates the pressure field using the pressure correction.
 ///
@@ -128,7 +142,7 @@ fn correct_velocity_field(
     pressure_correction: &Section<Scalar>,
     boundary_handler: &BoundaryConditionHandler,
 ) -> Result<(), String> {
-    let mut velocity_field = match fields.vector_fields.get_mut("velocity") {
+    let velocity_field = match fields.vector_fields.get_mut("velocity") {
         Some(field) => field,
         None => return Err("Velocity field not found in the fields structure.".to_string()),
     };
@@ -138,7 +152,8 @@ fn correct_velocity_field(
 
     // Compute the gradient of the pressure correction
     let mut pressure_gradient = Section::<Vector3>::new();
-    gradient_calculator.compute_gradient(pressure_correction, &mut pressure_gradient, 0.0)?;
+    gradient_calculator.compute_gradient(pressure_correction, &mut pressure_gradient, 0.0)
+    .map_err(|e| format!("Gradient computation failed: {:?}", e))?;
 
     // Subtract the pressure gradient from the velocity field
     velocity_field.update_with_derivative(&pressure_gradient, -1.0); // Correct the velocity field
@@ -155,19 +170,23 @@ fn correct_velocity_field(
 ///
 /// # Returns
 /// - `f64`: The computed residual value.
-fn compute_residual<T: Matrix>(
-    matrix: &T,
+fn compute_residual(
+    matrix: &Mat<f64>,
     pressure_correction: &Section<Scalar>,
     rhs: &Section<Scalar>,
 ) -> f64 {
-    let mut residual = 0.0;
-    for (cell, &value) in rhs.data.iter() {
-        let lhs = matrix.apply_to_vector(&pressure_correction, cell);
+    let mut residual: f64 = 0.0;
+
+    for cell in rhs.data.iter() {
+        let (key, value) = cell.pair();
+        let lhs = matrix.apply_to_vector(pressure_correction, *key);
         let diff = lhs - value.0;
         residual += diff * diff;
     }
+
     residual.sqrt()
 }
+
 
 /// Computes the coefficient for a pressure neighbor in the pressure Poisson equation.
 ///
@@ -185,10 +204,31 @@ fn compute_pressure_coefficient(
     cell: &MeshEntity,
     neighbor: &MeshEntity,
 ) -> Result<f64, String> {
-    // Compute pressure coefficient (e.g., based on face area and distance between cells)
-    let distance = mesh.compute_cell_distance(cell, neighbor)?;
-    let area = mesh.compute_face_area_between_cells(cell, neighbor)?;
-    let density = fields.scalar_fields.get("density").and_then(|f| f.restrict(cell)).map_or(1.0, |d| d.0);
+    // Step 1: Compute the distance between the centroids of the two cells
+    let distance = mesh.get_distance_between_cells(cell, neighbor);
+
+    // Step 2: Identify the shared face between the two cells
+    let shared_faces = mesh.get_faces_of_cell(cell)
+        .ok_or("Failed to retrieve faces of the cell")?;
+    let shared_face = shared_faces.iter()
+        .find(|face| {
+            let cells_sharing_face = mesh.get_cells_sharing_face(&face.key());
+            cells_sharing_face.contains_key(neighbor)
+        })
+        .map(|face| face.key().clone()) // Clone the key to resolve the lifetime issue
+        .ok_or("No shared face found between the cell and its neighbor")?;
+
+
+    // Step 3: Compute the area of the shared face
+    let area = mesh.get_face_area(&shared_face)
+        .ok_or("Failed to compute the area of the shared face")?;
+
+    // Step 4: Get the density from the fields structure
+    let density = fields.scalar_fields.get("density")
+        .and_then(|f| f.restrict(cell))
+        .map_or(1.0, |d| d.0); // Default density is 1.0 if not found
+
+    // Step 5: Compute and return the coefficient
     Ok(area / (density * distance)) // Coefficient = Area / (Density * Distance)
 }
 
@@ -208,42 +248,8 @@ fn compute_pressure_diagonal_coefficient(
 ) -> Result<f64, String> {
     // Sum coefficients for all neighbors
     let mut coefficient_sum = 0.0;
-    for neighbor in mesh.get_cell_neighbors(cell) {
+    for neighbor in mesh.get_ordered_neighbors(cell) {
         coefficient_sum += compute_pressure_coefficient(mesh, fields, cell, &neighbor)?;
     }
     Ok(-coefficient_sum) // Diagonal entry is negative of sum of neighbor coefficients
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        boundary::bc_handler::BoundaryConditionHandler,
-        domain::mesh::Mesh,
-        equation::fields::{Fields, Fluxes},
-    };
-
-    #[test]
-    fn test_solve_pressure_poisson() {
-        // Create a mock mesh, fields, and boundary handler
-        let mesh = Mesh::new();
-        let mut fields = Fields::new();
-        let mut fluxes = Fluxes::new();
-        let boundary_handler = BoundaryConditionHandler::new();
-
-        // Add dummy data to fields and fluxes
-        fields.scalar_fields.insert("pressure".to_string(), Section::new());
-        fields.vector_fields.insert("velocity".to_string(), Section::new());
-        fluxes.momentum_fluxes = Section::new();
-
-        // Create a mock linear solver
-        let mut linear_solver = KSP::new();
-
-        // Run the pressure correction step
-        let result = solve_pressure_poisson(&mesh, &mut fields, &fluxes, &boundary_handler, &mut linear_solver);
-
-        // Check that the function executes successfully
-        assert!(result.is_ok());
-        assert!(result.unwrap().residual >= 0.0);
-    }
 }

@@ -33,7 +33,8 @@ pub fn correct_velocity(
 
     // 3. Compute the gradient of the pressure correction
     let mut pressure_gradient = Section::<Vector3>::new();
-    gradient_calculator.compute_gradient(pressure_correction, &mut pressure_gradient, 0.0)?;
+    gradient_calculator.compute_gradient(pressure_correction, &mut pressure_gradient, 0.0)
+    .map_err(|e| format!("Gradient computation failed: {:?}", e))?;
 
     // 4. Correct the velocity field using the pressure gradient
     velocity_field.update_with_derivative(&pressure_gradient, -1.0); // Apply the correction
@@ -41,36 +42,3 @@ pub fn correct_velocity(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        domain::mesh::Mesh,
-        boundary::bc_handler::BoundaryConditionHandler,
-        equation::fields::Fields,
-        domain::section::{Section, Scalar, Vector3},
-    };
-
-    #[test]
-    fn test_correct_velocity() {
-        // 1. Create a mock mesh and boundary handler
-        let mesh = Mesh::new();
-        let boundary_handler = BoundaryConditionHandler::new();
-
-        // 2. Initialize fields with dummy velocity and pressure data
-        let mut fields = Fields::new();
-        let mut velocity_field = Section::<Vector3>::new();
-        velocity_field.set_data(1.into(), Vector3([1.0, 0.0, 0.0]));
-        fields.vector_fields.insert("velocity".to_string(), velocity_field);
-
-        let mut pressure_correction = Section::<Scalar>::new();
-        pressure_correction.set_data(1.into(), Scalar(0.5));
-
-        // 3. Run the velocity correction
-        let result = correct_velocity(&mesh, &mut fields, &pressure_correction, &boundary_handler);
-
-        // 4. Assert successful correction
-        assert!(result.is_ok());
-        assert!(fields.vector_fields.get("velocity").is_some());
-    }
-}

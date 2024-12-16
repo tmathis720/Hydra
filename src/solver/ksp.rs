@@ -13,6 +13,23 @@ pub struct SolverResult {
     pub residual_norm: f64,
 }
 
+impl SolverResult {
+    pub fn map_err<F, E>(self, f: F) -> Result<(), E>
+    where
+        F: FnOnce(String) -> E,
+    {
+        if self.converged {
+            Ok(())
+        } else {
+            Err(f(format!(
+                "Solver failed after {} iterations, residual norm: {}",
+                self.iterations, self.residual_norm
+            )))
+        }
+    }
+}
+
+
 /// KSP trait for Krylov solvers, encompassing solvers like CG and GMRES.
 pub trait KSP {
     fn solve(

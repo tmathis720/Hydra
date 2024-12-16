@@ -1,7 +1,7 @@
 use crate::{
     boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, equation::fields::Fields, solver::{piso::{
         predictor::predict_velocity,
-        pressure_correction::{solve_pressure_poisson, PressureCorrectionResult},
+        pressure_correction::solve_pressure_poisson,
         velocity_correction::correct_velocity,
     }, KSP}
 };

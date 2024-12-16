@@ -1,6 +1,7 @@
 use dashmap::DashMap;
 use rayon::prelude::*;
 use crate::domain::mesh_entity::MeshEntity;
+use crate::Vector;
 use std::ops::{AddAssign, Mul};
 use std::ops::{Add, Sub, Neg, Div};
 
@@ -585,6 +586,137 @@ impl Sub for Section<Vector3> {
     }
 }
 
+impl Vector for Section<Scalar> {
+    type Scalar = f64;
+
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    fn get(&self, i: usize) -> Self::Scalar {
+        let keys: Vec<_> = self.data.iter().map(|entry| entry.key().clone()).collect();
+        let key = keys.get(i).expect("Index out of bounds");
+        self.data
+            .get(key)
+            .map(|v| v.0) // Access the scalar value from Scalar(f64)
+            .expect("Key not found in section data")
+    }
+
+    fn set(&mut self, i: usize, value: Self::Scalar) {
+        let keys: Vec<_> = self.data.iter().map(|entry| entry.key().clone()).collect();
+        let key = keys.get(i).expect("Index out of bounds");
+        if let Some(mut entry) = self.data.get_mut(key) {
+            entry.value_mut().0 = value; // Set the scalar value in Scalar(f64)
+        } else {
+            panic!("Key not found in section data");
+        }
+    }
+
+    fn as_slice(&self) -> &[Self::Scalar] {
+        panic!("Section does not support contiguous slices due to its DashMap-based structure.")
+    }
+
+    fn as_mut_slice(&mut self) -> &mut [Self::Scalar] {
+        panic!("Section does not support mutable slices due to its DashMap-based structure.")
+    }
+
+    fn dot(&self, other: &dyn Vector<Scalar = Self::Scalar>) -> Self::Scalar {
+        self.data
+            .iter()
+            .map(|entry| {
+                let id = entry.key().get_id();
+                let self_value = entry.value().0;
+                let other_value = other.get(id);
+                self_value * other_value
+            })
+            .sum()
+    }
+
+    fn norm(&self) -> Self::Scalar {
+        self.data
+            .iter()
+            .map(|entry| entry.value().0.powi(2))
+            .sum::<Self::Scalar>()
+            .sqrt()
+    }
+
+    fn scale(&mut self, scalar: Self::Scalar) {
+        self.data.iter_mut().for_each(|mut entry| {
+            entry.value_mut().0 *= scalar;
+        });
+    }
+
+    fn axpy(&mut self, a: Self::Scalar, x: &dyn Vector<Scalar = Self::Scalar>) {
+        self.data.iter_mut().for_each(|mut entry| {
+            let id = entry.key().get_id();
+            entry.value_mut().0 += a * x.get(id);
+        });
+    }
+
+    fn element_wise_add(&mut self, other: &dyn Vector<Scalar = Self::Scalar>) {
+        self.data.iter_mut().for_each(|mut entry| {
+            let id = entry.key().get_id();
+            entry.value_mut().0 += other.get(id);
+        });
+    }
+
+    fn element_wise_mul(&mut self, other: &dyn Vector<Scalar = Self::Scalar>) {
+        self.data.iter_mut().for_each(|mut entry| {
+            let id = entry.key().get_id();
+            entry.value_mut().0 *= other.get(id);
+        });
+    }
+
+    fn element_wise_div(&mut self, other: &dyn Vector<Scalar = Self::Scalar>) {
+        self.data.iter_mut().for_each(|mut entry| {
+            let id = entry.key().get_id();
+            let divisor = other.get(id);
+            if divisor == 0.0 {
+                panic!("Division by zero");
+            }
+            entry.value_mut().0 /= divisor;
+        });
+    }
+
+    fn cross(&mut self, _other: &dyn Vector<Scalar = Self::Scalar>) -> Result<(), &'static str> {
+        Err("Cross product is not defined for scalars")
+    }
+
+    fn sum(&self) -> Self::Scalar {
+        self.data.iter().map(|entry| entry.value().0).sum()
+    }
+
+    fn max(&self) -> Self::Scalar {
+        self.data
+            .iter()
+            .map(|entry| entry.value().0)
+            .fold(f64::NEG_INFINITY, f64::max)
+    }
+
+    fn min(&self) -> Self::Scalar {
+        self.data
+            .iter()
+            .map(|entry| entry.value().0)
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    fn mean(&self) -> Self::Scalar {
+        let sum: Self::Scalar = self.sum();
+        sum / self.len() as Self::Scalar
+    }
+
+    fn variance(&self) -> Self::Scalar {
+        let mean = self.mean();
+        self.data
+            .iter()
+            .map(|entry| (entry.value().0 - mean).powi(2))
+            .sum::<Self::Scalar>()
+            / self.len() as Self::Scalar
+    }
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -779,4 +911,35 @@ mod tests {
 
         debug_section_data(&section);
     }
+
+    #[test]
+    fn test_vector_trait_for_section() {
+        use crate::domain::mesh_entity::MeshEntity;
+
+        // Create a new section
+        let mut section = Section::new();
+        section.set_data(MeshEntity::Cell(0), Scalar(1.0));
+        section.set_data(MeshEntity::Cell(1), Scalar(2.0));
+        section.set_data(MeshEntity::Cell(2), Scalar(3.0));
+
+        // Test `len`
+        assert_eq!(section.len(), 3);
+
+        // Test `get`
+        assert_eq!(section.get(0), 1.0);
+        assert_eq!(section.get(1), 2.0);
+        assert_eq!(section.get(2), 3.0);
+
+        // Test `set`
+        section.set(1, 5.0);
+        assert_eq!(section.get(1), 5.0);
+
+        // Test `dot`
+        let other = Section::new();
+        other.set_data(MeshEntity::Cell(0), Scalar(2.0));
+        other.set_data(MeshEntity::Cell(1), Scalar(3.0));
+        other.set_data(MeshEntity::Cell(2), Scalar(4.0));
+        assert_eq!(section.dot(&other), 1.0 * 2.0 + 5.0 * 3.0 + 3.0 * 4.0);
+    }
+
 }

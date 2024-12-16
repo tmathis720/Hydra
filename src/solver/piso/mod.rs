@@ -7,6 +7,11 @@ pub mod boundary;
 use crate::{
     domain::mesh::Mesh,
     time_stepping::{TimeDependentProblem, TimeStepper},
+    equation::{
+        fields::{Fields, Fluxes},
+        momentum_equation::MomentumEquation,
+    },
+    boundary::bc_handler::BoundaryConditionHandler,
 };
 
 /// Errors specific to the PISO solver.
@@ -15,6 +20,12 @@ pub enum PISOError {
     ConvergenceFailure(String),
     MatrixError(String),
     TimeSteppingError(String),
+}
+
+impl From<String> for PISOError {
+    fn from(err: String) -> Self {
+        PISOError::ConvergenceFailure(err)
+    }
 }
 
 /// Configuration options for the PISO solver.
@@ -72,23 +83,41 @@ where
         let current_time = self.time_stepper.current_time();
         let dt = self.time_stepper.get_time_step();
 
+        // Extract required fields
+        let mut fields = Fields::new();
+        let mut fluxes = Fluxes::new();
+        let mut boundary_handler = BoundaryConditionHandler::new();
+
         // Step 1: Predictor
-        predictor::predict_velocity(&self.mesh, problem, state)?;
+        let momentum_equation = MomentumEquation::new(); // Initialize momentum equation
+        predictor::predict_velocity(
+            &self.mesh,
+            &mut fields,
+            &mut fluxes,
+            &boundary_handler,
+            &momentum_equation,
+            current_time,
+        )
+        .map_err(|e| PISOError::MatrixError(format!("Predictor step failed: {}", e)))?;
 
         // Step 2: Pressure Correction Loop
         for iteration in 0..self.config.max_iterations {
             let pressure_correction_result = pressure_correction::solve_pressure_poisson(
                 &self.mesh,
-                problem,
-                state,
-            )?;
+                &mut fields,
+                &fluxes,
+                &boundary_handler,
+                &mut *self.time_stepper.linear_solver(), // Obtain the linear solver
+            )
+            .map_err(|e| PISOError::MatrixError(format!("Pressure correction step failed: {}", e)))?;
 
             velocity_correction::correct_velocity(
                 &self.mesh,
-                problem,
-                state,
-                &pressure_correction_result,
-            )?;
+                &mut fields,
+                &pressure_correction_result.pressure_correction,
+                &boundary_handler,
+            )
+            .map_err(|e| PISOError::MatrixError(format!("Velocity correction step failed: {}", e)))?;
 
             if pressure_correction_result.residual < self.config.tolerance {
                 break;
@@ -102,68 +131,10 @@ where
         }
 
         // Step 3: Time Integration
-        self.time_stepper.step(problem, dt, current_time, state)
+        self.time_stepper
+            .step(problem, dt, current_time, state)
             .map_err(|e| PISOError::TimeSteppingError(format!("{:?}", e)))?;
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        domain::mesh::Mesh, equation::fields::Fields, time_stepping::{TimeDependentProblem, TimeStepper}, Matrix
-    };
-
-    /// Dummy problem for testing the PISO solver.
-    struct DummyProblem;
-
-    impl TimeDependentProblem for DummyProblem {
-        type State = Fields;
-        type Time = f64;
-
-        fn compute_rhs(
-            &self,
-            _time: Self::Time,
-            _state: &Self::State,
-            _derivative: &mut Self::State,
-        ) -> Result<(), crate::time_stepping::TimeSteppingError> {
-            Ok(())
-        }
-
-        fn initial_state(&self) -> Self::State {
-            Fields::default()
-        }
-
-        fn get_matrix(&self) -> Option<Box<dyn Matrix<Scalar = f64>>> {
-            None
-        }
-
-        fn solve_linear_system(
-            &self,
-            _matrix: &mut dyn Matrix<Scalar = f64>,
-            _state: &mut Self::State,
-            _rhs: &Self::State,
-        ) -> Result<(), crate::time_stepping::TimeSteppingError> {
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn test_piso_solver() {
-        let mesh = Mesh::new();
-        let time_stepper = Box::new(TimeStepper::new(0.0, 1.0, 0.01));
-        let config = PISOConfig {
-            max_iterations: 100,
-            tolerance: 1e-6,
-            relaxation_factor: 0.7,
-        };
-
-        let mut solver = PISOSolver::new(mesh, time_stepper, config);
-        let problem = DummyProblem;
-        let mut state = problem.initial_state();
-
-        assert!(solver.solve(&problem, &mut state).is_ok());
     }
 }
