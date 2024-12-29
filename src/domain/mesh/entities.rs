@@ -215,4 +215,29 @@ impl Mesh {
 
         index_map
     }
+
+    /// Retrieves a `MeshEntity` from a given `usize` key.
+    ///
+    /// This function maps a `usize` index to a `MeshEntity` using the mesh's entity mapping.
+    ///
+    /// # Parameters
+    /// - `key`: The `usize` index corresponding to the desired `MeshEntity`.
+    ///
+    /// # Returns
+    /// - `Option<MeshEntity>`: The `MeshEntity` if found, or `None` if the index is invalid.
+    pub fn get_mesh_entity_from_key(&self, key: usize) -> Option<MeshEntity> {
+        // Use the index mapping to find the entity
+        let index_map = self.entity_to_index_map();
+        
+        // Iterate through the mapping to find the matching `key`
+        let x = index_map.iter()
+            .find_map(|entry| {
+                let (entity, &index) = entry.pair();
+                if index == key {
+                    Some(entity.clone()) // Return the matched entity
+                } else {
+                    None
+                }
+            }); x
+    }
 }

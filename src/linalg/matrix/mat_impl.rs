@@ -98,4 +98,7 @@ impl MatrixOperations for Mat<f64> {
         // Fetches the element at (row, col)
         self.read(row, col)
     }
+    
 }
+
+

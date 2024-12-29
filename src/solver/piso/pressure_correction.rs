@@ -4,7 +4,8 @@ use crate::{
     boundary::bc_handler::BoundaryConditionHandler, domain::{mesh::Mesh, section::{Scalar, Vector3}}, equation::{
         fields::{Fields, Fluxes},
         gradient::{Gradient, GradientCalculationMethod},
-    }, solver::KSP, MeshEntity, Section
+    }, solver::KSP, MeshEntity, Section,
+    interface_adapters::section_matvec_adapter::SectionMatVecAdapter,
 };
 
 /// Results from the pressure correction step.
@@ -37,14 +38,15 @@ pub fn solve_pressure_poisson(
     assemble_pressure_poisson(mesh, fields, fluxes, boundary_handler, &mut pressure_matrix, &mut rhs)?;
 
     let mut pressure_correction = Section::<Scalar>::new();
+    let mut rhs_adapter = SectionMatVecAdapter::new(&rhs);
     linear_solver
-        .solve(&mut pressure_matrix, &mut pressure_correction, &rhs)
+        .solve(&mut pressure_matrix, &mut pressure_correction, &mut rhs_adapter)
         .map_err(|e| format!("Pressure Poisson solver failed: {}", e))?;
 
     update_pressure_field(fields, &pressure_correction)?;
     correct_velocity_field(mesh, fields, &pressure_correction, boundary_handler)?;
 
-    let residual = compute_residual(&pressure_matrix, &pressure_correction, &rhs);
+    let residual = compute_residual(&mesh, &pressure_matrix, &pressure_correction, &rhs);
 
     Ok(PressureCorrectionResult { residual })
 }
@@ -97,7 +99,7 @@ fn assemble_pressure_poisson(
     // Apply boundary conditions
     boundary_handler.apply_bc(
         &mut matrix.as_mut(),
-        rhs.as_mut_mat_mut(),
+        rhs,
         &boundary_handler.get_boundary_faces(),
         &mesh.entity_to_index_map().into(),
         0.0, // Pass time as needed
@@ -171,21 +173,41 @@ fn correct_velocity_field(
 /// # Returns
 /// - `f64`: The computed residual value.
 fn compute_residual(
+    mesh: &Mesh,
     matrix: &Mat<f64>,
     pressure_correction: &Section<Scalar>,
     rhs: &Section<Scalar>,
 ) -> f64 {
     let mut residual: f64 = 0.0;
 
-    for cell in rhs.data.iter() {
-        let (key, value) = cell.pair();
-        let lhs = matrix.apply_to_vector(pressure_correction, *key);
-        let diff = lhs - value.0;
+    // Convert `pressure_correction` to a dense vector representation
+    let mut pressure_vec = vec![0.0; matrix.ncols()]; // Use matrix.ncols() instead of pressure_correction.len()
+    for entry in pressure_correction.data.iter() {
+        let (key, scalar) = entry.pair();
+        let index = mesh.entity_to_index_map().get(key).ok_or("Invalid key")?;
+        pressure_vec[*index] = scalar.0;
+    }
+
+    // Allocate a result vector for the matrix-vector multiplication
+    let mut lhs_vec = vec![0.0; matrix.nrows()];
+
+    // Perform the matrix-vector multiplication
+    for i in 0..matrix.nrows() {
+        lhs_vec[i] = (0..matrix.ncols())
+            .map(|j| matrix.read(i, j) * pressure_vec[j])
+            .sum::<f64>();
+    }
+
+    // Compute the residual as the L2 norm of the difference
+    for entry in rhs.data.iter() {
+        let (key, value) = entry.pair();
+        let diff = lhs_vec[*key] - value.0;
         residual += diff * diff;
     }
 
     residual.sqrt()
 }
+
 
 
 /// Computes the coefficient for a pressure neighbor in the pressure Poisson equation.

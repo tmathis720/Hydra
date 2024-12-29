@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use crate::linalg::Vector;
 use crate::linalg::matrix::traits::{Matrix, MatrixOperations, ExtendedMatrixOperations};
 
@@ -7,7 +7,7 @@ use crate::linalg::matrix::traits::{Matrix, MatrixOperations, ExtendedMatrixOper
 pub struct SparseMatrix {
     nrows: usize,
     ncols: usize,
-    data: HashMap<(usize, usize), f64>, // Maps (row, col) to value
+    data: FxHashMap<(usize, usize), f64>, // Maps (row, col) to value
 }
 
 impl SparseMatrix {
@@ -16,7 +16,7 @@ impl SparseMatrix {
         SparseMatrix {
             nrows: rows,
             ncols: cols,
-            data: HashMap::new(),
+            data: FxHashMap::default(),
         }
     }
 
@@ -145,7 +145,7 @@ impl MatrixOperations for SparseMatrix {
 /// Implement the `ExtendedMatrixOperations` trait for `SparseMatrix`.
 impl ExtendedMatrixOperations for SparseMatrix {
     fn resize(&mut self, new_rows: usize, new_cols: usize) {
-        let mut new_data = HashMap::new();
+        let mut new_data = FxHashMap::default();
         for (&(row, col), &value) in self.data.iter() {
             if row < new_rows && col < new_cols {
                 new_data.insert((row, col), value);
