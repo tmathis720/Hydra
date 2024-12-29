@@ -73,6 +73,27 @@ impl SectionMatVecAdapter {
         matrix
     }
 
+    /// Converts a `Section` to a dense matrix (`MatMut<f64>`) representation.
+    ///
+    /// # Parameters
+    /// - `section`: A reference to the `Section<Scalar>` to convert.
+    /// - `size`: The total number of entities (used for padding with zeros for missing indices).
+    ///
+    /// # Returns
+    /// A dense matrix (`Mat<f64>`) representing the section.
+    pub fn section_to_matmut(section: &Section<crate::domain::section::Scalar>) -> Mat<f64> {
+        let mut matrix = Mat::new();
+
+        for entry in section.data.iter() {
+            let entity = entry.key();
+            let scalar = entry.value();
+            let index = entity.get_id(); // Use `get_id` for row/column indexing
+            matrix.write(index, index, scalar.0);
+        }
+
+        matrix
+    }
+
     /// Converts a dense matrix (`Mat<f64>`) back into a `Section<Tensor3x3>`.
     ///
     /// # Parameters

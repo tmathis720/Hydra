@@ -38,9 +38,8 @@ pub fn solve_pressure_poisson(
     assemble_pressure_poisson(mesh, fields, fluxes, boundary_handler, &mut pressure_matrix, &mut rhs)?;
 
     let mut pressure_correction = Section::<Scalar>::new();
-    let mut rhs_adapter = SectionMatVecAdapter::new(&rhs);
     linear_solver
-        .solve(&mut pressure_matrix, &mut pressure_correction, &mut rhs_adapter)
+        .solve(&mut pressure_matrix, &mut pressure_correction, &mut rhs)
         .map_err(|e| format!("Pressure Poisson solver failed: {}", e))?;
 
     update_pressure_field(fields, &pressure_correction)?;
@@ -97,9 +96,10 @@ fn assemble_pressure_poisson(
     }
 
     // Apply boundary conditions
+    let mut rhs_mut = SectionMatVecAdapter::section_to_matmut(rhs);
     boundary_handler.apply_bc(
         &mut matrix.as_mut(),
-        rhs,
+        &mut rhs_mut.as_mut(),
         &boundary_handler.get_boundary_faces(),
         &mesh.entity_to_index_map().into(),
         0.0, // Pass time as needed

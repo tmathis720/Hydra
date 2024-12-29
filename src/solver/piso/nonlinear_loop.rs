@@ -54,7 +54,8 @@ pub fn solve_nonlinear_system(
         ).map_err(|e| format!("Pressure correction step failed: {}", e))?;
 
         // Step 3: Velocity Correction
-        correct_velocity(mesh, fields, &fields.scalar_fields["pressure"], boundary_handler)
+        let pressure_field = fields.scalar_fields["pressure"].clone();
+        correct_velocity(mesh, fields, &pressure_field, boundary_handler)
             .map_err(|e| format!("Velocity correction step failed: {}", e))?;
 
         // Check convergence based on residual

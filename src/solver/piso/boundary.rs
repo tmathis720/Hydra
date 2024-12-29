@@ -28,6 +28,7 @@ pub fn apply_pressure_poisson_bc<T: Matrix>(
 
     // Map mesh entities to indices for use in matrix/RHS operations
     let entity_to_index = mesh.entity_to_index_map();
+    
 
     for face in boundary_faces {
         if let Some(boundary_condition) = boundary_handler.get_bc(&face) {
