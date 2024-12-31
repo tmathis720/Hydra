@@ -42,8 +42,8 @@ pub trait KSP {
 
 /// Struct representing a high-level interface for managing solver configuration.
 pub struct SolverManager {
-    solver: Box<dyn KSP>,
-    preconditioner: Option<Arc<dyn Preconditioner>>,
+    pub solver: Box<dyn KSP>,
+    pub preconditioner: Option<Arc<dyn Preconditioner>>,
 }
 
 impl SolverManager {

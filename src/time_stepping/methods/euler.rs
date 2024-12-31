@@ -1,3 +1,5 @@
+use crate::solver::ksp::SolverManager;
+use crate::solver::KSP;
 use crate::time_stepping::adaptivity::error_estimate::estimate_error;
 use crate::time_stepping::adaptivity::step_size_control::adjust_step_size;
 use crate::time_stepping::{TimeStepper, TimeDependentProblem, TimeSteppingError};
@@ -8,6 +10,7 @@ pub struct ExplicitEuler<P: TimeDependentProblem> {
     time_step: P::Time,
     start_time: P::Time,
     end_time: P::Time,
+    solver_manager: SolverManager, // Added solver manager
 }
 
 impl<P: TimeDependentProblem> ExplicitEuler<P> {
@@ -17,6 +20,7 @@ impl<P: TimeDependentProblem> ExplicitEuler<P> {
             time_step,
             start_time,
             end_time,
+            solver_manager: Box<dyn KSP>,
         }
     }
 }
@@ -90,6 +94,10 @@ where
 
     fn get_time_step(&self) -> P::Time {
         self.time_step
+    }
+    
+    fn get_solver(&self) -> &dyn KSP {
+        &*self.solver_manager.solver
     }
 }
 

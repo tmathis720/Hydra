@@ -5,13 +5,10 @@ pub mod nonlinear_loop;
 pub mod boundary;
 
 use crate::{
-    domain::mesh::Mesh,
-    time_stepping::{TimeDependentProblem, TimeStepper},
-    equation::{
+    boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, equation::{
         fields::{Fields, Fluxes},
         momentum_equation::MomentumEquation,
-    },
-    boundary::bc_handler::BoundaryConditionHandler,
+    }, interface_adapters::section_matvec_adapter::SectionMatVecAdapter, time_stepping::{TimeDependentProblem, TimeStepper}
 };
 
 /// Errors specific to the PISO solver.
@@ -89,14 +86,21 @@ where
         let mut boundary_handler = BoundaryConditionHandler::new();
 
         // Step 1: Predictor
-        let momentum_equation = MomentumEquation::new(); // Initialize momentum equation
+        let momentum_equation = MomentumEquation::calculate_momentum_fluxes(
+            &self,
+            &self.mesh,
+            &fields,
+            &mut fluxes,
+            &boundary_handler,
+            current_time.into(),
+        ); // Initialize momentum equation
         predictor::predict_velocity(
             &self.mesh,
             &mut fields,
             &mut fluxes,
             &boundary_handler,
             &momentum_equation,
-            current_time,
+            current_time.into(),
         )
         .map_err(|e| PISOError::MatrixError(format!("Predictor step failed: {}", e)))?;
 
@@ -114,7 +118,10 @@ where
             velocity_correction::correct_velocity(
                 &self.mesh,
                 &mut fields,
-                &pressure_correction_result.pressure_correction,
+                &SectionMatVecAdapter::dense_vector_to_section(
+                    &[pressure_correction_result.residual], // Wrap residual in Section
+                    &self.mesh.get_entities(),
+                ),
                 &boundary_handler,
             )
             .map_err(|e| PISOError::MatrixError(format!("Velocity correction step failed: {}", e)))?;

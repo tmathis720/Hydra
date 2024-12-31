@@ -1,8 +1,5 @@
 use crate::{
-    boundary::bc_handler::{BoundaryConditionApply, BoundaryConditionHandler},
-    domain::{mesh::Mesh, section::Scalar},
-    linalg::matrix::Matrix,
-    Section,
+    boundary::bc_handler::{BoundaryConditionApply, BoundaryConditionHandler}, domain::{mesh::Mesh, section::Scalar}, interface_adapters::section_matvec_adapter::SectionMatVecAdapter, linalg::matrix::Matrix, Section
 };
 
 /// Applies boundary conditions to the pressure Poisson equation.
@@ -25,17 +22,19 @@ pub fn apply_pressure_poisson_bc<T: Matrix>(
     rhs: &mut Section<Scalar>,
 ) -> Result<(), String> {
     let boundary_faces = boundary_handler.get_boundary_faces();
-
-    // Map mesh entities to indices for use in matrix/RHS operations
     let entity_to_index = mesh.entity_to_index_map();
-    
+
+    // Convert rhs Section<Scalar> into MatMut<f64> for faer compatibility
+    let mut rhs_mat = SectionMatVecAdapter::section_to_matmut(rhs);
 
     for face in boundary_faces {
         if let Some(boundary_condition) = boundary_handler.get_bc(&face) {
-            // Use the existing `BoundaryConditionApply` trait for all supported conditions
-            boundary_condition.apply(&face, rhs, matrix, &entity_to_index, 0.0);
+            boundary_condition.apply(&face, &mut rhs_mat, matrix, &entity_to_index, 0.0);
         }
     }
+
+    // Update back the values into Section<Scalar> after processing
+    SectionMatVecAdapter::matmut_to_section(&mut rhs_mat, rhs);
 
     Ok(())
 }

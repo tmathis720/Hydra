@@ -1,4 +1,4 @@
-use crate::{equation::fields::UpdateState, linalg::Matrix};
+use crate::{equation::fields::UpdateState, linalg::Matrix, solver::{ksp::SolverManager, KSP}};
 use std::ops::Add;
 
 #[derive(Debug)]
@@ -58,6 +58,8 @@ where
     fn set_time_step(&mut self, dt: P::Time);
 
     fn get_time_step(&self) -> P::Time;
+
+    fn get_solver(&self) -> &dyn KSP;
 }
 
 pub struct FixedTimeStepper<P>
@@ -68,18 +70,25 @@ where
     time_step: P::Time,
     start_time: P::Time,
     end_time: P::Time,
+    solver_manager: SolverManager,
 }
 
 impl<P> FixedTimeStepper<P>
 where
     P: TimeDependentProblem,
 {
-    pub fn new(start_time: P::Time, end_time: P::Time, time_step: P::Time) -> Self {
+    pub fn new(
+        start_time: P::Time, 
+        end_time: P::Time, 
+        time_step: P::Time,
+        solver: Box<dyn KSP>,
+    ) -> Self {
         FixedTimeStepper {
             current_time: start_time,
             time_step,
             start_time,
             end_time,
+            solver_manager: SolverManager::new(solver),
         }
     }
 }
@@ -134,4 +143,9 @@ where
     fn get_time_step(&self) -> P::Time {
         self.time_step
     }
+
+    fn get_solver(&self) -> &dyn KSP {
+        &*self.solver_manager.solver
+    }
 }
+

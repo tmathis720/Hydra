@@ -184,7 +184,11 @@ fn compute_residual(
     let mut pressure_vec = vec![0.0; matrix.ncols()]; // Use matrix.ncols() instead of pressure_correction.len()
     for entry in pressure_correction.data.iter() {
         let (key, scalar) = entry.pair();
-        let index = mesh.entity_to_index_map().get(key).ok_or("Invalid key")?;
+        let entity_to_index_map = mesh.entity_to_index_map();
+        let index = match entity_to_index_map.get(key) {
+            Some(idx) => idx,
+            None => return f64::NAN, // or any other appropriate error handling
+        };
         pressure_vec[*index] = scalar.0;
     }
 
@@ -201,7 +205,7 @@ fn compute_residual(
     // Compute the residual as the L2 norm of the difference
     for entry in rhs.data.iter() {
         let (key, value) = entry.pair();
-        let diff = lhs_vec[*key] - value.0;
+        let diff = lhs_vec[key.get_id()] - value.0;
         residual += diff * diff;
     }
 
