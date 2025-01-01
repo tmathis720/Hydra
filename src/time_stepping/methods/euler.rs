@@ -20,7 +20,7 @@ impl<P: TimeDependentProblem> ExplicitEuler<P> {
             time_step,
             start_time,
             end_time,
-            solver_manager: Box<dyn KSP>,
+            solver_manager: todo!(),
         }
     }
 }

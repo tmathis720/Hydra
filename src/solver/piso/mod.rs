@@ -8,7 +8,7 @@ use crate::{
     boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, equation::{
         fields::{Fields, Fluxes},
         momentum_equation::MomentumEquation,
-    }, interface_adapters::section_matvec_adapter::SectionMatVecAdapter, time_stepping::{TimeDependentProblem, TimeStepper}
+    }, interface_adapters::section_matvec_adapter::SectionMatVecAdapter, time_stepping::{TimeDependentProblem, TimeStepper}, MeshEntity
 };
 
 /// Errors specific to the PISO solver.
@@ -86,8 +86,9 @@ where
         let mut boundary_handler = BoundaryConditionHandler::new();
 
         // Step 1: Predictor
-        let momentum_equation = MomentumEquation::calculate_momentum_fluxes(
-            &self,
+        let momentum_equation = MomentumEquation::new(); // Create a new instance of MomentumEquation
+        let momentum_fluxes = MomentumEquation::calculate_momentum_fluxes(
+            &momentum_equation,
             &self.mesh,
             &fields,
             &mut fluxes,
@@ -100,7 +101,7 @@ where
             &mut fluxes,
             &boundary_handler,
             &momentum_equation,
-            current_time.into(),
+            self.config.relaxation_factor,
         )
         .map_err(|e| PISOError::MatrixError(format!("Predictor step failed: {}", e)))?;
 
@@ -110,17 +111,16 @@ where
                 &self.mesh,
                 &mut fields,
                 &fluxes,
-                &boundary_handler,
-                &mut *self.time_stepper.linear_solver(), // Obtain the linear solver
-            )
+                    &mut *self.time_stepper.get_solver(), // Obtain the linear solver
+                )
             .map_err(|e| PISOError::MatrixError(format!("Pressure correction step failed: {}", e)))?;
 
             velocity_correction::correct_velocity(
                 &self.mesh,
                 &mut fields,
                 &SectionMatVecAdapter::dense_vector_to_section(
-                    &[pressure_correction_result.residual], // Wrap residual in Section
-                    &self.mesh.get_entities(),
+                    &self.mesh.entities(MeshEntity::Cell),
+                    &self.mesh.count_entities(MeshEntity::Cell),
                 ),
                 &boundary_handler,
             )

@@ -1,8 +1,5 @@
 use crate::{
-    boundary::bc_handler::BoundaryConditionHandler,
-    domain::mesh::Mesh,
-    time_stepping::{TimeDependentProblem, TimeStepper, TimeSteppingError},
-    Matrix,
+    boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, solver::KSP, time_stepping::{TimeDependentProblem, TimeStepper, TimeSteppingError}, Matrix
 };
 use super::{Fields, Fluxes, PhysicalEquation};
 use std::sync::{Arc, RwLock};
@@ -159,6 +156,9 @@ impl<P> TimeStepper<P> for NoOpStepper
 where
     P: TimeDependentProblem,
 {
+    fn get_solver(&self) -> &dyn KSP {
+        todo!()
+    }
     fn current_time(&self) -> P::Time {
         P::Time::from(0.0)
     }

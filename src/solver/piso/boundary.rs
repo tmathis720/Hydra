@@ -1,5 +1,5 @@
 use crate::{
-    boundary::bc_handler::{BoundaryConditionApply, BoundaryConditionHandler}, domain::{mesh::Mesh, section::Scalar}, interface_adapters::section_matvec_adapter::SectionMatVecAdapter, linalg::matrix::Matrix, Section
+    boundary::bc_handler::{BoundaryConditionApply, BoundaryConditionHandler}, domain::{mesh::Mesh, section::Scalar}, interface_adapters::section_matvec_adapter::SectionMatVecAdapter, Section
 };
 
 /// Applies boundary conditions to the pressure Poisson equation.
@@ -15,10 +15,10 @@ use crate::{
 ///
 /// # Returns
 /// - `Result<(), String>`: Returns `Ok(())` on success or an error message if boundary conditions cannot be applied.
-pub fn apply_pressure_poisson_bc<T: Matrix>(
+pub fn apply_pressure_poisson_bc(
     mesh: &Mesh,
     boundary_handler: &BoundaryConditionHandler,
-    matrix: &mut T,
+    matrix: &mut faer::MatMut<'_, f64>,
     rhs: &mut Section<Scalar>,
 ) -> Result<(), String> {
     let boundary_faces = boundary_handler.get_boundary_faces();
@@ -29,12 +29,12 @@ pub fn apply_pressure_poisson_bc<T: Matrix>(
 
     for face in boundary_faces {
         if let Some(boundary_condition) = boundary_handler.get_bc(&face) {
-            boundary_condition.apply(&face, &mut rhs_mat, matrix, &entity_to_index, 0.0);
+            boundary_condition.apply(&face, &mut rhs_mat.as_mut(), matrix, &entity_to_index, 0.0);
         }
     }
 
     // Update back the values into Section<Scalar> after processing
-    SectionMatVecAdapter::matmut_to_section(&mut rhs_mat, rhs);
+    //SectionMatVecAdapter::matmut_to_section(&rhs_mat, rhs);
 
     Ok(())
 }

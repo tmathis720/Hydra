@@ -91,6 +91,10 @@ where
     fn get_time_step(&self) -> P::Time {
         self.time_step
     }
+    
+    fn get_solver(&self) -> &dyn crate::solver::KSP {
+        todo!()
+    }
 }
 
 #[cfg(test)]
