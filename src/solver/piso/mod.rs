@@ -8,7 +8,7 @@ use crate::{
     boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, equation::{
         fields::{Fields, Fluxes},
         momentum_equation::MomentumEquation,
-    }, interface_adapters::section_matvec_adapter::SectionMatVecAdapter, time_stepping::{TimeDependentProblem, TimeStepper}, MeshEntity
+    }, time_stepping::{TimeDependentProblem, TimeStepper}
 };
 
 /// Errors specific to the PISO solver.
@@ -83,11 +83,11 @@ where
         // Extract required fields
         let mut fields = Fields::new();
         let mut fluxes = Fluxes::new();
-        let mut boundary_handler = BoundaryConditionHandler::new();
+        let boundary_handler = BoundaryConditionHandler::new();
 
         // Step 1: Predictor
-        let momentum_equation = MomentumEquation::new(); // Create a new instance of MomentumEquation
-        let momentum_fluxes = MomentumEquation::calculate_momentum_fluxes(
+        let momentum_equation = MomentumEquation::with_parameters(1.0, 0.001); // Create a new instance of MomentumEquation
+        let _momentum_fluxes = MomentumEquation::calculate_momentum_fluxes(
             &momentum_equation,
             &self.mesh,
             &fields,
@@ -106,22 +106,26 @@ where
         .map_err(|e| PISOError::MatrixError(format!("Predictor step failed: {}", e)))?;
 
         // Step 2: Pressure Correction Loop
+        let solver = self.time_stepper.get_solver(); // FIX: Direct mutable borrow
+
         for iteration in 0..self.config.max_iterations {
             let pressure_correction_result = pressure_correction::solve_pressure_poisson(
                 &self.mesh,
                 &mut fields,
                 &fluxes,
-                    &mut *self.time_stepper.get_solver(), // Obtain the linear solver
-                )
+                &boundary_handler,
+                solver, // Pass the solver
+            )
             .map_err(|e| PISOError::MatrixError(format!("Pressure correction step failed: {}", e)))?;
+
+            let pressure_correction = fields.scalar_fields.get("pressure_correction")
+                .cloned()
+                .ok_or_else(|| PISOError::MatrixError("Pressure correction field not found.".to_string()))?;
 
             velocity_correction::correct_velocity(
                 &self.mesh,
                 &mut fields,
-                &SectionMatVecAdapter::dense_vector_to_section(
-                    &self.mesh.entities(MeshEntity::Cell),
-                    &self.mesh.count_entities(MeshEntity::Cell),
-                ),
+                &pressure_correction,
                 &boundary_handler,
             )
             .map_err(|e| PISOError::MatrixError(format!("Velocity correction step failed: {}", e)))?;

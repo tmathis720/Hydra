@@ -59,7 +59,7 @@ where
 
     fn get_time_step(&self) -> P::Time;
 
-    fn get_solver(&self) -> &dyn KSP;
+    fn get_solver(&mut self) -> &mut dyn KSP;
 }
 
 pub struct FixedTimeStepper<P>
@@ -144,8 +144,8 @@ where
         self.time_step
     }
 
-    fn get_solver(&self) -> &dyn KSP {
-        &*self.solver_manager.solver
+    fn get_solver(&mut self) -> &mut dyn KSP {
+        &mut *self.solver_manager.solver
     }
 }
 

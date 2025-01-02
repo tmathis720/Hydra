@@ -48,6 +48,22 @@ impl PhysicalEquation for MomentumEquation {
 }
 
 impl MomentumEquation {
+    /// Creates a new instance of the MomentumEquation with default parameters.
+    pub fn new() -> Self {
+        Self {
+            params: MomentumParameters {
+                density: 1.0,    // Default density in kg/m^3
+                viscosity: 0.001, // Default viscosity in Pa·s
+            },
+        }
+    }
+
+    /// Creates a new instance with user-specified parameters.
+    pub fn with_parameters(density: f64, viscosity: f64) -> Self {
+        Self {
+            params: MomentumParameters { density, viscosity },
+        }
+    }
     /// Main method to calculate momentum fluxes for all faces in the domain.
     ///
     /// This method computes:
@@ -533,6 +549,20 @@ mod tests {
             assert!(grad.0[1].is_finite(), "Non-finite y-gradient");
             assert!(grad.0[2].is_finite(), "Non-finite z-gradient");
         }
+    }
+
+    #[test]
+    fn test_momentum_equation_default() {
+        let momentum_eq = MomentumEquation::new();
+        assert_eq!(momentum_eq.params.density, 1.0);
+        assert_eq!(momentum_eq.params.viscosity, 0.001);
+    }
+
+    #[test]
+    fn test_momentum_equation_custom_params() {
+        let momentum_eq = MomentumEquation::with_parameters(1.2, 0.00089);
+        assert_eq!(momentum_eq.params.density, 1.2);
+        assert_eq!(momentum_eq.params.viscosity, 0.00089);
     }
 }
 

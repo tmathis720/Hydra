@@ -74,7 +74,7 @@ where
         self.time_step.into()
     }
     
-    fn get_solver(&self) -> &dyn crate::solver::KSP {
+    fn get_solver(&mut self) -> &mut dyn crate::solver::KSP {
         todo!()
     }
 }

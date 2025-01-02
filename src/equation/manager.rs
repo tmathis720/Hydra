@@ -156,7 +156,7 @@ impl<P> TimeStepper<P> for NoOpStepper
 where
     P: TimeDependentProblem,
 {
-    fn get_solver(&self) -> &dyn KSP {
+    fn get_solver(&mut self) -> &mut dyn KSP {
         todo!()
     }
     fn current_time(&self) -> P::Time {
