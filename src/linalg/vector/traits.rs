@@ -20,6 +20,8 @@ pub trait Vector: Send + Sync {
     /// Panics if the index `i` is out of bounds.
     fn get(&self, i: usize) -> Self::Scalar;
 
+    
+
     /// Sets the element at index `i` to `value`.
     ///
     /// # Panics

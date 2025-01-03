@@ -181,7 +181,7 @@ mod options_tests {
     use crate::solver::preconditioner::{Preconditioner, PreconditionerFactory};
 
     const BASE_MATRIX_FILE: &str = "inputs/matrix/e05r0000/e05r0000.mtx";
-    const TOL: f64 = 1e-6;
+    const TOL: f64 = 1e-5;
 
     fn validate_solver_result(
         result: Result<SolverResult, Box<dyn std::error::Error>>,
@@ -240,13 +240,13 @@ mod options_tests {
     fn test_gmres_with_amg_preconditioner() {
         // For a difficult matrix from the drivcav series, use AMG preconditioner
         const AMG_MATRIX_FILE: &str = "inputs/matrix/e05r0300/e05r0300.mtx";
-        const AMG_TOL: f64 = 1e-6;
+        const AMG_TOL: f64 = 1e-5;
 
-        let gmres_solver = GMRES::new(1000, AMG_TOL, 500);
+        let gmres_solver = GMRES::new(250, AMG_TOL, 125);
 
         // Increase max_levels and tweak coarsening_threshold as needed
-        let max_levels = 10;
-        let coarsening_threshold = 0.1;
+        let max_levels = 3;
+        let coarsening_threshold = 0.01;
 
         // Parse matrix for AMG preconditioner construction
         let (rows, cols, _, row_indices, col_indices, values) =

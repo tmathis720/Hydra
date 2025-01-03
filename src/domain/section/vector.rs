@@ -1,6 +1,6 @@
 use std::ops::{Add, AddAssign, Mul, Neg, Sub};
 
-use crate::{Section, Vector};
+use crate::{MeshEntity, Section, Vector};
 
 use super::scalar::Scalar;
 
@@ -243,24 +243,22 @@ impl Vector for Section<Scalar> {
         self.data.len()
     }
 
-    fn get(&self, i: usize) -> Self::Scalar {
-        let keys: Vec<_> = self.data.iter().map(|entry| entry.key().clone()).collect();
+    fn get(&self, i: usize) -> f64 {
+        // gather and sort by each entity’s ID
+        let mut keys: Vec<_> = self.data.iter().map(|entry| entry.key().clone()).collect();
+        keys.sort_by_key(|k| k.get_id()); // stable ascending by ID
         let key = keys.get(i).expect("Index out of bounds");
-        self.data
-            .get(key)
-            .map(|v| v.0) // Access the scalar value from Scalar(f64)
-            .expect("Key not found in section data")
+        self.data.get(key).unwrap().0
     }
+    
 
-    fn set(&mut self, i: usize, value: Self::Scalar) {
-        let keys: Vec<_> = self.data.iter().map(|entry| entry.key().clone()).collect();
+    fn set(&mut self, i: usize, value: f64) {
+        let mut keys: Vec<_> = self.data.iter().map(|entry| entry.key().clone()).collect();
+        keys.sort_by_key(|k| k.get_id());
         let key = keys.get(i).expect("Index out of bounds");
-        if let Some(mut entry) = self.data.get_mut(key) {
-            entry.value_mut().0 = value; // Set the scalar value in Scalar(f64)
-        } else {
-            panic!("Key not found in section data");
-        }
+        self.data.insert(*key, Scalar(value));
     }
+    
 
     fn as_slice(&self) -> &[Self::Scalar] {
         panic!("Section does not support contiguous slices due to its DashMap-based structure.")
@@ -362,5 +360,14 @@ impl Vector for Section<Scalar> {
             .map(|entry| (entry.value().0 - mean).powi(2))
             .sum::<Self::Scalar>()
             / self.len() as Self::Scalar
+    }
+}
+
+impl Section<Scalar> {
+    pub fn get_by_entity(&self, entity: &MeshEntity) -> f64 {
+        self.data
+            .get(entity)
+            .map(|v| v.0)
+            .unwrap_or_else(|| panic!("Entity {entity:?} not found"))
     }
 }

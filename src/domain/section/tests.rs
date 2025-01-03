@@ -207,9 +207,10 @@ mod tests {
         assert_eq!(section.len(), 3);
 
         // Test `get`
-        assert_eq!(section.get(0), 1.0);
-        assert_eq!(section.get(1), 2.0);
-        assert_eq!(section.get(2), 3.0);
+        assert_eq!(section.get_by_entity(&MeshEntity::Cell(0)), 1.0);
+        assert_eq!(section.get_by_entity(&MeshEntity::Cell(1)), 2.0);
+        assert_eq!(section.get_by_entity(&MeshEntity::Cell(2)), 3.0);
+
 
         // Test `set`
         section.set(1, 5.0);
