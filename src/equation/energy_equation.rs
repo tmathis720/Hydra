@@ -1,7 +1,7 @@
 use crate::equation::PhysicalEquation;
 use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler};
 use crate::geometry::{Geometry, FaceShape};
-use crate::domain::section::{Scalar, Vector3};
+use crate::domain::section::{scalar::Scalar, vector::Vector3};
 use crate::Mesh;
 
 use super::fields::{Fields, Fluxes};
@@ -176,7 +176,7 @@ impl EnergyEquation {
 mod tests {
     use super::*;
     use crate::boundary::bc_handler::{BoundaryConditionHandler, BoundaryCondition};
-    use crate::domain::section::{Scalar, Vector3};
+    use crate::domain::section::{scalar::Scalar, vector::Vector3};
     use crate::interface_adapters::domain_adapter::DomainBuilder;
     use crate::equation::fields::{Fields, Fluxes};
     use crate::MeshEntity;

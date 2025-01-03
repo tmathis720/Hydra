@@ -22,4 +22,4 @@ pub mod mesh;
 /// 
 pub use mesh_entity::{MeshEntity, Arrow};
 pub use sieve::Sieve;
-pub use section::Section;
+pub use section::data::Section;

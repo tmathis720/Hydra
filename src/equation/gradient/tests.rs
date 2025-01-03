@@ -3,7 +3,7 @@ mod tests {
     use crate::domain::{mesh::Mesh, Section};
     use crate::boundary::{bc_handler::BoundaryConditionHandler, bc_handler::BoundaryCondition};
     use crate::equation::gradient::{Gradient, GradientCalculationMethod};
-    use crate::domain::section::{Scalar, Vector3};
+    use crate::domain::section::{scalar::Scalar, vector::Vector3};
     use crate::domain::mesh_entity::MeshEntity;
 
     /// Creates a basic mesh for testing.

@@ -1,7 +1,6 @@
 use crate::domain::{mesh::Mesh, Section};
 use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler};
-use crate::domain::section::{Vector3, Scalar};
-
+use crate::domain::section::{scalar::Scalar, vector::Vector3};
 /// Represents a generic equation framework for computing fluxes
 /// in a simulation domain. This implementation is designed to handle
 /// flux calculations based on velocity fields, boundary conditions, and
@@ -139,7 +138,7 @@ mod tests {
     use super::*;
     use crate::interface_adapters::domain_adapter::DomainBuilder;
     use crate::boundary::bc_handler::{BoundaryConditionHandler, BoundaryCondition};
-    use crate::domain::section::{Vector3, Scalar};
+    use crate::domain::section::{scalar::Scalar, vector::Vector3};
     use crate::domain::Section;
 
     fn setup_single_hexahedron_mesh() -> crate::domain::mesh::Mesh {

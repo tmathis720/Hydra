@@ -1,6 +1,9 @@
 use rustc_hash::FxHashMap;
 use crate::{domain::Section, MeshEntity};
-use super::super::domain::section::{Vector3, Tensor3x3, Scalar, Vector2};
+use super::super::domain::section::{vector::Vector3, 
+    tensor::Tensor3x3, 
+    scalar::Scalar, 
+    scalar::Vector2};
 
 /// Trait `UpdateState` defines methods for updating and comparing the state of objects.
 pub trait UpdateState {
@@ -238,7 +241,7 @@ impl Fluxes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::{section::Vector3, MeshEntity};
+    use crate::domain::{section::vector::Vector3, MeshEntity};
 
     fn create_test_entity(id: usize) -> MeshEntity {
         MeshEntity::Cell(id)

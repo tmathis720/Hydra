@@ -199,7 +199,7 @@ mod tests {
     use super::*;
     use crate::{
         boundary::bc_handler::BoundaryConditionHandler,
-        domain::{mesh::Mesh, section::Scalar},
+        domain::{mesh::Mesh, section::scalar::Scalar},
         MeshEntity,
     };
     use std::sync::{Arc, RwLock};

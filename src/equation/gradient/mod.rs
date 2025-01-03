@@ -7,7 +7,7 @@
 //! `GradientMethod` trait.
 
 use crate::boundary::bc_handler::BoundaryConditionHandler;
-use crate::domain::section::{Scalar, Vector3};
+use crate::domain::section::{scalar::Scalar, vector::Vector3};
 use crate::domain::{mesh::Mesh, MeshEntity, Section};
 use crate::geometry::Geometry;
 use std::error::Error;

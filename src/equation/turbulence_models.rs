@@ -1,5 +1,5 @@
 use crate::{
-    boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler}, domain::{mesh::Mesh, section::{Scalar, Vector2, Vector3}, Section}, equation::{
+    boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler}, domain::{mesh::Mesh, section::{scalar, Scalar, Vector3}, Section}, equation::{
         fields::{Fields, Fluxes},
         PhysicalEquation,
     }, geometry::{FaceShape, Geometry}, MeshEntity
@@ -107,7 +107,7 @@ impl GOTMModel {
     fn apply_turbulence_bc(
         &self,
         _bc: &BoundaryCondition,
-        _flux: &mut Vector2,
+        _flux: &mut scalar::Vector2,
         _normal: &Vector3,
         _area: f64,
     ) {
@@ -199,7 +199,7 @@ impl TurbulenceModel for GOTMModel {
             let flux_scalar_1 = self.compute_diffusive_flux(&normal, area, avg_grad_1, self.eddy_diffusivity);
             let flux_scalar_2 = self.compute_diffusive_flux(&normal, area, avg_grad_2, self.eddy_diffusivity);
 
-            let mut turb_flux = Vector2([flux_scalar_1, flux_scalar_2]);
+            let mut turb_flux = scalar::Vector2([flux_scalar_1, flux_scalar_2]);
 
             // Apply BC if present
             if let Some(bc) = boundary_handler.get_bc(&face) {

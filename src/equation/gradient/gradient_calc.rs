@@ -2,7 +2,7 @@ use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler};
 use crate::domain::{mesh::Mesh, MeshEntity, Section};
 use crate::geometry::{FaceShape, Geometry};
 use crate::equation::gradient::GradientMethod;
-use crate::domain::section::{Scalar, Vector3};
+use crate::domain::section::{scalar::Scalar, vector::Vector3};
 use std::error::Error;
 
 /// Struct for the finite volume gradient calculation method.
