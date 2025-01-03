@@ -3,7 +3,7 @@ use crate::{domain::Section, MeshEntity};
 use super::super::domain::section::{vector::Vector3, 
     tensor::Tensor3x3, 
     scalar::Scalar, 
-    scalar::Vector2};
+    vector::Vector2};
 
 /// Trait `UpdateState` defines methods for updating and comparing the state of objects.
 pub trait UpdateState {
