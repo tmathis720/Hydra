@@ -1,5 +1,5 @@
 use crate::solver::ksp::SolverManager;
-use crate::solver::KSP;
+use crate::solver::{GMRES, KSP};
 use crate::time_stepping::adaptivity::error_estimate::estimate_error;
 use crate::time_stepping::adaptivity::step_size_control::adjust_step_size;
 use crate::time_stepping::{TimeStepper, TimeDependentProblem, TimeSteppingError};
@@ -20,7 +20,7 @@ impl<P: TimeDependentProblem> ExplicitEuler<P> {
             time_step,
             start_time,
             end_time,
-            solver_manager: todo!(),
+            solver_manager: SolverManager::new(Box::new(GMRES::new(1000, 1e-6,100))),
         }
     }
 }

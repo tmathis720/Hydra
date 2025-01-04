@@ -6,6 +6,8 @@ use crate::linalg::{Matrix, Vector};
 use crate::solver::preconditioner::Preconditioner;
 use std::sync::Arc;
 
+use super::{GMRES, ConjugateGradient};
+
 #[derive(Debug)]
 pub struct SolverResult {
     pub converged: bool,
@@ -90,6 +92,19 @@ impl SolverManager {
         self.solver.solve(a, b, x)
     }
 }
+
+pub enum SolverType {
+    ConjugateGradient,
+    GMRES,
+}
+
+pub fn create_solver(solver_type: SolverType, max_iter: usize, tol: f64, restart: usize) -> Box<dyn KSP> {
+    match solver_type {
+        SolverType::ConjugateGradient => Box::new(ConjugateGradient::new(max_iter, tol)),
+        SolverType::GMRES => Box::new(GMRES::new(max_iter, tol, restart)),
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
