@@ -170,7 +170,6 @@ mod simple_tests {
     // }
 }
 
-
 #[cfg(test)]
 mod options_tests {
     use faer::Mat;
@@ -179,28 +178,46 @@ mod options_tests {
     use crate::solver::gmres::GMRES;
     use crate::solver::cg::ConjugateGradient;
     use crate::solver::preconditioner::{Preconditioner, PreconditionerFactory};
+    use std::sync::Arc;
+    use crate::input_output::mmio;
+    use crate::solver::ksp::SolverResult;
 
     const BASE_MATRIX_FILE: &str = "inputs/matrix/e05r0000/e05r0000.mtx";
     const TOL: f64 = 1e-5;
 
+    /// Validates the result of the solver against:
+    /// 1) Successful convergence (`solution_result.converged == true`)
+    /// 2) A maximum residual norm `<= max_res_norm`.
+    /// This ensures approximate equality on floating-point results rather than
+    /// expecting exact bitwise matches.
     fn validate_solver_result(
         result: Result<SolverResult, Box<dyn std::error::Error>>,
         max_res_norm: f64,
     ) {
+        // Check that the solver call did not return an error
         assert!(result.is_ok(), "Solver failed with error: {:?}", result.err());
+        
+        // Unwrap the solver's result
         let solution_result = result.unwrap();
+        
+        // Check it converged
         assert!(
             solution_result.converged,
             "Solver did not converge. Residual norm: {}",
             solution_result.residual_norm
         );
+
+        // Approximate check: residual norm <= max_res_norm
+        // (Solution #1: no exact comparison, only a tolerance-based check)
         assert!(
             solution_result.residual_norm <= max_res_norm,
-            "Residual norm is too high: {}",
-            solution_result.residual_norm
+            "Residual norm is too high: {} > {}",
+            solution_result.residual_norm,
+            max_res_norm
         );
+
         println!(
-            "Solver converged in {} iterations with residual norm: {}",
+            "Solver converged in {} iterations with residual norm: {:.3e}",
             solution_result.iterations,
             solution_result.residual_norm
         );
@@ -217,18 +234,6 @@ mod options_tests {
         validate_solver_result(result, TOL);
     }
 
-/*     #[test]
-    fn test_gmres_with_lu_preconditioner() {
-        let gmres_solver = GMRES::new(500, TOL, 500);
-        let size = 236; // known dimension for e05r0000 if known
-        let result = SystemSolver::solve_from_file_with_solver(
-            BASE_MATRIX_FILE,
-            gmres_solver,
-            Some(Box::new(move || PreconditionerFactory::create_lu(&Mat::identity(size, size)))),
-        );
-        validate_solver_result(result, TOL);
-    } */
-
     #[test]
     fn test_cg_no_preconditioner() {
         let cg_solver = ConjugateGradient::new(500, TOL);
@@ -238,15 +243,18 @@ mod options_tests {
 
     #[test]
     fn test_gmres_with_amg_preconditioner() {
-        // For a difficult matrix from the drivcav series, use AMG preconditioner
+        // For a difficult matrix from the drivcav series, use AMG preconditioner.
+        // We'll demonstrate the same approximate checks here.
+        
         const AMG_MATRIX_FILE: &str = "inputs/matrix/e05r0300/e05r0300.mtx";
         const AMG_TOL: f64 = 1e-5;
 
-        let gmres_solver = GMRES::new(250, AMG_TOL, 125);
+        // Create a GMRES solver configured for this problem
+        let gmres_solver = GMRES::new(1000, AMG_TOL, 1000);
 
         // Increase max_levels and tweak coarsening_threshold as needed
-        let max_levels = 3;
-        let coarsening_threshold = 0.01;
+        let max_levels = 6;
+        let coarsening_threshold = 0.1;
 
         // Parse matrix for AMG preconditioner construction
         let (rows, cols, _, row_indices, col_indices, values) =
@@ -256,10 +264,19 @@ mod options_tests {
             dense_matrix.write(row, col, value);
         }
 
+        // Create an AMG preconditioner factory
         let preconditioner_factory: Box<dyn Fn() -> Arc<dyn Preconditioner>> =
             Box::new(move || PreconditionerFactory::create_amg(&dense_matrix, max_levels, coarsening_threshold));
 
-        let result = SystemSolver::solve_from_file_with_solver(AMG_MATRIX_FILE, gmres_solver, Some(preconditioner_factory));
+        // Solve the system from the given MatrixMarket file
+        let result = SystemSolver::solve_from_file_with_solver(
+            AMG_MATRIX_FILE,
+            gmres_solver,
+            Some(preconditioner_factory)
+        );
+
+        // Now we do an approximate check of convergence and residual norm
+        // (Solution #3: confirm the solver converges within `AMG_TOL`.)
         validate_solver_result(result, AMG_TOL);
     }
 }

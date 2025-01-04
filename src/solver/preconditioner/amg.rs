@@ -18,63 +18,68 @@ struct AMGLevel {
 }
 
 impl AMG {
-    pub fn new(a: &Mat<f64>, max_levels: usize, base_coarsening_threshold: f64) -> Self {
+    pub fn new(a: &Mat<f64>, max_levels: usize, base_threshold: f64) -> Self {
         let mut levels = Vec::new();
+
+        // Current (fine) matrix, which we'll successively coarsen
         let mut current_matrix = a.clone();
-        
-        for level in 0..max_levels {
+        let mut current_diag = Self::extract_diagonal_inverse(&current_matrix);
+
+        for level_idx in 0..max_levels {
+            // If too small, we stop
             let n = current_matrix.nrows();
             if n <= 10 {
                 break;
             }
-    
-            let adaptive_threshold = compute_adaptive_threshold(&current_matrix, base_coarsening_threshold);
-            
-            // Generate operators for this level
+
+            // Build real interpolation and restriction for going from
+            // current_matrix (fine) to the next coarse
+            let adaptive_threshold = compute_adaptive_threshold(&current_matrix, base_threshold);
             let (mut interpolation, restriction) = AMG::generate_operators(
                 &current_matrix,
                 adaptive_threshold,
-                false,
+                false, // or true if you want double-pairwise
             );
-            
+
             smooth_interpolation(&mut interpolation, &current_matrix, 0.5);
             minimize_energy(&mut interpolation, &current_matrix);
-            
-        // Compute the new coarse matrix
-        let coarse_matrix = &restriction * &current_matrix * &interpolation;
 
-        // Extract diag_inv from the COARSE matrix, not the old current_matrix
-        let diag_inv = AMG::extract_diagonal_inverse(&coarse_matrix);
+            // Build the new coarse matrix
+            let coarse_matrix = &restriction * &current_matrix * &interpolation;
+            let coarse_diag = Self::extract_diagonal_inverse(&coarse_matrix);
 
-        levels.push(AMGLevel {
-            interpolation,
-            restriction,
-            coarse_matrix: coarse_matrix.clone(), // store the newly computed coarse matrix
-            diag_inv,
-        });
+            // Store the operators for the fine matrix in "levels[level_idx]"
+            // so that 'levels[level_idx].coarse_matrix' is the fine matrix,
+            // and the next level is "coarse_matrix".
+            levels.push(AMGLevel {
+                interpolation,
+                restriction,
+                coarse_matrix: current_matrix.clone(), // the fine matrix for this level
+                diag_inv: current_diag,                // diagonal of the fine matrix
+            });
 
-        // Now update current_matrix to the coarse_matrix for the next iteration
-        current_matrix = coarse_matrix;
-            
+            // Next iteration: "current_matrix" becomes the new coarse
+            current_matrix = coarse_matrix.clone();
+            current_diag = coarse_diag;
+
             println!(
-                "Level {} constructed: coarse_matrix size = {}x{}",
-                level,
+                "Level {} constructed: coarse matrix size = {}x{}",
+                level_idx,
                 current_matrix.nrows(),
                 current_matrix.ncols()
             );
         }
-    
-        // Store the final level
-        if current_matrix.nrows() > 0 {
-            let diag_inv = AMG::extract_diagonal_inverse(&current_matrix);
-            levels.push(AMGLevel {
-                interpolation: Mat::identity(current_matrix.nrows(), current_matrix.nrows()),
-                restriction: Mat::identity(current_matrix.nrows(), current_matrix.nrows()),
-                coarse_matrix: current_matrix,
-                diag_inv,
-            });
-        }
-    
+
+        // Finally, push the **last** level, which is your final "coarse" matrix
+        // with identity R/I (or you can store them if you plan further coarsening).
+        let diag_inv_final = Self::extract_diagonal_inverse(&current_matrix);
+        levels.push(AMGLevel {
+            interpolation: Mat::identity(current_matrix.nrows(), current_matrix.nrows()),
+            restriction: Mat::identity(current_matrix.nrows(), current_matrix.nrows()),
+            coarse_matrix: current_matrix,
+            diag_inv: diag_inv_final,
+        });
+
         AMG {
             levels,
             nu_pre: 1,
@@ -100,7 +105,7 @@ impl AMG {
             greedy_aggregation(&strength_matrix)
         };
 
-        // Step 3: Construct prolongation and restriction matrices
+        // Step 3: Construct prolongation (P) and restriction (R=P^T) matrices
         let prolongation = construct_prolongation(a, &aggregates);
         let restriction = prolongation.transpose().to_owned();
 
@@ -335,19 +340,36 @@ fn minimize_energy(interpolation: &mut Mat<f64>, _matrix: &Mat<f64>) {
 
 /// Parallel mat-vec multiplication using rayon.
 fn parallel_mat_vec(mat: &dyn Matrix<Scalar = f64>, vec: &[f64], result: &mut [f64]) {
-    // Dimension checks
-    assert_eq!(mat.ncols(), vec.len(), 
-        "Matrix columns ({}) must match vector length ({})", mat.ncols(), vec.len());
-    assert_eq!(mat.nrows(), result.len(),
-        "Matrix rows ({}) must match result vector length ({})", mat.nrows(), result.len());
+    let (rows, cols) = (mat.nrows(), mat.ncols());
+    let (vlen, rlen) = (vec.len(), result.len());
 
-    result.par_iter_mut().enumerate().take(mat.nrows()).for_each(|(i, res)| {
-        *res = (0..mat.ncols())  // Use mat.ncols() instead of vec.len()
-            .into_par_iter()
-            .map(|j| mat.get(i, j) * vec[j])
-            .sum();
-    });
+    assert_eq!(
+        cols, vlen,
+        "Dimension mismatch in parallel_mat_vec!\n \
+         Matrix is {}x{}, but input vector length is {}.\n \
+         (Matrix columns must match vector length.)",
+        rows, cols, vlen,
+    );
+    assert_eq!(
+        rows, rlen,
+        "Dimension mismatch in parallel_mat_vec!\n \
+         Matrix is {}x{}, but result length is {}.\n \
+         (Matrix rows must match result length.)",
+        rows, cols, rlen,
+    );
+
+    // Now do the parallel multiplication
+    result
+        .par_iter_mut()
+        .enumerate()
+        .for_each(|(i, res)| {
+            *res = (0..cols)
+                .into_par_iter()
+                .map(|j| mat.get(i, j) * vec[j])
+                .sum();
+        });
 }
+
 
 // ------------------- Helper Functions for Enhanced Coarsening -------------------
 
