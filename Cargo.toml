@@ -2,7 +2,7 @@
 name = "hydra"
 version = "0.6.0"
 edition = "2021"
-authors = ["Thomas J. Mathis <tmathis720@gmail.com"]
+authors = ["Thomas J. Mathis <tmathis720@gmail.com>"]
 description = "Hydra CFD data management and solver framework"
 license = "MIT"
 repository = "https://github.com/tmathis720/HYDRA"

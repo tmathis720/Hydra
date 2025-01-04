@@ -59,6 +59,9 @@ mod tests {
         let mut fluxes = Fluxes::new();
 
         // Add a dummy velocity field to the fields structure
+        fields.scalar_fields.insert("velocity_x".to_string(), Section::new());
+        fields.scalar_fields.insert("velocity_y".to_string(), Section::new());
+        fields.scalar_fields.insert("velocity_z".to_string(), Section::new());
         fields.vector_fields.insert("velocity".to_string(), Section::new());
 
         // Create a dummy momentum equation instance
@@ -71,8 +74,11 @@ mod tests {
         // 2. Execute: Call the predictor function
         let result = predict_velocity(&mesh, &mut fields, &mut fluxes, &boundary_handler, &momentum_equation, 0.0);
 
+        
         // 3. Verify: Check that the result is Ok and the velocity field is updated
         assert!(result.is_ok());
-        assert!(fields.vector_fields.get("velocity").is_some());
+        assert!(fields.scalar_fields.get("velocity_x").is_some());
+        assert!(fields.scalar_fields.get("velocity_y").is_some());
+        assert!(fields.scalar_fields.get("velocity_z").is_some());        
     }
 }
