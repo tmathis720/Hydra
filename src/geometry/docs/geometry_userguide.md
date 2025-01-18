@@ -1,61 +1,74 @@
+Below is an **updated** `Geometry` module user guide that more accurately reflects the **current source code** and the set of shapes (both 2D and 3D) supported in Hydra. All the new additions—such as the `Edge` face shape, triangular cells, and advanced features—are incorporated to ensure completeness and correctness.
+
+---
+
 # Hydra `Geometry` Module User Guide
 
 ---
 
 ## **Table of Contents**
 
-1. [Introduction](#1-introduction)
-2. [Overview of the Geometry Module](#2-overview-of-the-geometry-module)
-3. [Core Structures](#3-core-structures)
-   - [Geometry Struct](#geometry-struct)
-   - [GeometryCache Struct](#geometrycache-struct)
-   - [CellShape Enum](#cellshape-enum)
-   - [FaceShape Enum](#faceshape-enum)
-4. [Mesh Entities and Connectivity](#4-mesh-entities-and-connectivity)
-5. [Working with Vertices](#5-working-with-vertices)
-   - [Adding and Updating Vertices](#adding-and-updating-vertices)
-6. [Computing Geometric Properties](#6-computing-geometric-properties)
-   - [Cell Centroids](#cell-centroids)
-   - [Cell Volumes](#cell-volumes)
-   - [Face Areas](#face-areas)
-   - [Face Centroids](#face-centroids)
-   - [Face Normals](#face-normals)
-   - [Distance Calculations](#distance-calculations)
-7. [Shape-Specific Computations](#7-shape-specific-computations)
-   - [Triangles](#triangles)
-   - [Quadrilaterals](#quadrilaterals)
-   - [Tetrahedrons](#tetrahedrons)
-   - [Hexahedrons](#hexahedrons)
-   - [Prisms](#prisms)
-   - [Pyramids](#pyramids)
-8. [Caching and Performance Optimization](#8-caching-and-performance-optimization)
-9. [Advanced Usage](#9-advanced-usage)
-   - [Updating All Cell Volumes](#updating-all-cell-volumes)
-   - [Computing Total Volume and Centroid](#computing-total-volume-and-centroid)
-10. [Best Practices](#10-best-practices)
-11. [Testing and Validation](#11-testing-and-validation)
+1. [Introduction](#1-introduction)  
+2. [Overview of the Geometry Module](#2-overview-of-the-geometry-module)  
+3. [Core Structures](#3-core-structures)  
+   - [Geometry Struct](#geometry-struct)  
+   - [GeometryCache Struct](#geometrycache-struct)  
+   - [CellShape Enum](#cellshape-enum)  
+   - [FaceShape Enum](#faceshape-enum)  
+4. [Mesh Entities and Connectivity](#4-mesh-entities-and-connectivity)  
+5. [Working with Vertices](#5-working-with-vertices)  
+   - [Adding and Updating Vertices](#adding-and-updating-vertices)  
+6. [Computing Geometric Properties](#6-computing-geometric-properties)  
+   - [Cell Centroids](#cell-centroids)  
+   - [Cell Volumes](#cell-volumes)  
+   - [Face Areas](#face-areas)  
+   - [Face Centroids](#face-centroids)  
+   - [Face Normals](#face-normals)  
+   - [Distance Calculations](#distance-calculations)  
+7. [Shape-Specific Computations](#7-shape-specific-computations)  
+   - [Edge](#edge)  
+   - [Triangle](#triangle)  
+   - [Quadrilateral](#quadrilateral)  
+   - [Tetrahedron](#tetrahedron)  
+   - [Hexahedron](#hexahedron)  
+   - [Prism](#prism)  
+   - [Pyramid](#pyramid)  
+8. [Caching and Performance Optimization](#8-caching-and-performance-optimization)  
+9. [Advanced Usage](#9-advanced-usage)  
+   - [Updating All Cell Volumes](#updating-all-cell-volumes)  
+   - [Total Volume and Centroid](#total-volume-and-centroid)  
+10. [Best Practices](#10-best-practices)  
+11. [Testing and Validation](#11-testing-and-validation)  
 12. [Conclusion](#12-conclusion)
 
 ---
 
 ## **1. Introduction**
 
-Welcome to the user's guide for the `Geometry` module of the Hydra computational framework. This module is integral for managing geometric data and performing computations related to mesh entities within Hydra. It provides tools for calculating geometric properties such as centroids, volumes, areas, and normals for various 2D and 3D shapes.
+Welcome to the **`Geometry`** module user guide for Hydra. This module is responsible for **storing** and **computing** all geometric properties of mesh entities. Typical tasks include:
+
+- Setting or updating **vertex** coordinates in 3D space.  
+- Calculating **centroids**, **areas**, **volumes**, and **normals** for various shapes (both 2D and 3D).  
+- Handling specialized shapes, such as **tetrahedrons**, **hexahedrons**, **prisms**, **pyramids**, and more.  
+- Maintaining a **cache** of computed properties for improved performance.
 
 ---
 
 ## **2. Overview of the Geometry Module**
 
-The `Geometry` module is designed to handle geometric computations for finite element and finite volume meshes. It supports both 2D and 3D shapes, including:
+The `Geometry` module is integrated with Hydra’s **`domain`** layer (notably, with `Mesh` and `MeshEntity`) to:
 
-- **2D Shapes**: Triangles and Quadrilaterals.
-- **3D Shapes**: Tetrahedrons, Hexahedrons, Prisms, and Pyramids.
+- Retrieve a cell’s or face’s vertices via `Mesh`.  
+- Identify the shape (`CellShape` or `FaceShape`).  
+- Compute shape-specific properties (e.g., volume for a tetrahedron, area for a quadrilateral face).  
+- Optionally **cache** results (centroids, volumes, normals) to speed up subsequent calculations.  
 
-The module provides functionalities to:
+Supported shapes:
 
-- Store and manage vertex coordinates.
-- Compute centroids, volumes, areas, and normals of mesh entities.
-- Cache computed properties for performance optimization.
+- **2D (FaceShape)**: `Edge`, `Triangle`, `Quadrilateral`  
+- **3D (CellShape)**: `Triangle` (degenerate 3D?), `Quadrilateral`, `Tetrahedron`, `Hexahedron`, `Prism`, `Pyramid`.  
+
+*(Note that `Triangle` and `Quadrilateral` can appear as either cells or faces, depending on the mesh topology.)*
 
 ---
 
@@ -63,20 +76,21 @@ The module provides functionalities to:
 
 ### Geometry Struct
 
-The `Geometry` struct is the central component of the module. It holds geometric data and provides methods for computations.
-
 ```rust
 pub struct Geometry {
-    pub vertices: Vec<[f64; 3]>,        // 3D coordinates for each vertex
-    pub cell_centroids: Vec<[f64; 3]>,  // Centroid positions for each cell
-    pub cell_volumes: Vec<f64>,         // Volumes of each cell
-    pub cache: Mutex<FxHashMap<usize, GeometryCache>>, // Cache for computed properties
+    pub vertices: Vec<[f64; 3]>,        
+    pub cell_centroids: Vec<[f64; 3]>,  
+    pub cell_volumes: Vec<f64>,         
+    pub cache: Mutex<FxHashMap<usize, GeometryCache>>,
 }
 ```
 
-### GeometryCache Struct
+- **Stores**:
+  - A list of **vertex** coordinates.
+  - Computed arrays for **cell centroids** and **cell volumes**.
+  - A **thread-safe cache** (`Mutex<FxHashMap<...>>`) for geometric properties keyed by entity ID.
 
-The `GeometryCache` struct stores computed properties of geometric entities to avoid redundant calculations.
+### GeometryCache Struct
 
 ```rust
 #[derive(Default)]
@@ -84,16 +98,21 @@ pub struct GeometryCache {
     pub volume: Option<f64>,
     pub centroid: Option<[f64; 3]>,
     pub area: Option<f64>,
-    pub normal: Option<[f64; 3]>,  // Precomputed normal vector for a face
+    pub normal: Option<[f64; 3]>,
 }
 ```
 
+- **Purpose**: Holds optional precomputed fields—`volume`, `centroid`, `area`, `normal`.  
+- Populated **lazily** as geometry calculations occur.  
+- If a shape changes or a vertex is updated, the cache can be **invalidated**.
+
 ### CellShape Enum
 
-Defines the different cell shapes supported in the mesh.
-
 ```rust
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CellShape {
+    Triangle,
+    Quadrilateral,
     Tetrahedron,
     Hexahedron,
     Prism,
@@ -101,28 +120,34 @@ pub enum CellShape {
 }
 ```
 
+- Identifies **3D cells** (though `Triangle`/`Quadrilateral` can be degenerate 3D surfaces or 2D domains in certain contexts).
+- The geometry code references these shapes to decide which specialized formula to use for **centroids** or **volumes**.
+
 ### FaceShape Enum
 
-Defines the different face shapes supported in the mesh.
-
 ```rust
+#[derive(Debug, Clone, Copy)]
 pub enum FaceShape {
+    Edge,
     Triangle,
     Quadrilateral,
 }
 ```
 
+- Identifies **2D faces**:
+  - **Edge**: 2-vertex boundary or line segment (common in 2D meshes).
+  - **Triangle**: 3 vertices.
+  - **Quadrilateral**: 4 vertices.
+
 ---
 
 ## **4. Mesh Entities and Connectivity**
 
-Mesh entities are fundamental components such as vertices, edges, faces, and cells. The `Geometry` module interacts closely with the `Mesh` structure, using mesh entities to perform geometric computations.
-
-- **Vertices**: Points in 3D space.
-- **Faces**: Surfaces bounded by edges (e.g., triangles, quadrilaterals).
-- **Cells**: Volumetric elements (e.g., tetrahedrons, hexahedrons).
-
-The module relies on the mesh's connectivity information to access entities and their associated vertices.
+- `Geometry` interacts closely with the **`Mesh`** structure in `domain::mesh`.  
+- **Example**:
+  - `Mesh::get_cell_vertices(cell) -> Vec<[f64; 3]>`  
+  - `Mesh::get_face_vertices(face) -> Vec<[f64; 3]>`
+- `Geometry` uses these vertices plus a shape classification (e.g., `CellShape::Tetrahedron`) to compute properties.
 
 ---
 
@@ -130,238 +155,177 @@ The module relies on the mesh's connectivity information to access entities and 
 
 ### Adding and Updating Vertices
 
-To set or update a vertex's coordinates:
-
 ```rust
 pub fn set_vertex(&mut self, vertex_index: usize, coords: [f64; 3]);
 ```
 
-**Example:**
+- If `vertex_index >= self.vertices.len()`, the `vertices` vector is **resized** automatically.
+- A change here **invalidates** the geometry cache to prevent stale calculations.
 
 ```rust
 let mut geometry = Geometry::new();
-geometry.set_vertex(0, [1.0, 2.0, 3.0]); // Adds or updates vertex at index 0
+geometry.set_vertex(0, [1.0, 2.0, 3.0]); // If index=0 is new, a new vertex is added
+geometry.set_vertex(10, [5.0, 1.0, 0.0]); // Resizes the vector up to index=10
 ```
-
-- If the `vertex_index` exceeds the current size of the `vertices` vector, it automatically resizes.
-- Updating a vertex invalidates the cache to ensure consistency.
 
 ---
 
 ## **6. Computing Geometric Properties**
 
-### Cell Centroids
+The `Geometry` struct provides high-level methods to compute cell or face properties. It also has direct subroutines for shape-specific computations.
 
-Computes and caches the centroid of a cell based on its shape and vertices.
+### Cell Centroids
 
 ```rust
 pub fn compute_cell_centroid(&mut self, mesh: &Mesh, cell: &MeshEntity) -> [f64; 3];
 ```
 
-- **Usage**: Provides the geometric center of a cell, which is essential in various numerical methods.
-- **Caching**: The computed centroid is stored in the cache for future use.
+- Determines the cell’s shape (via `mesh.get_cell_shape(cell)`) and calls the relevant shape method:
+  - **Triangle** -> `compute_triangle_centroid`
+  - **Quadrilateral** -> `compute_quadrilateral_centroid`
+  - **Tetrahedron** -> `compute_tetrahedron_centroid`
+  - **Hexahedron** -> `compute_hexahedron_centroid`
+  - **Prism** -> `compute_prism_centroid`
+  - **Pyramid** -> `compute_pyramid_centroid`
+- **Cached** under that cell’s ID.
 
 ### Cell Volumes
-
-Computes and caches the volume of a cell.
 
 ```rust
 pub fn compute_cell_volume(&mut self, mesh: &Mesh, cell: &MeshEntity) -> f64;
 ```
 
-- **Usage**: Calculates the volume using shape-specific methods.
-- **Caching**: Stored in the cache to avoid redundant computations.
+- Similar logic—checks shape, then calls e.g., `compute_tetrahedron_volume`, etc.
+- If the shape is `Triangle` or `Quadrilateral` but used as a cell, it interprets that 2D shape’s area as a “volume” in a degenerate sense.
 
 ### Face Areas
-
-Computes the area of a face based on its shape.
 
 ```rust
 pub fn compute_face_area(&mut self, face_id: usize, face_shape: FaceShape, face_vertices: &Vec<[f64; 3]>) -> f64;
 ```
 
-- **Supports**: Triangles and quadrilaterals.
-- **Caching**: Face areas are cached using `face_id`.
+- Distinguishes:
+  - **Edge**: The area is effectively the **length** of the line segment.
+  - **Triangle**: Uses `compute_triangle_area`.
+  - **Quadrilateral**: Splits into two triangles, sums areas.
+- Stores the result in the cache for `face_id`.
 
 ### Face Centroids
-
-Computes the centroid of a face.
 
 ```rust
 pub fn compute_face_centroid(&self, face_shape: FaceShape, face_vertices: &Vec<[f64; 3]>) -> [f64; 3];
 ```
 
-- **Usage**: Essential for flux calculations across faces in finite volume methods.
+- If `Edge`, midpoint of the two vertices.
+- If `Triangle`, average of the three vertices.
+- If `Quadrilateral`, average of the four vertices.
 
 ### Face Normals
-
-Computes and caches the normal vector of a face.
 
 ```rust
 pub fn compute_face_normal(
     &mut self,
     mesh: &Mesh,
     face: &MeshEntity,
-    cell: &MeshEntity,
+    cell: &MeshEntity
 ) -> Option<[f64; 3]>;
 ```
 
-- **Usage**: Normal vectors are crucial for calculating fluxes and enforcing boundary conditions.
-- **Caching**: Normals are cached for efficiency.
+- Checks `face` vertex count:  
+  - 2 -> `FaceShape::Edge` -> `compute_edge_normal`  
+  - 3 -> `Triangle` -> `compute_triangle_normal`  
+  - 4 -> `Quadrilateral` -> `compute_quadrilateral_normal`  
+- Returns a `Vector3` if supported. 2D “edge” normal is a 90-degree rotation in XY plane.
 
 ### Distance Calculations
-
-Computes the Euclidean distance between two points.
 
 ```rust
 pub fn compute_distance(p1: &[f64; 3], p2: &[f64; 3]) -> f64;
 ```
 
-- **Usage**: Used internally for height calculations, distances between centroids, etc.
+- Basic Euclidean distance:
+  \[
+    \sqrt{(p1_x - p2_x)^2 + (p1_y - p2_y)^2 + (p1_z - p2_z)^2}
+  \]
 
 ---
 
 ## **7. Shape-Specific Computations**
 
-### Triangles
+The module internally delegates to shape-specific methods. For reference, each shape has its centroid, area, or volume logic:
 
-#### Compute Centroid
+### Edge
 
-```rust
-pub fn compute_triangle_centroid(&self, triangle_vertices: &Vec<[f64; 3]>) -> [f64; 3];
-```
+- **`compute_edge_length`**  
+  - Expects exactly 2 vertices and calculates the distance.  
+- **`compute_edge_midpoint`**  
+  - Averages the two vertex coordinates to get midpoint.  
+- **`compute_edge_normal`**  
+  - Rotates the edge vector 90° in 2D. Normal is `[ -dy, dx, 0 ]` (normalized).
 
-- **Calculates**: Average of the three vertex coordinates.
+### Triangle
 
-#### Compute Area
+**File**: `triangle.rs`  
+- **Centroid** (`compute_triangle_centroid`)  
+  - Average of the three vertices.  
+- **Area** (`compute_triangle_area`)  
+  - Half of cross product magnitude: \(\frac{1}{2} |(v1 - v0) \times (v2 - v0)|\).  
+- **Normal** (`compute_triangle_normal`)  
+  - Cross product of edges `(v1 - v0)` and `(v2 - v0)`.
 
-```rust
-pub fn compute_triangle_area(&self, triangle_vertices: &Vec<[f64; 3]>) -> f64;
-```
+### Quadrilateral
 
-- **Calculates**: Using the cross product of two edge vectors.
+**File**: `quadrilateral.rs`  
+- **Area** (`compute_quadrilateral_area`)  
+  - Split into two triangles, sum their areas.  
+- **Centroid** (`compute_quadrilateral_centroid`)  
+  - Average of the four vertices.  
+- **Normal** (`compute_quadrilateral_normal`)  
+  - Compute normals for the two triangles formed, then average them.
 
-#### Compute Normal
+### Tetrahedron
 
-```rust
-pub fn compute_triangle_normal(&self, triangle_vertices: &Vec<[f64; 3]>) -> [f64; 3];
-```
+**File**: `tetrahedron.rs`  
+- **Centroid** (`compute_tetrahedron_centroid`)  
+  - Average of the four vertices.  
+- **Volume** (`compute_tetrahedron_volume`)  
+  - Determinant-based formula (1/6 of the absolute determinant of the edge vectors).
 
-- **Calculates**: Normal vector via cross product of two edges.
+### Hexahedron
 
-### Quadrilaterals
+**File**: `hexahedron.rs`  
+- **Centroid** (`compute_hexahedron_centroid`)  
+  - Average of all 8 vertex coordinates.  
+- **Volume** (`compute_hexahedron_volume`)  
+  - Decomposes the hexahedron into 5 tetrahedrons, sums volumes.
 
-#### Compute Area
+### Prism
 
-```rust
-pub fn compute_quadrilateral_area(&self, quad_vertices: &Vec<[f64; 3]>) -> f64;
-```
+**File**: `prism.rs`  
+- **Centroid** (`compute_prism_centroid`)  
+  - Split top and bottom triangles (3 vertices each). Compute each triangle’s centroid, then average the two centroids.  
+- **Volume** (`compute_prism_volume`)  
+  - Base area (triangle) * height (distance between top and bottom triangle centroids).
 
-- **Calculates**: By splitting the quadrilateral into two triangles.
+### Pyramid
 
-#### Compute Centroid
-
-```rust
-pub fn compute_quadrilateral_centroid(&self, quad_vertices: &Vec<[f64; 3]>) -> [f64; 3];
-```
-
-- **Calculates**: Average of the four vertex coordinates.
-
-#### Compute Normal
-
-```rust
-pub fn compute_quadrilateral_normal(&self, quad_vertices: &Vec<[f64; 3]>) -> [f64; 3];
-```
-
-- **Calculates**: Average of the normals of the two triangles formed.
-
-### Tetrahedrons
-
-#### Compute Centroid
-
-```rust
-pub fn compute_tetrahedron_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3];
-```
-
-- **Calculates**: Average of the four vertex coordinates.
-
-#### Compute Volume
-
-```rust
-pub fn compute_tetrahedron_volume(&self, tet_vertices: &Vec<[f64; 3]>) -> f64;
-```
-
-- **Calculates**: Using the determinant of a matrix formed by edges from one vertex.
-
-### Hexahedrons
-
-#### Compute Centroid
-
-```rust
-pub fn compute_hexahedron_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3];
-```
-
-- **Calculates**: Average of the eight vertex coordinates.
-
-#### Compute Volume
-
-```rust
-pub fn compute_hexahedron_volume(&self, cell_vertices: &Vec<[f64; 3]>) -> f64;
-```
-
-- **Calculates**: By decomposing the hexahedron into tetrahedrons and summing their volumes.
-
-### Prisms
-
-#### Compute Centroid
-
-```rust
-pub fn compute_prism_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3];
-```
-
-- **Calculates**: Average of the centroids of the top and bottom triangles.
-
-#### Compute Volume
-
-```rust
-pub fn compute_prism_volume(&self, cell_vertices: &Vec<[f64; 3]>) -> f64;
-```
-
-- **Calculates**: Base area multiplied by height.
-
-### Pyramids
-
-#### Compute Centroid
-
-```rust
-pub fn compute_pyramid_centroid(&self, cell_vertices: &Vec<[f64; 3]>) -> [f64; 3];
-```
-
-- **Calculates**: Weighted average of the base centroid and apex.
-
-#### Compute Volume
-
-```rust
-pub fn compute_pyramid_volume(&self, cell_vertices: &Vec<[f64; 3]>) -> f64;
-```
-
-- **Calculates**: For triangular base (tetrahedron) or square base (sum of two tetrahedrons).
+**File**: `pyramid.rs`  
+- **Centroid** (`compute_pyramid_centroid`)  
+  - If triangular base (4 vertices total), treat as a tetrahedron. If square base (5 vertices), split base into two triangles. Weighted average apex & base.  
+- **Volume** (`compute_pyramid_volume`)  
+  - If 5 vertices, decompose into 2 tetrahedrons. If 4 vertices, 1 tetrahedron.
 
 ---
 
 ## **8. Caching and Performance Optimization**
 
-The `Geometry` module uses caching extensively to improve performance:
+The geometry module uses a **`cache: Mutex<FxHashMap<usize, GeometryCache>>`**.  
+- **Key**: usually the entity’s integer ID (e.g., from `MeshEntity::get_id()`).  
+- **Value**: a `GeometryCache` with optional `volume`, `centroid`, `area`, `normal`.  
+- On any **vertex update** or major geometry change, `invalidate_cache()` is called.  
 
-- **Cache Structure**: `FxHashMap<usize, GeometryCache>` stores computed properties keyed by entity IDs.
-- **Thread Safety**: The cache is wrapped in a `Mutex` to ensure thread-safe access in parallel computations.
-- **Invalidation**: When geometry changes (e.g., vertex updates), the cache is invalidated using:
-
-  ```rust
-  fn invalidate_cache(&mut self);
-  ```
-
-- **Usage**: Before performing computations, the module checks if the result is already cached.
+**Parallel** usage:  
+- The module is parallel-friendly in many routines (e.g., `update_all_cell_volumes` uses Rayon).
 
 ---
 
@@ -369,71 +333,54 @@ The `Geometry` module uses caching extensively to improve performance:
 
 ### Updating All Cell Volumes
 
-Recomputes and updates the volumes of all cells in parallel.
-
 ```rust
 pub fn update_all_cell_volumes(&mut self, mesh: &Mesh);
 ```
 
-- **Parallel Computation**: Utilizes Rayon for concurrent processing.
-- **Usage**: Essential after significant mesh modifications.
+- **Parallel**: For each cell in the mesh, a temporary `Geometry` is created, then `compute_cell_volume(...)` is called.  
+- Stores all new volumes in `self.cell_volumes`.
 
-### Computing Total Volume and Centroid
+### Total Volume and Centroid
 
-#### Total Volume
+- **`compute_total_volume()`**: Summation of `self.cell_volumes`.  
+- **`compute_total_centroid()`**: Averages all `self.cell_centroids`.
 
-```rust
-pub fn compute_total_volume(&self) -> f64;
-```
-
-- **Calculates**: Sum of all cell volumes.
-
-#### Total Centroid
-
-```rust
-pub fn compute_total_centroid(&self) -> [f64; 3];
-```
-
-- **Calculates**: Average of all cell centroids.
+These rely on the arrays in `Geometry` being **up-to-date** (via your calls to compute each cell’s centroid/volume or `update_all_cell_volumes`).
 
 ---
 
 ## **10. Best Practices**
 
-- **Cache Management**: Always invalidate the cache when making changes to geometry to ensure consistency.
-- **Thread Safety**: When accessing or modifying shared data, ensure thread safety to prevent data races.
-- **Shape Verification**: Before performing computations, verify that the number of vertices matches the expected shape.
-
-  ```rust
-  assert!(cell_vertices.len() == expected_count, "Incorrect number of vertices");
-  ```
-
-- **Error Handling**: Use assertions to catch invalid inputs early.
+1. **Invalidate Cache**: Whenever you modify **vertices** in the `Geometry` struct, call or rely on the `invalidate_cache()` method to keep computations accurate.  
+2. **Parallelization**: Leverage **Rayon**-based methods (like `update_all_cell_volumes`) for large meshes.  
+3. **Shape Verification**: Each shape method uses `assert!` to confirm the correct vertex count—this is a good safeguard.  
+4. **Check Return Types**: Some face computations (e.g., area of an `Edge`) yield a “length” effectively, so plan your usage accordingly.
 
 ---
 
 ## **11. Testing and Validation**
 
-The module includes comprehensive tests for each shape and computation:
+- The code includes **unit tests** for each shape, verifying:
+  - Tetrahedron volumes (e.g., a simple corner tetrahedron of volume `1/6`).  
+  - Triangular or quadrilateral face areas.  
+  - Centroids of prisms, pyramids, etc.  
+- **Degenerate Cases**: For zero-area or zero-volume shapes, expect the cross product or determinant to return zero.  
+- Use **floating-point tolerances** for real-world test verifications.
 
-- **Unit Tests**: Validate individual functions with known inputs and outputs.
-- **Degenerate Cases**: Tests include degenerate shapes (e.g., zero area or volume) to ensure robustness.
-- **Accuracy**: Floating-point comparisons account for precision errors using tolerances (e.g., `1e-10`).
-
-**Example Test for Tetrahedron Volume:**
+**Example**:
 
 ```rust
 #[test]
 fn test_tetrahedron_volume() {
     let geometry = Geometry::new();
-    let tetrahedron_vertices = vec![
+    let vertices = vec![
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         [0.0, 0.0, 1.0],
     ];
-    let volume = geometry.compute_tetrahedron_volume(&tetrahedron_vertices);
-    assert!((volume - 1.0 / 6.0).abs() < 1e-10);
+    let vol = geometry.compute_tetrahedron_volume(&vertices);
+    assert!((vol - 1.0/6.0).abs() < 1e-10);
 }
 ```
 
@@ -441,6 +388,11 @@ fn test_tetrahedron_volume() {
 
 ## **12. Conclusion**
 
-The `Geometry` module is a powerful tool within the Hydra framework, providing essential functionalities for geometric computations on mesh entities. Its support for various shapes and caching mechanisms makes it efficient and versatile for computational simulations.
+The **`Geometry`** module forms the backbone of Hydra’s spatial computations, enabling you to:
 
-By understanding and utilizing the methods and structures provided, users can effectively perform and optimize geometric calculations necessary for advanced numerical methods in computational fluid dynamics, structural analysis, and other fields.
+1. **Store** and **update** vertex coordinates.  
+2. **Compute** shape-based metrics like **centroids**, **areas**, **volumes**, and **normals**.  
+3. **Cache** these results for performance.  
+4. **Leverage** parallel updates for large meshes or frequent recomputations.
+
+Understanding these APIs and best practices ensures that your numerical simulations run accurately and efficiently, whether you’re dealing with simple 2D edges and triangles or complex 3D solids like tetrahedrons, prisms, or hexahedrons.

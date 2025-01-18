@@ -4,51 +4,58 @@
 
 ## **Table of Contents**
 
-1. [Introduction](#1-introduction)
-2. [Overview of the Linear Algebra Module](#2-overview-of-the-linear-algebra-module)
-3. [Core Components](#3-core-components)
-   - [Vectors](#vectors)
-   - [Matrices](#matrices)
-4. [Vector Module](#4-vector-module)
-   - [Vector Traits](#vector-traits)
-   - [Vector Implementations](#vector-implementations)
-     - [Implementation for `Vec<f64>`](#implementation-for-vecf64)
-     - [Implementation for `Mat<f64>`](#implementation-for-matf64)
-   - [Vector Builder](#vector-builder)
-   - [Vector Testing](#vector-testing)
-5. [Matrix Module](#5-matrix-module)
-   - [Matrix Traits](#matrix-traits)
-   - [Matrix Implementations](#matrix-implementations)
-     - [Implementation for `Mat<f64>`](#implementation-for-matf64-1)
-   - [Matrix Builder](#matrix-builder)
-   - [Matrix Testing](#matrix-testing)
-6. [Using the Linear Algebra Module](#6-using-the-linear-algebra-module)
-   - [Creating Vectors](#creating-vectors)
-   - [Performing Vector Operations](#performing-vector-operations)
-   - [Creating Matrices](#creating-matrices)
-   - [Performing Matrix Operations](#performing-matrix-operations)
-7. [Best Practices](#7-best-practices)
+1. [Introduction](#1-introduction)  
+2. [Overview of the Linear Algebra Module](#2-overview-of-the-linear-algebra-module)  
+3. [Core Components](#3-core-components)  
+   - [Vectors](#vectors)  
+   - [Matrices](#matrices)  
+4. [Vector Module](#4-vector-module)  
+   - [Vector Traits](#vector-traits)  
+   - [Vector Implementations](#vector-implementations)  
+     - [Implementation for `Vec<f64>`](#implementation-for-vecf64)  
+     - [Implementation for `Mat<f64>`](#implementation-for-matf64)  
+   - [Vector Builder](#vector-builder)  
+   - [Vector Testing](#vector-testing)  
+5. [Matrix Module](#5-matrix-module)  
+   - [Matrix Traits](#matrix-traits)  
+   - [Matrix Implementations](#matrix-implementations)  
+     - [Implementation for `Mat<f64>`](#implementation-for-matf64-1)  
+     - [SparseMatrix](#sparsematrix)  
+   - [Matrix Builder](#matrix-builder)  
+   - [Matrix Testing](#matrix-testing)  
+6. [Using the Linear Algebra Module](#6-using-the-linear-algebra-module)  
+   - [Creating Vectors](#creating-vectors)  
+   - [Performing Vector Operations](#performing-vector-operations)  
+   - [Creating Matrices](#creating-matrices)  
+   - [Performing Matrix Operations](#performing-matrix-operations)  
+7. [Best Practices](#7-best-practices)  
 8. [Conclusion](#8-conclusion)
 
 ---
 
 ## **1. Introduction**
 
-Welcome to the user's guide for the `Linear Algebra` module of the Hydra computational framework. This module provides essential linear algebra functionalities, including vector and matrix operations, which are fundamental for numerical simulations and computational methods used in finite volume methods (FVM) and computational fluid dynamics (CFD).
+Welcome to the user's guide for the **`Linear Algebra`** module of the Hydra computational framework. This module provides the fundamental linear algebra functionalities used in **numerical simulations**, **finite volume/element methods**, and other scientific computing tasks. Key features include:
+
+- **Vector operations**: Dot product, norms, scalings, element-wise operations, etc.  
+- **Matrix operations**: Matrix-vector multiplication, trace, Frobenius norm, resizing, etc.  
+- **Abstract Traits** and **Concrete Implementations**: Flexible trait system for different data structures (`Vec<f64>`, `faer::Mat<f64>`, and a `SparseMatrix`).  
 
 ---
 
 ## **2. Overview of the Linear Algebra Module**
 
-The `Linear Algebra` module in Hydra is designed to offer:
+The **`linalg`** module separates functionality into **vector** and **matrix** submodules:
 
-- **Abstract Traits**: Define common interfaces for vectors and matrices, allowing for flexible implementations.
-- **Implementations**: Provide concrete implementations for standard data structures such as `Vec<f64>` and `Mat<f64>`.
-- **Builders**: Facilitate the construction and manipulation of vectors and matrices.
-- **Operations**: Support essential linear algebra operations like dot products, norms, matrix-vector multiplication, etc.
-- **Testing**: Ensure reliability through comprehensive unit tests.
+- **Vectors** (`linalg::vector`)  
+  - `Vector` trait plus implementations for standard Rust vectors (`Vec<f64>`) and `faer::Mat<f64>` (treated as a column vector).
+  - A **`VectorBuilder`** utility to create and resize vectors.
+- **Matrices** (`linalg::matrix`)  
+  - `Matrix` trait plus specialized traits (`MatrixOperations`, `ExtendedMatrixOperations`) for constructing/resizing.
+  - Implementations for `faer::Mat<f64>` (dense) and a custom `SparseMatrix`.
+  - A **`MatrixBuilder`** utility to create, resize, and integrate with preconditioners.
 
-This modular design allows users to integrate various underlying data structures and optimize for performance and memory usage.
+This design allows Hydra to **expand** or **swap** underlying data structures (e.g., other backends for HPC).  
 
 ---
 
@@ -56,30 +63,37 @@ This modular design allows users to integrate various underlying data structures
 
 ### Vectors
 
-- **Traits**: Define the `Vector` trait, which includes methods for vector operations.
-- **Implementations**: Provide implementations for common vector types, such as Rust's `Vec<f64>` and the `Mat<f64>` type from the `faer` library.
-- **Operations**: Include methods for dot product, scaling, addition, element-wise operations, cross product, and statistical functions.
+- Defined primarily by the **`Vector`** trait, located in `src/linalg/vector/traits.rs`.
+- The trait enforces thread safety (`Send + Sync`) and includes standard operations:
+  - Dot product, `norm`, `axpy`, `scale`, cross product (for 3D), sums, min/max, mean, variance, etc.
+- **Implementations** exist for:
+  - **`Vec<f64>`** (a standard Rust vector)
+  - **`faer::Mat<f64>`** interpreted as a **column vector** (with `nrows() == length, ncols() == 1`).
 
 ### Matrices
 
-- **Traits**: Define the `Matrix` trait, which includes methods for matrix operations.
-- **Implementations**: Provide implementations for matrix types, particularly `Mat<f64>` from the `faer` library.
-- **Operations**: Include methods for matrix-vector multiplication, trace, Frobenius norm, and access to elements.
+- Defined primarily by the **`Matrix`** trait, located in `src/linalg/matrix/traits.rs`.
+- The trait includes methods:
+  - `nrows()`, `ncols()`
+  - `mat_vec` (matrix-vector multiplication)
+  - `trace()`, `frobenius_norm()`
+  - `get(i, j)`, plus read/write slices (though not all implementations support slice mutability).
+- **Implementations** exist for:
+  - **`faer::Mat<f64>`** (a standard dense 2D array).
+  - A custom **`SparseMatrix`** that uses a `FxHashMap` for storing non-zero entries.
 
 ---
 
 ## **4. Vector Module**
 
-The vector module is organized into several components:
+The **vector module** is organized as follows:
 
-- **Traits** (`traits.rs`)
-- **Implementations** (`vec_impl.rs` and `mat_impl.rs`)
-- **Vector Builder** (`vector_builder.rs`)
-- **Testing** (`tests.rs`)
+- **`traits.rs`**: Defines the `Vector` trait.  
+- **`vec_impl.rs`**: Implements `Vector` for `Vec<f64>`.  
+- **`mat_impl.rs`**: Implements `Vector` for a `faer::Mat<f64>` column.  
+- **`vector_builder.rs`**: Contains the `VectorBuilder` utility and supporting traits to build or resize vectors.
 
 ### Vector Traits
-
-The `Vector` trait defines a set of common operations for vectors:
 
 ```rust
 pub trait Vector: Send + Sync {
@@ -106,113 +120,86 @@ pub trait Vector: Send + Sync {
 }
 ```
 
-- **Thread Safety**: All implementations must be `Send` and `Sync`.
-- **Scalar Type**: The `Scalar` associated type allows for flexibility in the numeric type used.
+- The **thread-safety** requirement: `Send + Sync`.  
+- The **cross product** method is only valid for 3D vectors.  
 
 ### Vector Implementations
 
 #### Implementation for `Vec<f64>`
 
-The standard Rust `Vec<f64>` type implements the `Vector` trait, providing methods for vector operations.
+In `vec_impl.rs`, a standard Rust vector is extended via the `Vector` trait:
 
-- **Key Methods**:
-  - `len()`: Returns the length of the vector.
-  - `get(i)`: Retrieves the element at index `i`.
-  - `set(i, value)`: Sets the element at index `i` to `value`.
-  - `dot(other)`: Computes the dot product with another vector.
-  - `norm()`: Calculates the Euclidean norm.
-  - `scale(scalar)`: Scales the vector by a scalar.
-  - `axpy(a, x)`: Performs the operation `self = a * x + self`.
-  - `cross(other)`: Computes the cross product (only for 3D vectors).
+- **Key methods**:
+  - `dot`, `norm`, `axpy`, `scale`, `element_wise_*`, `cross` (3D), `sum`, `max`, `min`, `mean`, `variance`.
 
-**Example Usage**:
-
+**Example**:
 ```rust
 let mut vec1 = vec![1.0, 2.0, 3.0];
 let vec2 = vec![4.0, 5.0, 6.0];
 
-// Dot product
-let dot = vec1.dot(&vec2);
-
-// Scaling
-vec1.scale(2.0);
-
-// Element-wise addition
-vec1.element_wise_add(&vec2);
+let dot = vec1.dot(&vec2); // 32.0
+vec1.scale(2.0); // vec1 becomes [2.0, 4.0, 6.0]
+vec1.axpy(1.5, &vec2); // vec1 = 1.5*vec2 + vec1
 ```
 
 #### Implementation for `Mat<f64>`
 
-The `Mat<f64>` type from the `faer` library is used to represent column vectors and implements the `Vector` trait.
+In `mat_impl.rs`, a **`faer::Mat<f64>`** with `ncols() == 1` is treated as a column vector:
 
-- **Key Methods**:
-  - `len()`: Returns the number of rows (since it's a column vector).
-  - `get(i)`: Retrieves the element at row `i`.
-  - `set(i, value)`: Sets the element at row `i` to `value`.
-  - Supports all other methods defined in the `Vector` trait.
+- `len()` -> number of rows
+- `get(i)`, `set(i)`, `dot(...)`, etc.
+- `as_slice()` / `as_mut_slice()` use `try_as_slice()` from `faer`.
 
-**Example Usage**:
-
+**Example**:
 ```rust
 use faer::Mat;
+use hydra::linalg::Vector;
 
-// Creating a column vector with 3 elements
-let mut mat_vec = Mat::<f64>::zeros(3, 1);
-mat_vec.set(0, 1.0);
+let mut mat_vec = Mat::<f64>::zeros(3, 1); // 3x1
+mat_vec.set(0, 1.0); 
 mat_vec.set(1, 2.0);
 mat_vec.set(2, 3.0);
 
-// Computing the norm
-let norm = mat_vec.norm();
+let norm = mat_vec.norm(); // sqrt(1^2 + 2^2 + 3^2) = ~3.74
 ```
 
 ### Vector Builder
 
-The `VectorBuilder` struct provides methods to build and manipulate vectors generically.
+**`vector_builder.rs`** provides `VectorBuilder` to build vectors in a generic way.
 
-- **Methods**:
-  - `build_vector(size)`: Constructs a vector of a specified type and size.
-  - `build_dense_vector(size)`: Constructs a dense vector using `Mat<f64>`.
-  - `resize_vector(vector, new_size)`: Resizes a vector while maintaining memory safety.
+- `build_vector<T: VectorOperations>(size: usize) -> T`
+- `build_dense_vector(size: usize) -> Mat<f64>` 
+- `resize_vector<T: VectorOperations + ExtendedVectorOperations>(vector, new_size)`
 
-**Example Usage**:
+**Vector Operations** trait:
+- `construct(size) -> Self`
+- `set_value(index, value)`
+- `get_value(index) -> f64`
+- `size() -> usize`
 
-```rust
-let size = 5;
-let vector = VectorBuilder::build_vector::<Vec<f64>>(size);
-
-// Resizing the vector
-VectorBuilder::resize_vector(&mut vector, 10);
-```
+Then `ExtendedVectorOperations` adds `resize(new_size)`.  
+Implementations are provided for both `Vec<f64>` and `Mat<f64>`.
 
 ### Vector Testing
 
-Comprehensive tests are provided to ensure the correctness of vector operations.
+Comprehensive tests in `src/linalg/vector/tests.rs` validate:
 
-- **Test Cases**:
-  - Length retrieval
-  - Element access and modification
-  - Dot product calculation
-  - Norm computation
-  - Scaling and axpy operations
-  - Element-wise addition, multiplication, and division
-  - Cross product
-  - Statistical functions: sum, max, min, mean, variance
+- Indexing, dot products, norm, cross product (3D), element-wise ops, etc.
+- Edge cases: empty vectors, large vectors, dimension mismatch for cross product, etc.
 
 ---
 
 ## **5. Matrix Module**
 
-The matrix module includes:
+The **matrix module** is organized as follows:
 
-- **Traits** (`traits.rs`)
-- **Implementations** (`mat_impl.rs`)
-- **Matrix Builder** (`matrix_builder.rs`)
-- **Testing** (`tests.rs`)
+- **`traits.rs`**: Defines the `Matrix`, `MatrixOperations`, and `ExtendedMatrixOperations` traits.  
+- **`mat_impl.rs`**: Implements `Matrix` for `faer::Mat<f64>`.  
+- **`matrix_builder.rs`**: Contains `MatrixBuilder` utility for constructing/resizing matrices and applying preconditioners.  
+- **`sparse_matrix.rs`**: A simple `SparseMatrix` that also implements `Matrix`.  
+- **`tests.rs`**: Test suite for matrix functionality.
 
 ### Matrix Traits
-
-The `Matrix` trait defines essential matrix operations:
 
 ```rust
 pub trait Matrix: Send + Sync {
@@ -229,177 +216,178 @@ pub trait Matrix: Send + Sync {
 }
 ```
 
-Additional traits for matrix construction and manipulation:
-
-- **`MatrixOperations`**: For constructing and accessing matrix elements.
-- **`ExtendedMatrixOperations`**: For resizing matrices.
+- `MatrixOperations` trait:
+  - `construct(rows, cols) -> Self`
+  - `get(...)`, `set(...)`
+  - `size() -> (usize, usize)`
+- `ExtendedMatrixOperations` trait adds `fn resize(&mut self, new_rows, new_cols)`.
 
 ### Matrix Implementations
 
 #### Implementation for `Mat<f64>`
 
-The `Mat<f64>` type from the `faer` library implements the `Matrix` trait.
+In `mat_impl.rs`, `faer::Mat<f64>` is extended:
 
-- **Key Methods**:
-  - `nrows()`: Returns the number of rows.
-  - `ncols()`: Returns the number of columns.
-  - `mat_vec(x, y)`: Performs matrix-vector multiplication.
-  - `get(i, j)`: Retrieves the element at row `i`, column `j`.
-  - `set(i, j, value)`: Sets the element at row `i`, column `j` to `value`.
-  - `trace()`: Calculates the trace of the matrix.
-  - `frobenius_norm()`: Computes the Frobenius norm.
+- **`Matrix`** trait:
+  - `nrows()`, `ncols()`
+  - `mat_vec(x, y)`: Standard dense matrix-vector multiplication
+  - `trace()`: sum of diagonal
+  - `frobenius_norm()`: sqrt of sum of squares
+  - `as_slice()`, `as_slice_mut()`: yields a `Box<[f64]>` copy or slice
+- **`MatrixOperations`**:
+  - `construct(rows, cols)` -> zero matrix
+  - `set(row, col, value)`, `get(row, col)`  
+- **`ExtendedMatrixOperations`**:
+  - `resize(&mut self, new_rows, new_cols)` -> creates new `Mat<f64>` and copies existing entries.
 
-**Example Usage**:
-
+**Example**:
 ```rust
 use faer::Mat;
+use hydra::linalg::{Matrix, MatrixOperations};
 
-// Creating a 3x3 zero matrix
-let mut matrix = Mat::<f64>::zeros(3, 3);
-
-// Setting elements
-matrix.set(0, 0, 1.0);
-matrix.set(1, 1, 1.0);
-matrix.set(2, 2, 1.0);
-
-// Matrix-vector multiplication
-let x = vec![1.0, 2.0, 3.0];
-let mut y = vec![0.0; 3];
-matrix.mat_vec(&x, &mut y);
+let mut mat = Mat::<f64>::zeros(3, 3);
+mat.set(1, 2, 5.0); // matrix.write(1,2,5.0)
+let trace = mat.trace();
+let norm = mat.frobenius_norm();
 ```
+
+#### SparseMatrix
+
+In `sparse_matrix.rs`, a **`SparseMatrix`** using `FxHashMap<(row, col), f64>` is provided:
+
+- Also implements the **`Matrix`** trait:
+  - `mat_vec(...)`: only iterates over non-zero entries for multiplication
+  - `trace()`, `frobenius_norm()`, `get(i, j)` -> zero if absent
+  - `as_slice()` is **not supported** (panics), as it’s not contiguous.
+- Implements **`MatrixOperations`** and **`ExtendedMatrixOperations`**:
+  - `set(row, col, value)`: storing or removing near-zero entries
+  - `resize(...)`: re-hash only valid entries that fit in the new dimension range.
+
+This allows a simple **sparse** backend with minimal overhead.
 
 ### Matrix Builder
 
-The `MatrixBuilder` struct provides methods to build and manipulate matrices generically.
+**`matrix_builder.rs`** has a `MatrixBuilder` struct:
 
-- **Methods**:
-  - `build_matrix(rows, cols)`: Constructs a matrix of a specified type and dimensions.
-  - `build_dense_matrix(rows, cols)`: Constructs a dense matrix using `Mat<f64>`.
-  - `resize_matrix(matrix, new_rows, new_cols)`: Resizes a matrix while maintaining memory safety.
-  - `apply_preconditioner(preconditioner, matrix)`: Demonstrates compatibility with preconditioners.
+- `build_matrix<T: MatrixOperations>(rows, cols) -> T`
+- `build_dense_matrix(rows, cols) -> Mat<f64>`
+- `resize_matrix<T: MatrixOperations + ExtendedMatrixOperations>(...)`
+- `apply_preconditioner(preconditioner, matrix)`: Example usage with a solver preconditioner.
 
-**Example Usage**:
-
-```rust
-let rows = 4;
-let cols = 4;
-let matrix = MatrixBuilder::build_matrix::<Mat<f64>>(rows, cols);
-
-// Resizing the matrix
-MatrixBuilder::resize_matrix(&mut matrix, 5, 5);
-```
+---
 
 ### Matrix Testing
 
-Comprehensive tests are provided to ensure the correctness of matrix operations.
+The `src/linalg/matrix/tests.rs` typically checks:
 
-- **Test Cases**:
-  - Dimension retrieval
-  - Element access and modification
-  - Matrix-vector multiplication with different vector types
-  - Trace and Frobenius norm calculations
-  - Thread safety
-  - Handling of edge cases (e.g., out-of-bounds access)
+- **mat_vec** for correctness  
+- Setting/retrieving matrix elements  
+- Sizing, resizing, and partial copy logic  
+- Corner cases: zero rows/columns, out-of-bounds, etc.
 
 ---
 
 ## **6. Using the Linear Algebra Module**
 
-This section provides practical examples of how to use the `Linear Algebra` module in Hydra.
+Below are typical usage patterns using the vector and matrix abstractions:
 
 ### Creating Vectors
 
-**Using `Vec<f64>`**:
+1. **`Vec<f64>`** (most common):
+   ```rust
+   let mut vector = vec![0.0; 5];
+   vector.set(0, 1.0);
+   ```
+2. **Using `faer::Mat<f64>` as a column vector**:
+   ```rust
+   use faer::Mat;
 
-```rust
-let mut vector = vec![0.0; 5]; // Creates a vector of length 5 initialized with zeros.
-vector.set(0, 1.0); // Sets the first element to 1.0.
-```
-
-**Using `Mat<f64>` from `faer`**:
-
-```rust
-use faer::Mat;
-
-let mut mat_vector = Mat::<f64>::zeros(5, 1); // Creates a column vector with 5 rows.
-mat_vector.set(0, 1.0); // Sets the first element to 1.0.
-```
+   let mut mat_vec = Mat::<f64>::zeros(5, 1);
+   mat_vec.set(0, 1.0);
+   ```
 
 ### Performing Vector Operations
 
 **Dot Product**:
-
 ```rust
 let vec1 = vec![1.0, 2.0, 3.0];
 let vec2 = vec![4.0, 5.0, 6.0];
-let dot = vec1.dot(&vec2); // Computes the dot product.
+let dot_val = vec1.dot(&vec2); // 32.0
 ```
 
-**Norm Calculation**:
-
+**Norm**:
 ```rust
-let norm = vec1.norm(); // Calculates the Euclidean norm of vec1.
+let norm = vec1.norm(); // sqrt(1^2 + 2^2 + 3^2) = ~3.74
 ```
 
-**Scaling and AXPY Operation**:
-
+**Scale and AXPY**:
 ```rust
-vec1.scale(2.0); // Scales vec1 by 2.0.
-vec1.axpy(1.5, &vec2); // Performs vec1 = 1.5 * vec2 + vec1.
+vec1.scale(2.0); // [2.0, 4.0, 6.0]
+vec1.axpy(1.5, &vec2); // vec1 = 1.5*vec2 + vec1
 ```
 
-**Element-wise Operations**:
-
+**Element-wise**:
 ```rust
-vec1.element_wise_add(&vec2); // Adds vec2 to vec1 element-wise.
-vec1.element_wise_mul(&vec2); // Multiplies vec1 by vec2 element-wise.
+vec1.element_wise_add(&vec2);
+vec1.element_wise_mul(&vec2);
 ```
 
 ### Creating Matrices
 
-**Using `Mat<f64>`**:
+1. **Using `faer::Mat<f64>`**:
+   ```rust
+   let mut matrix = Mat::<f64>::zeros(3, 3);
+   matrix.set(1, 1, 5.0);
+   ```
+2. **Using `SparseMatrix`**:
+   ```rust
+   use hydra::linalg::matrix::sparse_matrix::SparseMatrix;
 
-```rust
-use faer::Mat;
-
-// Creating a 3x3 zero matrix
-let mut matrix = Mat::<f64>::zeros(3, 3);
-
-// Setting elements
-matrix.set(0, 0, 1.0);
-matrix.set(1, 1, 2.0);
-matrix.set(2, 2, 3.0);
-```
+   let mut sp_mat = SparseMatrix::new(3, 3);
+   sp_mat.set(0, 0, 1.0);
+   sp_mat.set(2, 1, 3.5);
+   ```
 
 ### Performing Matrix Operations
 
 **Matrix-Vector Multiplication**:
-
 ```rust
 let x = vec![1.0, 2.0, 3.0];
 let mut y = vec![0.0; 3];
-matrix.mat_vec(&x, &mut y); // Computes y = matrix * x.
+matrix.mat_vec(&x, &mut y); // y = matrix * x
 ```
 
-**Trace and Norm Calculations**:
-
+**Trace and Frobenius Norm**:
 ```rust
-let trace = matrix.trace(); // Calculates the trace of the matrix.
-let fro_norm = matrix.frobenius_norm(); // Calculates the Frobenius norm.
+let trace_val = matrix.trace();
+let fro_norm = matrix.frobenius_norm();
+```
+
+**Resizing**:
+```rust
+use hydra::linalg::matrix::MatrixBuilder;
+MatrixBuilder::resize_matrix(&mut matrix, 5, 5);
 ```
 
 ---
 
 ## **7. Best Practices**
 
-- **Thread Safety**: Ensure that vectors and matrices used across threads implement `Send` and `Sync`.
-- **Consistent Dimensions**: Always verify that vector and matrix dimensions are compatible for operations like multiplication and addition.
-- **Error Handling**: Handle potential errors, such as out-of-bounds access or invalid dimensions for operations (e.g., cross product requires 3D vectors).
-- **Performance Optimization**: Utilize efficient data structures and avoid unnecessary copies by using slices and references where appropriate.
-- **Testing**: Incorporate unit tests to verify the correctness of custom implementations or extensions.
+1. **Dimensional Consistency**: Always ensure vectors and matrices match in size when performing multiplication or element-wise operations.  
+2. **Thread Safety**: The traits require `Send + Sync`; your data structures must maintain concurrency safety.  
+3. **Sparse vs. Dense**: Choose `SparseMatrix` if your matrix has many zero entries. For dense computations, use `faer::Mat<f64>`.  
+4. **Cross Product**: Use only for 3D vectors; otherwise, it returns an error.  
+5. **Preconditioning**: The `MatrixBuilder::apply_preconditioner` demonstrates how to integrate a solver preconditioner with your matrix.  
+6. **Performance**: For large vectors or matrices, ensure you do minimal copying (e.g., pass slices or references).
 
 ---
 
 ## **8. Conclusion**
 
-The `Linear Algebra` module in Hydra provides a flexible and robust framework for vector and matrix operations essential in computational simulations. By defining abstract traits and providing concrete implementations, it allows for extensibility and optimization based on specific needs. Proper utilization of this module ensures that numerical computations are accurate, efficient, and maintainable.
+The **`Linear Algebra`** module in Hydra offers a unified abstraction layer for **vector** and **matrix** operations, supporting multiple data structures from a single interface:
+
+- **`Vector` trait** with implementations for standard Rust vectors and `faer::Mat<f64>` column vectors.  
+- **`Matrix` trait** with implementations for **dense** (`faer::Mat<f64>`) and **sparse** (`SparseMatrix`) usage.  
+- **Builders** (`VectorBuilder`, `MatrixBuilder`) for generic creation, resizing, and specialized operations (e.g., applying preconditioners).  
+
+By leveraging these traits and implementations, you can write **cleaner**, **extensible** linear algebra code while mixing and matching data structures best suited to your simulation’s memory and performance requirements.

@@ -1,57 +1,59 @@
 # Hydra `Boundary` Module User Guide
 
----
-
 ## **Table of Contents**
 
-1. [Introduction](#1-introduction)
-2. [Overview of the Boundary Module](#2-overview-of-the-boundary-module)
-3. [Core Structures](#3-core-structures)
-   - [BoundaryCondition Enum](#boundarycondition-enum)
-   - [BoundaryConditionFn Type](#boundaryconditionfn-type)
-4. [Boundary Condition Handlers](#4-boundary-condition-handlers)
-   - [BoundaryConditionHandler Struct](#boundaryconditionhandler-struct)
-5. [Managing Boundary Conditions](#5-managing-boundary-conditions)
-   - [Adding Boundary Conditions to Entities](#adding-boundary-conditions-to-entities)
-   - [Retrieving Boundary Conditions](#retrieving-boundary-conditions)
-6. [Applying Boundary Conditions](#6-applying-boundary-conditions)
-   - [Matrix and RHS Modifications](#matrix-and-rhs-modifications)
-7. [BoundaryConditionApply Trait](#7-boundaryconditionapply-trait)
-8. [Specific Boundary Condition Implementations](#8-specific-boundary-condition-implementations)
-   - [DirichletBC](#dirichletbc)
-   - [NeumannBC](#neumannbc)
-   - [RobinBC](#robinbc)
-   - [MixedBC](#mixedbc)
-   - [CauchyBC](#cauchybc)
-9. [Working with Function-Based Boundary Conditions](#9-working-with-function-based-boundary-conditions)
-10. [Testing and Validation](#10-testing-and-validation)
-    - [Unit Testing](#unit-testing)
-    - [Integration Testing](#integration-testing)
-11. [Best Practices](#11-best-practices)
-    - [Efficient Boundary Condition Management](#efficient-boundary-condition-management)
-    - [Performance Optimization](#performance-optimization)
-    - [Handling Complex Boundary Conditions](#handling-complex-boundary-conditions)
-12. [Conclusion](#12-conclusion)
+1. [Introduction](#1-introduction)  
+2. [Overview of the Boundary Module](#2-overview-of-the-boundary-module)  
+3. [Core Structures](#3-core-structures)  
+   - [BoundaryCondition Enum](#boundarycondition-enum)  
+   - [BoundaryConditionFn Type & FunctionWrapper](#boundaryconditionfn-type--functionwrapper)  
+4. [Boundary Condition Handler](#4-boundary-condition-handler)  
+   - [BoundaryConditionHandler Struct](#boundaryconditionhandler-struct)  
+   - [Global Handler Access](#global-handler-access)  
+   - [Applying Boundary Conditions](#applying-boundary-conditions)  
+5. [Managing Boundary Conditions](#5-managing-boundary-conditions)  
+   - [Adding Boundary Conditions to Entities](#adding-boundary-conditions-to-entities)  
+   - [Retrieving Boundary Conditions](#retrieving-boundary-conditions)  
+6. [BoundaryConditionApply Trait](#6-boundaryconditionapply-trait)  
+7. [Specific Boundary Condition Implementations](#7-specific-boundary-condition-implementations)  
+   - [DirichletBC](#dirichletbc)  
+   - [NeumannBC](#neumannbc)  
+   - [RobinBC](#robinbc)  
+   - [MixedBC](#mixedbc)  
+   - [CauchyBC](#cauchybc)  
+   - [SolidWallBC](#solidwallbc)  
+   - [FarFieldBC](#farfieldbc)  
+   - [InjectionBC](#injectionbc)  
+   - [InletOutletBC](#inletoutletbc)  
+   - [PeriodicBC](#periodicbc)  
+   - [SymmetryBC](#symmetrybc)  
+8. [Working with Function-Based Boundary Conditions](#8-working-with-function-based-boundary-conditions)  
+9. [Testing and Validation](#9-testing-and-validation)  
+   - [Unit Testing](#unit-testing)  
+   - [Integration Testing](#integration-testing)  
+10. [Best Practices](#10-best-practices)  
+    - [Efficient Boundary Condition Management](#efficient-boundary-condition-management)  
+    - [Performance Optimization](#performance-optimization)  
+    - [Handling Complex or Multiple Conditions](#handling-complex-or-multiple-conditions)  
+11. [Conclusion](#11-conclusion)
 
 ---
 
 ## **1. Introduction**
 
-Welcome to the user's guide for the `Boundary` module of the Hydra computational framework. This module is essential for managing boundary conditions in finite volume method (FVM) simulations. Boundary conditions define how the simulation interacts with the environment outside the computational domain, and they are crucial for accurately modeling physical systems.
+Welcome to the user guide for the **`Boundary`** module in Hydra. This module manages **boundary conditions** for numerical simulations—especially in the context of **CFD (Computational Fluid Dynamics)** or **FEM/FVM**-based solvers.  
+
+Boundary conditions specify how the domain interacts with the “outside” environment and are critical for physical accuracy. The `Boundary` module in Hydra supports a range of condition types—from classical Dirichlet/Neumann/Robin to more specialized conditions like **solid walls**, **far-field**, **periodic**, **injection**, and more.
 
 ---
 
 ## **2. Overview of the Boundary Module**
 
-The `Boundary` module allows users to define, manage, and apply various types of boundary conditions to mesh entities within Hydra. It supports multiple types of boundary conditions commonly used in computational fluid dynamics (CFD) and other simulation domains, including:
-
-- **Dirichlet Conditions**: Specify fixed values for variables at the boundary.
-- **Neumann Conditions**: Specify fixed fluxes (derivatives) across the boundary.
-- **Robin Conditions**: Combine Dirichlet and Neumann conditions in a linear fashion.
-- **Mixed Conditions**: Offer flexibility by combining characteristics of different condition types.
-- **Cauchy Conditions**: Involve both the variable and its derivative, often used in elastodynamics.
-
-The module provides a unified interface for applying these conditions to the system matrices and RHS vectors, ensuring that simulations accurately reflect the intended physical behaviors.
+- **Single Interface** for many boundary condition types (e.g., Dirichlet, Neumann, Robin, Mixed, Cauchy, etc.).  
+- **Function-based** (time-dependent/spatial) boundary conditions using closures.  
+- Integration with Hydra’s **`domain::mesh_entity::MeshEntity`** for applying conditions to specific **faces** or other entities.  
+- **Global** or **local** boundary handlers to store and apply boundary conditions.  
+- Uniform **application** to system matrices and RHS vectors (via `faer::MatMut`).
 
 ---
 
@@ -59,42 +61,58 @@ The module provides a unified interface for applying these conditions to the sys
 
 ### BoundaryCondition Enum
 
-The `BoundaryCondition` enum is the core structure for specifying boundary conditions. It defines the different types of conditions that can be applied:
-
 ```rust
+#[derive(Clone, PartialEq, Debug)]
 pub enum BoundaryCondition {
     Dirichlet(f64),
     Neumann(f64),
     Robin { alpha: f64, beta: f64 },
     Mixed { gamma: f64, delta: f64 },
     Cauchy { lambda: f64, mu: f64 },
-    DirichletFn(BoundaryConditionFn),
-    NeumannFn(BoundaryConditionFn),
+    SolidWallInviscid,
+    SolidWallViscous { normal_velocity: f64 },
+    DirichletFn(FunctionWrapper),
+    NeumannFn(FunctionWrapper),
+    Periodic { pairs: Vec<(MeshEntity, MeshEntity)> },
+    FarField(f64),
+    Injection(f64),
+    InletOutlet,
+    Symmetry,
 }
 ```
 
-- **`Dirichlet(f64)`**: Sets a fixed value at the boundary.
-- **`Neumann(f64)`**: Sets a fixed flux across the boundary.
-- **`Robin { alpha, beta }`**: Applies a linear combination of value and flux.
-- **`Mixed { gamma, delta }`**: Custom combination of parameters.
-- **`Cauchy { lambda, mu }`**: Involves both value and derivative with separate coefficients.
-- **`DirichletFn` and `NeumannFn`**: Allow function-based boundary conditions.
+**Key Variants**:
 
-### BoundaryConditionFn Type
+- **Dirichlet/DirichletFn**: Specifies a fixed value at the boundary; the `_Fn` variant uses a runtime function.  
+- **Neumann/NeumannFn**: Specifies a flux at the boundary; the `_Fn` variant uses a runtime function.  
+- **Robin**, **Mixed**, **Cauchy**: Linear combinations or specialized forms using parameters like `alpha, beta`, etc.  
+- **SolidWallInviscid / SolidWallViscous**: For no-penetration or no-slip walls.  
+- **FarField**: Emulates infinite domain boundaries.  
+- **Injection**: Inject mass/momentum/energy at the boundary.  
+- **InletOutlet**: Basic inflow/outflow combination.  
+- **Periodic**: Pairs of entities that share the same solution DOF.  
+- **Symmetry**: Zero normal velocity or flux across a plane.
 
-For time-dependent or spatially varying boundary conditions, the module uses function pointers encapsulated in `Arc` for thread safety:
+### BoundaryConditionFn Type & FunctionWrapper
 
 ```rust
 pub type BoundaryConditionFn = Arc<dyn Fn(f64, &[f64]) -> f64 + Send + Sync>;
+
+#[derive(Clone)]
+pub struct FunctionWrapper {
+    pub description: String, 
+    pub function: BoundaryConditionFn,
+}
 ```
+
+- **`BoundaryConditionFn`**: A thread-safe closure type accepting `(time, coordinates) -> boundary_value`.  
+- **`FunctionWrapper`**: Stores additional metadata like a `description` to help with logging or debugging.
 
 ---
 
-## **4. Boundary Condition Handlers**
+## **4. Boundary Condition Handler**
 
 ### BoundaryConditionHandler Struct
-
-The `BoundaryConditionHandler` manages boundary conditions across mesh entities. It maintains a `DashMap` for efficient concurrent access:
 
 ```rust
 pub struct BoundaryConditionHandler {
@@ -102,7 +120,47 @@ pub struct BoundaryConditionHandler {
 }
 ```
 
-- **`conditions`**: Stores the mapping from mesh entities to their boundary conditions.
+- **Purpose**: Central storage for boundary conditions, keyed by `MeshEntity`.  
+- Internally uses `DashMap` for thread-safe read/write.
+
+### Global Handler Access
+
+```rust
+lazy_static! {
+    static ref GLOBAL_BC_HANDLER: Arc<RwLock<BoundaryConditionHandler>> =
+        Arc::new(RwLock::new(BoundaryConditionHandler::new()));
+}
+
+pub fn global() -> Arc<RwLock<BoundaryConditionHandler>> {
+    GLOBAL_BC_HANDLER.clone()
+}
+```
+
+- **`BoundaryConditionHandler::global()`**: Provides a **global** singleton for boundary conditions if desired.
+
+### Applying Boundary Conditions
+
+```rust
+pub fn apply_bc(
+    &self,
+    matrix: &mut MatMut<f64>,
+    rhs: &mut MatMut<f64>,
+    boundary_entities: &[MeshEntity],
+    entity_to_index: &DashMap<MeshEntity, usize>,
+    time: f64,
+)
+```
+
+- Iterates over the specified `boundary_entities`.  
+- For each entity with a known condition, it delegates to the appropriate boundary condition logic (e.g., `DirichletBC`, `NeumannBC`, etc.).  
+- Modifies the **system matrix** (`matrix`) and **RHS vector** (`rhs`) accordingly.  
+- Example usage:
+
+  ```rust
+  let bc_handler = BoundaryConditionHandler::new();
+  let boundary_entities = vec![MeshEntity::Face(10)];
+  bc_handler.apply_bc(&mut matrix, &mut rhs, &boundary_entities, &entity_to_index, current_time);
+  ```
 
 ---
 
@@ -110,70 +168,28 @@ pub struct BoundaryConditionHandler {
 
 ### Adding Boundary Conditions to Entities
 
-To assign a boundary condition to a mesh entity:
-
 ```rust
-let boundary_handler = BoundaryConditionHandler::new();
-boundary_handler.set_bc(entity, BoundaryCondition::Dirichlet(1.0));
+let bc_handler = BoundaryConditionHandler::new();
+let face = MeshEntity::Face(10);
+
+bc_handler.set_bc(face, BoundaryCondition::Dirichlet(1.0));
 ```
 
-- **`set_bc(entity, condition)`**: Assigns a boundary condition to the specified entity.
+- **`set_bc(entity, condition)`**: Assigns or overwrites the boundary condition on `entity`.
 
 ### Retrieving Boundary Conditions
 
-To retrieve the boundary condition for a specific entity:
-
 ```rust
-if let Some(condition) = boundary_handler.get_bc(&entity) {
-    // Use the condition
+if let Some(cond) = bc_handler.get_bc(&face) {
+    println!("Boundary condition is: {:?}", cond);
 }
 ```
 
-- **`get_bc(entity)`**: Returns an `Option<BoundaryCondition>` for the entity.
+- **`get_bc(entity)`**: Returns the assigned boundary condition, if any.
 
 ---
 
-## **6. Applying Boundary Conditions**
-
-Boundary conditions are applied to the system's matrices and RHS vectors to enforce the specified conditions during the simulation.
-
-```rust
-boundary_handler.apply_bc(
-    &mut matrix,
-    &mut rhs,
-    &boundary_entities,
-    &entity_to_index,
-    current_time,
-);
-```
-
-Parameters:
-
-- **`matrix`**: The system matrix to be modified.
-- **`rhs`**: The RHS vector to be modified.
-- **`boundary_entities`**: A list of entities where boundary conditions are applied.
-- **`entity_to_index`**: A mapping from `MeshEntity` to indices in the matrix and RHS vector.
-- **`current_time`**: The current simulation time for time-dependent conditions.
-
-### Matrix and RHS Modifications
-
-Each boundary condition type modifies the matrix and RHS differently:
-
-- **Dirichlet**:
-  - **Matrix**: Row corresponding to the boundary entity is zeroed out, diagonal set to 1.
-  - **RHS**: Set to the Dirichlet value.
-- **Neumann**:
-  - **Matrix**: Unchanged.
-  - **RHS**: Adjusted by the flux value.
-- **Robin**, **Mixed**, **Cauchy**:
-  - **Matrix**: Diagonal element adjusted according to the condition's parameters.
-  - **RHS**: Adjusted by the specified values.
-
----
-
-## **7. BoundaryConditionApply Trait**
-
-The `BoundaryConditionApply` trait defines a common interface for boundary condition handlers:
+## **6. BoundaryConditionApply Trait**
 
 ```rust
 pub trait BoundaryConditionApply {
@@ -188,228 +204,194 @@ pub trait BoundaryConditionApply {
 }
 ```
 
-- Each boundary condition handler implements this trait to define how it applies conditions to the system.
+- Implemented by each boundary condition struct.  
+- Allows a uniform **`apply(...)`** call that modifies the system matrix and RHS.
+
+**Note**: The enum `BoundaryCondition` itself also implements this trait, delegating to the specialized boundary condition logic.
 
 ---
 
-## **8. Specific Boundary Condition Implementations**
+## **7. Specific Boundary Condition Implementations**
+
+Below are the main boundary condition structs. Each maintains an internal `DashMap` that can be populated with per-entity boundary conditions. Alternatively, you can rely on the `BoundaryConditionHandler` which dispatches to them automatically.
 
 ### DirichletBC
 
-Handles Dirichlet boundary conditions, enforcing fixed values at boundaries.
+**File**: `dirichlet.rs`  
+- **Enforces** a fixed value at the boundary (constant or function-based).  
+- **Key Methods**:
+  - `apply_constant_dirichlet(matrix, rhs, index, value)`
+  - `apply_bc(...)` for all stored Dirichlet conditions.
+- **System Effect**: Zeros out row in matrix, sets diagonal to 1, and sets RHS to the Dirichlet value.
 
-#### Structure
-
-```rust
-pub struct DirichletBC {
-    conditions: DashMap<MeshEntity, BoundaryCondition>,
-}
-```
-
-#### Methods
-
-- **`new()`**: Creates a new instance.
-- **`set_bc(entity, condition)`**: Assigns a Dirichlet condition to an entity.
-- **`apply_bc(matrix, rhs, entity_to_index, time)`**: Applies the conditions to the system.
-
-#### Example
-
+Example:
 ```rust
 let dirichlet_bc = DirichletBC::new();
-dirichlet_bc.set_bc(entity, BoundaryCondition::Dirichlet(5.0));
-dirichlet_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, current_time);
+dirichlet_bc.set_bc(face, BoundaryCondition::Dirichlet(5.0));
+// Then apply
+dirichlet_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, 0.0);
 ```
 
 ### NeumannBC
 
-Handles Neumann boundary conditions, specifying fluxes across boundaries.
+**File**: `neumann.rs`  
+- **Specifies** flux at the boundary.  
+- **Key Methods**:
+  - `apply_constant_neumann(rhs, index, flux)`
+  - `apply_bc(...)` for all stored conditions.
+- **System Effect**: Adds flux to the RHS; the matrix row typically remains unchanged.
 
-#### Structure
-
-```rust
-pub struct NeumannBC {
-    conditions: DashMap<MeshEntity, BoundaryCondition>,
-}
-```
-
-#### Methods
-
-- **`new()`**: Creates a new instance.
-- **`set_bc(entity, condition)`**: Assigns a Neumann condition to an entity.
-- **`apply_bc(matrix, rhs, entity_to_index, time)`**: Applies the conditions to the system.
-
-#### Example
-
+Example:
 ```rust
 let neumann_bc = NeumannBC::new();
-neumann_bc.set_bc(entity, BoundaryCondition::Neumann(10.0));
-neumann_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, current_time);
+neumann_bc.set_bc(face, BoundaryCondition::Neumann(2.0));
+neumann_bc.apply_bc(&mut rhs, &entity_to_index, time);
 ```
 
 ### RobinBC
 
-Handles Robin boundary conditions, combining value and flux at the boundary.
-
-#### Structure
-
-```rust
-pub struct RobinBC {
-    conditions: DashMap<MeshEntity, BoundaryCondition>,
-}
-```
-
-#### Methods
-
-- **`new()`**: Creates a new instance.
-- **`set_bc(entity, condition)`**: Assigns a Robin condition to an entity.
-- **`apply_bc(matrix, rhs, entity_to_index, time)`**: Applies the conditions to the system.
-
-#### Example
-
-```rust
-let robin_bc = RobinBC::new();
-robin_bc.set_bc(entity, BoundaryCondition::Robin { alpha: 2.0, beta: 3.0 });
-robin_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, current_time);
-```
+**File**: `robin.rs`  
+- **Combines** Dirichlet and Neumann in the form `alpha*u + beta*(du/dn) = something`.  
+- **System Effect**: Modifies the diagonal by `alpha`; adds `beta` to RHS.  
+- **Usage**:
+  ```rust
+  robin_bc.apply_robin(matrix, rhs, index, alpha, beta);
+  ```
 
 ### MixedBC
 
-Handles Mixed boundary conditions, allowing customized combinations of parameters.
-
-#### Structure
-
-```rust
-pub struct MixedBC {
-    conditions: DashMap<MeshEntity, BoundaryCondition>,
-}
-```
-
-#### Methods
-
-- **`new()`**: Creates a new instance.
-- **`set_bc(entity, condition)`**: Assigns a Mixed condition to an entity.
-- **`apply_bc(matrix, rhs, entity_to_index, time)`**: Applies the conditions to the system.
-
-#### Example
-
-```rust
-let mixed_bc = MixedBC::new();
-mixed_bc.set_bc(entity, BoundaryCondition::Mixed { gamma: 2.0, delta: 3.0 });
-mixed_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, current_time);
-```
+**File**: `mixed.rs`  
+- A **hybrid** or generalized BC with parameters `gamma, delta`.  
+- **System Effect**: Adds `gamma` to the matrix diagonal and `delta` to the RHS at the boundary row.
 
 ### CauchyBC
 
-Handles Cauchy boundary conditions, involving both the variable and its derivative.
+**File**: `cauchy.rs`  
+- Typically used in **fluid-structure** or other PDE contexts. Involves both value and derivative via `lambda` and `mu`.  
+- **System Effect**: Increases diagonal by `lambda`, adds `mu` to RHS.
 
-#### Structure
+### SolidWallBC
 
-```rust
-pub struct CauchyBC {
-    conditions: DashMap<MeshEntity, BoundaryCondition>,
-}
-```
+**File**: `solid_wall.rs`  
+- Encompasses **inviscid** (`SolidWallInviscid`) and **viscous** (`SolidWallViscous`) conditions.  
+- **Inviscid**: Enforces no flow normal to the wall; sets the boundary row diagonal to 1 with zero RHS.  
+- **Viscous**: Also sets velocity normal to zero but may impose a user-specified `normal_velocity` in RHS.
 
-#### Methods
+### FarFieldBC
 
-- **`new()`**: Creates a new instance.
-- **`set_bc(entity, condition)`**: Assigns a Cauchy condition to an entity.
-- **`apply_bc(matrix, rhs, entity_to_index, time)`**: Applies the conditions to the system.
+**File**: `far_field.rs`  
+- Ideal for **far-field** boundaries that emulate “infinite domain.”  
+- Typically sets the boundary row to a known state or vacuum.  
+- May also handle Dirichlet or Neumann sub-conditions.
 
-#### Example
+### InjectionBC
 
-```rust
-let cauchy_bc = CauchyBC::new();
-cauchy_bc.set_bc(entity, BoundaryCondition::Cauchy { lambda: 1.5, mu: 2.5 });
-cauchy_bc.apply_bc(&mut matrix, &mut rhs, &entity_to_index, current_time);
-```
+**File**: `injection.rs`  
+- Models injecting fluid or property at a boundary.  
+- If Dirichlet, enforces a fixed state; if Neumann, adds flux.  
+- **System Effect**: Zeros row if Dirichlet, modifies RHS if flux.
 
----
+### InletOutletBC
 
-## **9. Working with Function-Based Boundary Conditions**
+**File**: `inlet_outlet.rs`  
+- Combines various conditions for a “mixed” inlet/outlet scenario.  
+- **Key Methods**: 
+  - `apply_dirichlet(matrix, rhs, index, value)`
+  - `apply_neumann(rhs, index, flux)`
+  - `apply_robin(matrix, rhs, index, alpha, beta)`
 
-Function-based boundary conditions allow for time-dependent or spatially varying conditions.
+### PeriodicBC
 
-### Dirichlet Function-Based Conditions
+**File**: `periodic.rs`  
+- Maintains a **mapping** of pairs of entities that share the same DOF.  
+- **System Effect**: Averages matrix row/column entries (and RHS values) across paired indices, forcing them to be equal.
 
-```rust
-dirichlet_bc.set_bc(
-    entity,
-    BoundaryCondition::DirichletFn(Arc::new(|time, coords| {
-        // Define the function based on time and coordinates
-        100.0 * time + coords[0]
-    })),
-);
-```
+### SymmetryBC
 
-### Neumann Function-Based Conditions
-
-```rust
-neumann_bc.set_bc(
-    entity,
-    BoundaryCondition::NeumannFn(Arc::new(|time, coords| {
-        // Define the flux function
-        50.0 * coords[1] - 10.0 * time
-    })),
-);
-```
-
-- **Usage**: Enables modeling of dynamic systems where boundary conditions change over time or space.
+**File**: `symmetry.rs`  
+- Zeroes out normal velocity/flux across a plane of symmetry.  
+- Implementation is very similar to an inviscid wall but contextually for symmetrical planes.
 
 ---
 
-## **10. Testing and Validation**
+## **8. Working with Function-Based Boundary Conditions**
+
+- **FunctionWrapper** allows storing function closures with a descriptive label.  
+- **DirichletFn** or **NeumannFn** accept a `(time, coords) -> f64` function:
+  ```rust
+  use std::sync::Arc;
+  use crate::boundary::bc_handler::{FunctionWrapper, BoundaryConditionFn};
+
+  let func = Arc::new(|time: f64, coords: &[f64]| -> f64 {
+      // e.g., a wave-like boundary
+      time.sin() * coords[0]
+  });
+
+  let wrapper = FunctionWrapper {
+      description: String::from("Wave BC"),
+      function: func,
+  };
+
+  bc_handler.set_bc(
+      face,
+      BoundaryCondition::DirichletFn(wrapper)
+  );
+  ```
+- During `apply_bc(...)`, the code calls your function with `time` and (placeholder) `coords = [0.0,0.0,0.0]`.
+
+---
+
+## **9. Testing and Validation**
 
 ### Unit Testing
 
-Ensure that each boundary condition handler correctly stores and applies conditions.
-
-- **Example Test for DirichletBC**:
-
+- Validate **individual** boundary conditions. For instance, `DirichletBC`:
   ```rust
   #[test]
-  fn test_set_bc() {
+  fn test_dirichlet_bc() {
       let dirichlet_bc = DirichletBC::new();
-      let entity = MeshEntity::Vertex(1);
-      dirichlet_bc.set_bc(entity, BoundaryCondition::Dirichlet(5.0));
-      let condition = dirichlet_bc.conditions.get(&entity).map(|entry| entry.clone());
-      assert!(matches!(condition, Some(BoundaryCondition::Dirichlet(5.0))));
+      let face = MeshEntity::Face(1);
+      dirichlet_bc.set_bc(face, BoundaryCondition::Dirichlet(10.0));
+      // Prepare a small test matrix & vector with known dimensions
+      // ...
+      // then check if the row/column is updated as expected
   }
   ```
 
+- Ensure each BC modifies the matrix and RHS in the intended manner.
+
 ### Integration Testing
 
-Test the interaction of multiple boundary conditions and their cumulative effects on the system.
-
-- **Validate**: Stability and accuracy of the overall simulation when multiple conditions are applied.
-
-### Debugging Tips
-
-- **Check Assignments**: Verify that boundary conditions are assigned to the correct entities.
-- **Inspect Modifications**: Examine the matrix and RHS after applying conditions to ensure they have been modified appropriately.
-- **Mapping Verification**: Ensure that `entity_to_index` correctly maps entities to matrix indices.
+- Combine multiple boundary types on different faces.  
+- Verify that a solver or time-step loop reads these conditions accurately.  
+- **Check** if conditions remain consistent during partitioning or reordering in the Hydra `domain`.
 
 ---
 
-## **11. Best Practices**
+## **10. Best Practices**
 
 ### Efficient Boundary Condition Management
 
-- **Concurrent Access**: Use `DashMap` for thread-safe operations when managing boundary conditions in parallel computations.
-- **Centralized Handling**: Utilize `BoundaryConditionHandler` for centralized management.
+1. **Use `DashMap`** for concurrency: The `BoundaryConditionHandler` is thread-safe.  
+2. **Maintain a Single Source**: Keep boundary conditions in either a single `BoundaryConditionHandler` or distributed in specialized BC structs, but be consistent.
 
 ### Performance Optimization
 
-- **Cache Function Outputs**: When using function-based conditions, cache outputs if the same values are needed multiple times.
-- **Parallel Processing**: Apply conditions in parallel when dealing with large meshes to improve performance.
+1. **Apply in Parallel**: If you have thousands of faces, consider parallel iteration over boundary entities.  
+2. **Function Caching**: If the same function-based BC is called frequently with the same `(time, coords)`, consider caching.
 
-### Handling Complex Boundary Conditions
+### Handling Complex or Multiple Conditions
 
-- **Layering Conditions**: For complex simulations, layer multiple boundary conditions strategically.
-- **Custom Conditions**: Implement custom boundary conditions by extending the `BoundaryConditionApply` trait.
+1. **Composite BC**: If a face has multiple constraints, prefer combining them into a custom boundary type or stage the matrix modifications carefully.  
+2. **Periodic**: Double-check index mapping for paired faces/cells.  
+3. **Domain Overlap**: In multi-partition scenarios, align your boundary conditions with ghost entities if needed.
 
 ---
 
-## **12. Conclusion**
+## **11. Conclusion**
 
-The `Boundary` module in Hydra provides a flexible and robust framework for managing boundary conditions in simulations. By supporting various types of conditions and allowing for time-dependent and spatially varying specifications, it enables accurate modeling of physical systems. Proper utilization of this module is essential for ensuring that simulations produce reliable and realistic results.
+The Hydra `Boundary` module enables a **rich** set of boundary conditions—both **traditional** (Dirichlet, Neumann, Robin) and more **specialized** (solid walls, far field, injection, etc.). Its architecture is flexible enough to handle function-based, time-dependent BCs, as well as advanced setups like periodic or mixed boundaries.
+
+By combining the `BoundaryConditionHandler` with Hydra’s **`domain`** module (for entity and matrix indexing), you can accurately impose the physical constraints of your simulation domain. Remember to test and validate each boundary type in isolation and in integration to ensure physical fidelity.
+
+Use these components in conjunction with Hydra’s solver pipeline for a robust, efficient, and feature-complete boundary condition workflow.

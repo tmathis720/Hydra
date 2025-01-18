@@ -1,9 +1,9 @@
 use crate::{
-    boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, equation::fields::Fields, solver::{piso::{
+    boundary::bc_handler::BoundaryConditionHandler, solver::KSP, domain::mesh::Mesh, equation::fields::Fields, use_cases::piso::{
         predictor::predict_velocity,
         pressure_correction::solve_pressure_poisson,
         velocity_correction::correct_velocity,
-    }, KSP}
+    }
 };
 
 /// Configuration options for the nonlinear loop.

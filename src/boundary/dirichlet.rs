@@ -59,12 +59,17 @@ impl DirichletBC {
         index: usize,
         value: f64,
     ) {
+        println!("Applying Dirichlet at index {} with value {}", index, value);
+        println!("Matrix before update: {:?}", matrix);
+        println!("RHS before update: {:?}", rhs);
         let ncols = matrix.ncols();
         for col in 0..ncols {
             matrix.write(index, col, 0.0);
         }
         matrix.write(index, index, 1.0);
         rhs.write(index, 0, value);
+        println!("Matrix after update: {:?}", matrix);
+        println!("RHS after update: {:?}", rhs);
     }
 
     /// Retrieves the coordinates of the mesh entity (placeholder for real coordinates).

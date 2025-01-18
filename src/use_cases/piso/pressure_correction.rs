@@ -96,7 +96,8 @@ fn assemble_pressure_poisson(
     }
 
     // Apply boundary conditions
-    let mut rhs_mut = SectionMatVecAdapter::section_to_matmut(rhs);
+    let entity_to_index_map = mesh.entity_to_index_map();
+    let mut rhs_mut = SectionMatVecAdapter::section_to_matmut(rhs, &entity_to_index_map, num_cells);
     boundary_handler.apply_bc(
         &mut matrix.as_mut(),
         &mut rhs_mut.as_mut(),

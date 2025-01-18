@@ -176,9 +176,11 @@ impl Mesh {
     /// be useful for tasks like matrix assembly or entity-based data storage.
     pub fn get_entity_to_index(&self) -> DashMap<MeshEntity, usize> {
         let entity_to_index = DashMap::new();
+        let mut current_index = 0;
         let entities = self.entities.read().unwrap();
-        entities.iter().enumerate().for_each(|(index, entity)| {
-            entity_to_index.insert(entity.clone(), index);
+        entities.iter().enumerate().for_each(|(_index, entity)| {
+            entity_to_index.insert(entity.clone(), current_index);
+            current_index += 1;
         });
 
         entity_to_index
@@ -212,6 +214,14 @@ impl Mesh {
         for (i, face) in self.get_faces().iter().enumerate() {
             index_map.insert(MeshEntity::Face(face.get_id()), face_offset + i);
         }
+
+        // Validate all entities are indexed
+        assert_eq!(
+            index_map.len(),
+            self.get_cells().len() + self.get_faces().len(),
+            "Entity-to-index mapping is incomplete"
+        );
+        
 
         index_map
     }
