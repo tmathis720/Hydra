@@ -3,3 +3,4 @@
 /target/doc
 /target/.rustc_info.json
 gp.md
+target/.rustc_info.json
