@@ -17,6 +17,34 @@ struct AMGLevel {
     diag_inv: Vec<f64>,
 }
 
+pub struct AMGTemporaryBuffers {
+    pub level_buffers: Vec<LevelBuffer>,
+}
+
+pub struct LevelBuffer {
+    pub az: Vec<f64>,               // Residual at fine level
+    pub coarse_residual: Vec<f64>, // Residual restricted to coarse grid
+    pub coarse_solution: Vec<f64>, // Solution at coarse level
+    pub fine_correction: Vec<f64>, // Correction interpolated to fine grid
+}
+
+impl AMGTemporaryBuffers {
+    pub fn new(level_sizes: &[(usize, usize)]) -> Self {
+        let level_buffers = level_sizes
+            .iter()
+            .map(|&(fine_size, coarse_size)| LevelBuffer {
+                az: vec![0.0; fine_size],
+                coarse_residual: vec![0.0; coarse_size],
+                coarse_solution: vec![0.0; coarse_size],
+                fine_correction: vec![0.0; fine_size],
+            })
+            .collect();
+        AMGTemporaryBuffers { level_buffers }
+    }
+}
+
+
+
 impl AMG {
     pub fn new(a: &Mat<f64>, max_levels: usize, base_threshold: f64) -> Self {
         let mut levels = Vec::new();
@@ -160,7 +188,14 @@ impl AMG {
         z.copy_from_slice(&z_vec);
     }
 
-    fn apply_recursive(&self, level: usize, a: &dyn Matrix<Scalar = f64>, r: &[f64], z: &mut [f64]) {
+    fn apply_recursive(
+        &self,
+        level: usize,
+        a: &dyn Matrix<Scalar = f64>,
+        r: &[f64],
+        z: &mut [f64],
+        buffers: &mut AMGTemporaryBuffers,
+    ) {
         // If this is the last level, do a direct solve
         if level + 1 == self.levels.len() {
             AMG::solve_direct(a, r, z);
@@ -170,46 +205,50 @@ impl AMG {
         let diag_inv = &self.levels[level].diag_inv;
         let restriction = &self.levels[level].restriction;
         let interpolation = &self.levels[level].interpolation;
-        let coarse_matrix = &self.levels[level + 1].coarse_matrix;
+        let _coarse_matrix = &self.levels[level + 1].coarse_matrix;
     
-        // Dimension validation
-        println!("Level {} dimensions:", level);
-        println!("  Current matrix: {}x{}", a.nrows(), a.ncols());
-        println!("  Restriction: {}x{}", restriction.nrows(), restriction.ncols());
-        println!("  Interpolation: {}x{}", interpolation.nrows(), interpolation.ncols());
-        println!("  Coarse matrix: {}x{}", coarse_matrix.nrows(), coarse_matrix.ncols());
+        let current_buffers = &mut buffers.level_buffers[level];
     
         // Pre-smoothing
         AMG::smooth_jacobi_parallel(a, diag_inv, r, z, self.nu_pre);
     
-        // Compute current residual
-        let mut az = vec![0.0; a.nrows()];
-        parallel_mat_vec(a, z, &mut az);
-        for i in 0..az.len() {
-            az[i] = r[i] - az[i];
-        }
+        // Compute current residual (r - Az)
+        parallel_mat_vec(a, z, &mut current_buffers.az);
+        current_buffers
+            .az
+            .iter_mut()
+            .zip(r.iter())
+            .for_each(|(az_val, r_val)| *az_val = r_val - *az_val);
     
         // Restrict residual to coarse grid
-        let mut coarse_residual = vec![0.0; coarse_matrix.nrows()];  // Size of coarse grid
-        parallel_mat_vec(restriction, &az, &mut coarse_residual);
-    
-        // Recursive solve on coarse grid
-        let mut coarse_solution = vec![0.0; coarse_matrix.nrows()];  // Size of coarse grid
-        self.apply_recursive(
-            level + 1,
-            coarse_matrix,
-            &coarse_residual,
-            &mut coarse_solution,
+        parallel_mat_vec(
+            restriction,
+            &current_buffers.az,
+            &mut current_buffers.coarse_residual,
         );
     
+        // Recursive solve on coarse grid
+        let level_sizes = self
+            .levels
+            .iter()
+            .map(|level| (level.coarse_matrix.nrows(), level.coarse_matrix.ncols()))
+            .collect::<Vec<_>>();
+        let mut buffers = AMGTemporaryBuffers::new(&level_sizes);
+        
+        self.apply_recursive(0, a, r, z, &mut buffers);
+        
+    
         // Interpolate correction back to fine grid
-        let mut fine_correction = vec![0.0; a.nrows()];  // Size of fine grid
-        parallel_mat_vec(interpolation, &coarse_solution, &mut fine_correction);
+        parallel_mat_vec(
+            interpolation,
+            &current_buffers.coarse_solution,
+            &mut current_buffers.fine_correction,
+        );
     
         // Update solution
-        for i in 0..z.len() {
-            z[i] += fine_correction[i];
-        }
+        z.iter_mut()
+            .zip(current_buffers.fine_correction.iter())
+            .for_each(|(z_val, correction)| *z_val += correction);
     
         // Post-smoothing
         AMG::smooth_jacobi_parallel(a, diag_inv, r, z, self.nu_post);
@@ -217,29 +256,67 @@ impl AMG {
     
     
     
+    
+    
 
     fn solve_direct(a: &dyn Matrix<Scalar = f64>, r: &[f64], z: &mut [f64]) {
         let n = r.len();
-        let mut temp_z = vec![0.0; n];
-        // simple fixed jacobi as a "direct solve" placeholder
-        for _ in 0..10 {
-            for i in 0..n {
-                let diag = a.get(i, i);
-                let mut sum = 0.0;
-                for j in 0..n {
-                    if j != i {
-                        sum += a.get(i, j) * temp_z[j];
+        assert_eq!(n, z.len(), "Mismatch in sizes of solution and residual vectors");
+    
+        // Initialize solution vector to zero
+        z.fill(0.0);
+    
+        // Weighted Jacobi smoother (with relaxation parameter omega)
+        let omega = 0.8; // Relaxation parameter
+        let max_iterations = 20; // Increased iterations for better smoothing
+        let tol = 1e-8; // Adjusted tolerance for higher precision
+    
+        for _ in 0..max_iterations {
+            let mut max_residual: f64 = 0.0;
+    
+            // Compute the updated solution and residuals in parallel
+            let new_values_and_residuals: Vec<(f64, f64)> = (0..n)
+                .into_par_iter()
+                .map(|i| {
+                    let diag = a.get(i, i);
+                    if diag.abs() < 1e-14 {
+                        return (0.0, 0.0); // Handle near-zero diagonal elements
                     }
-                }
-                if diag.abs() > 1e-14 {
-                    temp_z[i] = (r[i] - sum) / diag;
-                } else {
-                    temp_z[i] = 0.0;
-                }
+    
+                    // Compute the sum of off-diagonal terms
+                    let sum: f64 = (0..n)
+                        .filter(|&j| j != i)
+                        .map(|j| a.get(i, j) * z[j])
+                        .sum();
+    
+                    // Compute the new solution value
+                    let new_value = z[i] + omega * (r[i] - sum - diag * z[i]) / diag;
+    
+                    // Calculate the residual for convergence check
+                    let residual = (r[i] - (diag * new_value + sum)).abs();
+                    (new_value, residual)
+                })
+                .collect();
+            
+            let new_values: Vec<f64> = new_values_and_residuals.iter().map(|&(new_value, _)| new_value).collect();
+            let residuals: Vec<f64> = new_values_and_residuals.iter().map(|&(_, residual)| residual).collect();
+    
+            // Update solution and compute the maximum residual
+            new_values
+                .iter()
+                .enumerate()
+                .for_each(|(i, &new_value)| {
+                    z[i] = new_value;
+                    max_residual = max_residual.max(residuals[i]);
+                });
+    
+            // Check for convergence
+            if max_residual < tol {
+                break;
             }
         }
-        z.copy_from_slice(&temp_z);
     }
+    
 }
 
 impl Preconditioner for AMG {
@@ -258,7 +335,13 @@ impl Preconditioner for AMG {
                 a.nrows(),
                 "Input matrix size mismatch at level 0"
             );
-            self.apply_recursive(0, &self.levels[0].coarse_matrix, &residual, &mut solution);
+            let level_sizes = self
+                .levels
+                .iter()
+                .map(|level| (level.coarse_matrix.nrows(), level.coarse_matrix.ncols()))
+                .collect::<Vec<_>>();
+            let mut buffers = AMGTemporaryBuffers::new(&level_sizes);
+            self.apply_recursive(0, &self.levels[0].coarse_matrix, &residual, &mut solution, &mut buffers);
         }
 
         for i in 0..z.len() {
