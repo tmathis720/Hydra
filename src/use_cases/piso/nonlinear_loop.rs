@@ -1,5 +1,5 @@
 use crate::{
-    boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, equation::{fields::{Fields, Fluxes}, momentum_equation::MomentumParameters}, solver::KSP, use_cases::piso::{
+    boundary::bc_handler::BoundaryConditionHandler, solver::KSP, domain::mesh::Mesh, equation::fields::Fields, use_cases::piso::{
         predictor::predict_velocity,
         pressure_correction::solve_pressure_poisson,
         velocity_correction::correct_velocity,
@@ -33,12 +33,12 @@ pub fn solve_nonlinear_system(
     linear_solver: &mut dyn KSP,
     config: &NonlinearLoopConfig,
 ) -> Result<(), String> {
-    let mut fluxes = Fluxes::new(); // Initialize flux container
+    let mut fluxes = crate::equation::fields::Fluxes::new(); // Initialize flux container
 
     for iteration in 0..config.max_iterations {
         // Step 1: Predictor
         predict_velocity(mesh, fields, &mut fluxes, boundary_handler, &crate::equation::momentum_equation::MomentumEquation { 
-            params: MomentumParameters {
+            params: crate::equation::momentum_equation::MomentumParameters {
                 density: 1.0, // Default fluid density (adjustable based on setup)
                 viscosity: 0.001, // Default dynamic viscosity
             }
