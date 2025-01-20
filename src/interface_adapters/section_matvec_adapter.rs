@@ -82,7 +82,21 @@ impl SectionMatVecAdapter {
     ///
     /// # Returns
     /// A dense matrix (`Mat<f64>`) representing the section.
-    pub fn section_to_matmut(section: &Section<Scalar>, entity_to_index: &DashMap<MeshEntity, usize>, size: usize) -> Mat<f64> {
+    pub fn section_to_matmut(
+        section: &Section<Scalar>,
+        entity_to_index: &DashMap<MeshEntity, usize>,
+        size: usize,
+    ) -> Mat<f64> {
+        // Validate that `size` is large enough to handle all indices in `entity_to_index`.
+        for index in entity_to_index.iter().map(|entry| *entry.value()) {
+            assert!(
+                index < size,
+                "Entity-to-index map contains an index ({}) larger than the specified size ({}).",
+                index,
+                size
+            );
+        }
+    
         // Create a matrix with the correct dimensions
         let mut matrix = Mat::<f64>::zeros(size, 1);
     
@@ -90,6 +104,13 @@ impl SectionMatVecAdapter {
             let entity = entry.key();
             let scalar = entry.value();
             if let Some(index) = entity_to_index.get(entity) {
+                assert!(
+                    *index < size,
+                    "Index ({}) for entity {:?} is out of bounds (size: {}).",
+                    *index,
+                    entity,
+                    size
+                );
                 matrix.write(*index, 0, scalar.0);
             } else {
                 panic!("Entity {:?} not found in index map", entity);
@@ -98,6 +119,7 @@ impl SectionMatVecAdapter {
     
         matrix
     }
+    
 
     /// Converts a dense matrix (`Mat<f64>`) back into a `Section<Tensor3x3>`.
     ///
@@ -320,5 +342,76 @@ mod tests {
         assert_eq!(matrix.read(0, 0), 1.0);
         assert_eq!(matrix.read(1, 1), 2.0);
         assert_eq!(matrix.read(2, 2), 3.0);
+    }
+
+    
+}
+
+#[cfg(test)]
+mod section_to_matmut_tests {
+    use super::*;
+    use crate::domain::section::{Scalar, Section};
+    use crate::domain::mesh_entity::MeshEntity;
+    use dashmap::DashMap;
+
+    /// Helper function to create a test section with scalar data.
+    fn create_test_section() -> Section<Scalar> {
+        let section = Section::new();
+        section.set_data(MeshEntity::Face(0), Scalar(1.0));
+        section.set_data(MeshEntity::Face(1), Scalar(2.0));
+        section.set_data(MeshEntity::Face(2), Scalar(3.0));
+        section
+    }
+
+    /// Helper function to create an entity-to-index map for testing.
+    fn create_test_entity_to_index_map() -> DashMap<MeshEntity, usize> {
+        let map = DashMap::new();
+        map.insert(MeshEntity::Face(0), 0);
+        map.insert(MeshEntity::Face(1), 1);
+        map.insert(MeshEntity::Face(2), 2);
+        map
+    }
+
+    #[test]
+    fn test_section_to_matmut_valid_conversion() {
+        let section = create_test_section();
+        let entity_to_index = create_test_entity_to_index_map();
+        let size = 3;
+
+        // Perform the conversion
+        let mat = SectionMatVecAdapter::section_to_matmut(&section, &entity_to_index, size);
+
+        // Check the matrix contents
+        assert_eq!(mat.read(0, 0), 1.0, "Incorrect value at index 0,0");
+        assert_eq!(mat.read(1, 0), 2.0, "Incorrect value at index 1,0");
+        assert_eq!(mat.read(2, 0), 3.0, "Incorrect value at index 2,0");
+    }
+
+    #[test]
+    #[should_panic(expected = "Entity-to-index map contains an index (3) larger than the specified size (3).")]
+    fn test_section_to_matmut_index_out_of_bounds() {
+        let section = create_test_section();
+        let entity_to_index = create_test_entity_to_index_map();
+
+        // Add an invalid index that exceeds the matrix size
+        entity_to_index.insert(MeshEntity::Face(3), 3);
+
+        let size = 3;
+
+        // This should panic due to out-of-bounds index
+        SectionMatVecAdapter::section_to_matmut(&section, &entity_to_index, size);
+    }
+
+    #[test]
+    #[should_panic(expected = "Entity Face(3) not found in index map")]
+    fn test_section_to_matmut_missing_entity() {
+        let section = create_test_section();
+        section.set_data(MeshEntity::Face(3), Scalar(4.0)); // Add an entity not in the index map
+
+        let entity_to_index = create_test_entity_to_index_map();
+        let size = 3;
+
+        // This should panic due to missing entity in the map
+        SectionMatVecAdapter::section_to_matmut(&section, &entity_to_index, size);
     }
 }
