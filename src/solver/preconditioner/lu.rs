@@ -61,7 +61,7 @@ impl LU {
     /// # Panics
     ///
     /// This function will panic if the dimensions of `rhs` and `solution` do not match.
-    fn apply(&self, rhs: &[f64], solution: &mut [f64]) {
+    pub fn apply(&self, rhs: &[f64], solution: &mut [f64]) {
         let mut sol_matrix = Mat::from_fn(rhs.len(), 1, |i, _| rhs[i]);
 
         // Solve using LU decomposition and specify `as_slice` method for Vector trait

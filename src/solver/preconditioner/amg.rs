@@ -3,6 +3,7 @@ use crate::solver::preconditioner::Preconditioner;
 use faer::mat::Mat;
 use rayon::prelude::*; // Added for parallel operations
 use std::f64;
+use std::sync::{Arc, Mutex};
 
 pub struct AMG {
     levels: Vec<AMGLevel>,
@@ -115,12 +116,18 @@ impl AMG {
     fn extract_diagonal_inverse(m: &Mat<f64>) -> Vec<f64> {
         assert_eq!(m.nrows(), m.ncols(), "Matrix must be square for diag_inv extraction");
         let n = m.nrows();
-        let mut diag_inv = vec![0.0; n];
-        for i in 0..n {
-            let d = m.read(i, i);
-            diag_inv[i] = if d.abs() < 1e-14 { 0.0 } else { 1.0 / d };
-        }
-        diag_inv
+    
+        (0..n)
+            .into_par_iter() // Parallel iterator
+            .map(|i| {
+                let d = m.read(i, i);
+                if d.abs() < 1e-14 {
+                    0.0
+                } else {
+                    1.0 / d
+                }
+            })
+            .collect()
     }
 
     // Original Jacobi smoother (single-threaded)
@@ -274,22 +281,23 @@ impl Preconditioner for AMG {
 /// Anisotropy is defined as the ratio max_off_diag/diag.
 fn compute_anisotropy(a: &Mat<f64>) -> Vec<f64> {
     let n = a.nrows();
-    let mut anisotropy = vec![0.0; n];
-    for i in 0..n {
-        let diag = a.read(i, i);
-        let mut max_off_diag: f64 = 0.0;
-        for j in 0..n {
-            if i != j {
-                max_off_diag = max_off_diag.max(a.read(i, j).abs());
+
+    (0..n)
+        .into_par_iter() // Parallel iterator
+        .map(|i| {
+            let diag = a.read(i, i);
+            let max_off_diag = (0..n)
+                .filter(|&j| i != j) // Exclude the diagonal element
+                .map(|j| a.read(i, j).abs()) // Compute absolute value of off-diagonal elements
+                .fold(0.0, f64::max); // Find the maximum off-diagonal element
+
+            if diag.abs() > 1e-14 {
+                max_off_diag / diag.abs()
+            } else {
+                0.0
             }
-        }
-        if diag.abs() > 1e-14 {
-            anisotropy[i] = max_off_diag / diag.abs();
-        } else {
-            anisotropy[i] = 0.0;
-        }
-    }
-    anisotropy
+        })
+        .collect()
 }
 
 /// Compute an adaptive threshold based on global anisotropy indicators.
@@ -306,36 +314,40 @@ fn compute_adaptive_threshold(a: &Mat<f64>, base_threshold: f64) -> f64 {
 
 /// Smooth the interpolation matrix to improve prolongation accuracy.
 fn smooth_interpolation(interpolation: &mut Mat<f64>, matrix: &Mat<f64>, weight: f64) {
-    let rows = interpolation.nrows();
+    let _rows = interpolation.nrows();
     let cols = interpolation.ncols();
-    for i in 0..rows {
-        for j in 0..cols {
-            let value = interpolation.read(i, j);
-            let smoothed_value = value - weight * matrix.read(i, j);
-            interpolation.write(i, j, smoothed_value);
-        }
-    }
+
+    interpolation
+        .as_mut_slice()
+        .par_chunks_mut(cols) // Parallelize by rows
+        .enumerate()
+        .for_each(|(i, interp_row)| {
+            if let Some(matrix_row) = matrix.row(i).try_as_slice() {
+                for j in 0..cols {
+                    interp_row[j] -= weight * matrix_row[j];
+                }
+            }
+        });
 }
 
 /// Normalize rows of the interpolation matrix to minimize energy.
 fn minimize_energy(interpolation: &mut Mat<f64>, _matrix: &Mat<f64>) {
-    let rows = interpolation.nrows();
+    let _rows = interpolation.nrows();
     let cols = interpolation.ncols();
-    for i in 0..rows {
-        let mut row_sum = 0.0;
-        for j in 0..cols {
-            row_sum += interpolation.read(i, j).powi(2);
-        }
-        let norm_factor = if row_sum.abs() > 1e-14 {
-            row_sum.sqrt()
-        } else {
-            1.0
-        };
-        for j in 0..cols {
-            let value = interpolation.read(i, j) / norm_factor;
-            interpolation.write(i, j, value);
-        }
-    }
+
+    interpolation
+        .as_mut_slice()
+        .par_chunks_mut(cols) // Parallelize by rows
+        .for_each(|row| {
+            let row_sum: f64 = row.iter().map(|&val| val.powi(2)).sum();
+            let norm_factor = if row_sum.abs() > 1e-14 {
+                row_sum.sqrt()
+            } else {
+                1.0
+            };
+
+            row.iter_mut().for_each(|val| *val /= norm_factor);
+        });
 }
 
 /// Parallel mat-vec multiplication using rayon.
@@ -434,19 +446,33 @@ fn greedy_aggregation(s: &Mat<f64>) -> Vec<usize> {
     let mut aggregates = vec![usize::MAX; n];
     let mut next_agg_id = 0;
 
-    for i in 0..n {
-        if aggregates[i] == usize::MAX {
-            // Find strongest neighbor j
-            let mut max_strength = 0.0;
-            let mut strongest = i; // if no stronger neighbor found, the node stands alone
-            for j in 0..n {
+    // Use a thread-safe container for the strongest neighbors
+    let strongest_neighbors = Arc::new(Mutex::new(vec![None; n]));
+
+    // Identify the strongest neighbor for each node in parallel
+    (0..n).into_par_iter().for_each(|i| {
+        let mut max_strength = 0.0;
+        let mut strongest = None;
+
+        for j in 0..n {
+            if i != j && aggregates[j] == usize::MAX {
                 let strength = s.read(i, j);
-                if strength > max_strength && aggregates[j] == usize::MAX && i != j {
+                if strength > max_strength {
                     max_strength = strength;
-                    strongest = j;
+                    strongest = Some(j);
                 }
             }
-            // Assign both i and j to the same aggregate
+        }
+
+        // Safely update the strongest_neighbors vector
+        let mut strongest_neighbors_lock = strongest_neighbors.lock().unwrap();
+        strongest_neighbors_lock[i] = strongest;
+    });
+
+    // Assign aggregates sequentially
+    for i in 0..n {
+        if aggregates[i] == usize::MAX {
+            let strongest = strongest_neighbors.lock().unwrap()[i].unwrap_or(i);
             aggregates[i] = next_agg_id;
             if strongest != i {
                 aggregates[strongest] = next_agg_id;
@@ -505,38 +531,38 @@ fn pairwise_aggregation(s: &Mat<f64>) -> Vec<usize> {
 /// Each aggregate forms a node in the coarse graph.
 /// The weights of edges between coarse nodes can be inherited or averaged from the fine graph.
 fn build_coarse_graph(s: &Mat<f64>, aggregates: &[usize]) -> Mat<f64> {
-    let max_agg_id = *aggregates.iter().max().unwrap();
+    let max_agg_id = *aggregates.iter().max().unwrap_or(&0);
     let coarse_n = max_agg_id + 1;
     let mut coarse_mat = Mat::<f64>::zeros(coarse_n, coarse_n);
 
-    // Accumulate strengths into coarse matrix
-    for (fine_node_i, &agg_i) in aggregates.iter().enumerate() {
-        for fine_node_j in 0..s.ncols() {
-            let agg_j = aggregates[fine_node_j];
-            if agg_j < usize::MAX {
-                let val = s.read(fine_node_i, fine_node_j);
-                if val != 0.0 {
-                    // Accumulate connection strength between aggregates
-                    let old_val = coarse_mat.read(agg_i, agg_j);
-                    coarse_mat.write(agg_i, agg_j, old_val + val);
+    coarse_mat
+        .as_mut_slice()
+        .par_chunks_mut(coarse_n)
+        .enumerate()
+        .for_each(|(fine_node_i, row)| {
+            for fine_node_j in 0..s.ncols() {
+                let agg_j = aggregates[fine_node_j];
+                if agg_j < usize::MAX {
+                    let val = s.read(fine_node_i, fine_node_j);
+                    if val != 0.0 {
+                        // Use atomic addition or a parallel-safe method
+                        let old_val = row[agg_j];
+                        row[agg_j] = old_val + val;
+                    }
                 }
             }
-        }
-    }
+        });
 
     coarse_mat
 }
 
 /// Remap second pass aggregates to fine-level nodes.
 fn remap_aggregates(first_pass: &[usize], second_pass: &[usize]) -> Vec<usize> {
-    let n = first_pass.len();
-    let mut final_aggregates = vec![0; n];
-    for i in 0..n {
-        // The aggregate at the fine level i is mapped to second_pass aggregate
-        let coarse_agg = first_pass[i];
-        final_aggregates[i] = second_pass[coarse_agg];
-    }
-    final_aggregates
+    // Preallocate memory and use parallel iterator for improved performance
+    first_pass
+        .par_iter()
+        .map(|&coarse_agg| second_pass[coarse_agg])
+        .collect()
 }
 
 /// Construct the prolongation matrix P from the aggregate assignments.
@@ -547,12 +573,15 @@ fn construct_prolongation(a: &Mat<f64>, aggregates: &[usize]) -> Mat<f64> {
     let max_agg_id = *aggregates.iter().max().unwrap();
     let coarse_n = max_agg_id + 1;
 
-    let mut p = Mat::<f64>::zeros(n, coarse_n);
+    let p = Arc::new(Mutex::new(Mat::<f64>::zeros(n, coarse_n)));
 
-    for i in 0..n {
-        let agg_id = aggregates[i];
+    // Use parallel iterator to populate the matrix
+    aggregates.par_iter().enumerate().for_each(|(i, &agg_id)| {
+        let mut p = p.lock().unwrap();
         p.write(i, agg_id, 1.0);
-    }
+    });
+
+    let p = Arc::try_unwrap(p).expect("Failed to unwrap Arc").into_inner().unwrap();
 
     p
 }

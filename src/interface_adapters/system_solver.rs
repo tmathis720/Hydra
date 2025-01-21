@@ -253,8 +253,8 @@ mod options_tests {
         let gmres_solver = GMRES::new(1000, AMG_TOL, 1000);
 
         // Increase max_levels and tweak coarsening_threshold as needed
-        let max_levels = 6;
-        let coarsening_threshold = 0.1;
+        let max_levels = 5;
+        let coarsening_threshold = 0.2;
 
         // Parse matrix for AMG preconditioner construction
         let (rows, cols, _, row_indices, col_indices, values) =
