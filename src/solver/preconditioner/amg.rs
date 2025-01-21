@@ -226,26 +226,65 @@ impl AMG {
     
 
     fn solve_direct(a: &dyn Matrix<Scalar = f64>, r: &[f64], z: &mut [f64]) {
+        // Ensure dimensions are compatible
         let n = r.len();
-        let mut temp_z = vec![0.0; n];
-        // simple fixed jacobi as a "direct solve" placeholder
-        for _ in 0..10 {
-            for i in 0..n {
-                let diag = a.get(i, i);
-                let mut sum = 0.0;
-                for j in 0..n {
-                    if j != i {
-                        sum += a.get(i, j) * temp_z[j];
-                    }
-                }
-                if diag.abs() > 1e-14 {
-                    temp_z[i] = (r[i] - sum) / diag;
-                } else {
-                    temp_z[i] = 0.0;
-                }
+        assert_eq!(a.ncols(), n);
+        assert_eq!(a.nrows(), n);
+        assert_eq!(z.len(), n);
+    
+        // Convert input matrix `a` to a `Mat` structure
+        let mut mat_a = Mat::zeros(n, n);
+        for i in 0..n {
+            for j in 0..n {
+                mat_a.write(i, j, a.get(i, j));
             }
         }
-        z.copy_from_slice(&temp_z);
+    
+        // Convert input vector `r` into a column vector
+        let mut mat_r = Mat::zeros(n, 1);
+        for i in 0..n {
+            mat_r.write(i, 0, r[i]);
+        }
+    
+        // Perform Full Pivoting LU decomposition
+        let lu = mat_a.full_piv_lu();
+    
+        // Extract permutations
+        let p = lu.row_permutation(); // P matrix
+        let q = lu.col_permutation(); // Q matrix (with inverse available)
+    
+        // Apply the permutations to the right-hand side vector
+        let permuted_r = p * mat_r;
+    
+        // Solve Ly = Pr
+        let l = lu.compute_l(); // Lower triangular matrix
+        let mut y = Mat::zeros(n, 1);
+        for i in 0..n {
+            let mut sum = 0.0;
+            for j in 0..i {
+                sum += l.read(i, j) * y.read(j, 0);
+            }
+            y.write(i, 0, permuted_r.read(i, 0) - sum);
+        }
+    
+        // Solve Ux = y
+        let u = lu.compute_u(); // Upper triangular matrix
+        let mut x = Mat::zeros(n, 1);
+        for i in (0..n).rev() {
+            let mut sum = 0.0;
+            for j in (i + 1)..n {
+                sum += u.read(i, j) * x.read(j, 0);
+            }
+            x.write(i, 0, (y.read(i, 0) - sum) / u.read(i, i));
+        }
+    
+        // Apply Q-inverse to the solution to get the final result
+        let result = q.inverse() * x;
+    
+        // Copy the solution back to `z`
+        for i in 0..n {
+            z[i] = result.read(i, 0);
+        }
     }
 }
 
