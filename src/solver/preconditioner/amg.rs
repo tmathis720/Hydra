@@ -1,5 +1,5 @@
 use crate::linalg::{Matrix, Vector};
-use crate::solver::preconditioner::{Preconditioner, LU};
+use crate::solver::preconditioner::Preconditioner;
 use faer::mat::Mat;
 use rayon::prelude::*; // Added for parallel operations
 use std::f64;
@@ -39,7 +39,7 @@ impl AMG {
             let (mut interpolation, restriction) = AMG::generate_operators(
                 &current_matrix,
                 adaptive_threshold,
-                false, // or true if you want double-pairwise
+                true, // or true if you want double-pairwise
             );
 
             smooth_interpolation(&mut interpolation, &current_matrix, 0.5);
@@ -232,20 +232,57 @@ impl AMG {
         assert_eq!(a.nrows(), n);
         assert_eq!(z.len(), n);
     
-        // Convert `a` to `Mat`
-        let mut mat_a = Mat::zeros(n, n);
-        for i in 0..n {
-            for j in 0..n {
-                mat_a.write(i, j, a.get(i, j));
+        // Initial guess for the solution
+        let mut x = vec![0.0; n]; // Initialize x to zero (or other initial guess)
+        let mut residual = r.to_vec(); // Initial residual: r - A*x
+        let mut p = residual.clone(); // Direction vector
+        let mut ap = vec![0.0; n]; // Holds A*p
+        let mut alpha;
+        let mut beta;
+        let mut rr_new = residual.iter().map(|&val| val * val).sum::<f64>(); // ||r||^2
+        let mut rr_old;
+    
+        // Main iteration loop (Conjugate Gradient Method)
+        for _ in 0..n {
+            // Compute A*p
+            a.mat_vec(&p, &mut ap);
+    
+            // Compute alpha = (r^T r) / (p^T A p)
+            let denominator = p.iter().zip(ap.iter()).map(|(&pi, &api)| pi * api).sum::<f64>();
+            alpha = rr_new / denominator;
+    
+            // Update x = x + alpha * p
+            for (xi, &pi) in x.iter_mut().zip(p.iter()) {
+                *xi += alpha * pi;
+            }
+    
+            // Update residual r = r - alpha * A*p
+            for (ri, &api) in residual.iter_mut().zip(ap.iter()) {
+                *ri -= alpha * api;
+            }
+    
+            // Compute new ||r||^2
+            rr_old = rr_new;
+            rr_new = residual.iter().map(|&val| val * val).sum::<f64>();
+    
+            // Check for convergence (early exit)
+            if rr_new.sqrt() < 1e-10 {
+                break;
+            }
+    
+            // Update beta = new ||r||^2 / old ||r||^2
+            beta = rr_new / rr_old;
+    
+            // Update direction p = r + beta * p
+            for (pi, &ri) in p.iter_mut().zip(residual.iter()) {
+                *pi = ri + beta * *pi;
             }
         }
     
-        // Initialize LU preconditioner
-        let lu_preconditioner = LU::new(&mat_a);
-    
-        // Apply LU preconditioner
-        lu_preconditioner.apply(r, z);
+        // Copy result into z
+        z.copy_from_slice(&x);
     }
+    
 }
 
 impl Preconditioner for AMG {
