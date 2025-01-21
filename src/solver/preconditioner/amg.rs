@@ -1,5 +1,5 @@
 use crate::linalg::{Matrix, Vector};
-use crate::solver::preconditioner::Preconditioner;
+use crate::solver::preconditioner::{Preconditioner, LU};
 use faer::mat::Mat;
 use rayon::prelude::*; // Added for parallel operations
 use std::f64;
@@ -232,7 +232,7 @@ impl AMG {
         assert_eq!(a.nrows(), n);
         assert_eq!(z.len(), n);
     
-        // Convert input matrix `a` to a `Mat` structure
+        // Convert `a` to `Mat`
         let mut mat_a = Mat::zeros(n, n);
         for i in 0..n {
             for j in 0..n {
@@ -240,51 +240,11 @@ impl AMG {
             }
         }
     
-        // Convert input vector `r` into a column vector
-        let mut mat_r = Mat::zeros(n, 1);
-        for i in 0..n {
-            mat_r.write(i, 0, r[i]);
-        }
+        // Initialize LU preconditioner
+        let lu_preconditioner = LU::new(&mat_a);
     
-        // Perform Full Pivoting LU decomposition
-        let lu = mat_a.full_piv_lu();
-    
-        // Extract permutations
-        let p = lu.row_permutation(); // P matrix
-        let q = lu.col_permutation(); // Q matrix (with inverse available)
-    
-        // Apply the permutations to the right-hand side vector
-        let permuted_r = p * mat_r;
-    
-        // Solve Ly = Pr
-        let l = lu.compute_l(); // Lower triangular matrix
-        let mut y = Mat::zeros(n, 1);
-        for i in 0..n {
-            let mut sum = 0.0;
-            for j in 0..i {
-                sum += l.read(i, j) * y.read(j, 0);
-            }
-            y.write(i, 0, permuted_r.read(i, 0) - sum);
-        }
-    
-        // Solve Ux = y
-        let u = lu.compute_u(); // Upper triangular matrix
-        let mut x = Mat::zeros(n, 1);
-        for i in (0..n).rev() {
-            let mut sum = 0.0;
-            for j in (i + 1)..n {
-                sum += u.read(i, j) * x.read(j, 0);
-            }
-            x.write(i, 0, (y.read(i, 0) - sum) / u.read(i, i));
-        }
-    
-        // Apply Q-inverse to the solution to get the final result
-        let result = q.inverse() * x;
-    
-        // Copy the solution back to `z`
-        for i in 0..n {
-            z[i] = result.read(i, 0);
-        }
+        // Apply LU preconditioner
+        lu_preconditioner.apply(r, z);
     }
 }
 
