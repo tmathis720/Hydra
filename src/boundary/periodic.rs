@@ -52,15 +52,15 @@ impl PeriodicBC {
             ) {
                 // Enforce periodic constraints by modifying the system matrix.
                 for col in 0..matrix.ncols() {
-                    let avg = (matrix.read(*idx1, col) + matrix.read(*idx2, col)) / 2.0;
-                    matrix.write(*idx1, col, avg);
-                    matrix.write(*idx2, col, avg);
+                    let avg = (matrix[(*idx1, col)] + matrix[(*idx2, col)]) / 2.0;
+                    matrix[(*idx1, col)] = avg;
+                    matrix[(*idx2, col)] = avg;
                 }
 
                 // Adjust the RHS vector to match periodic conditions.
-                let rhs_avg = (rhs.read(*idx1, 0) + rhs.read(*idx2, 0)) / 2.0;
-                rhs.write(*idx1, 0, rhs_avg);
-                rhs.write(*idx2, 0, rhs_avg);
+                let rhs_avg = (rhs[(*idx1, 0)] + rhs[(*idx2, 0)]) / 2.0;
+                rhs[(*idx1, 0)] = rhs_avg;
+                rhs[(*idx2, 0)] = rhs_avg;
             }
         }
     }
@@ -90,18 +90,19 @@ impl BoundaryConditionApply for PeriodicBC {
             ) {
                 // Enforce periodic constraint for this specific pair.
                 for col in 0..matrix.ncols() {
-                    let avg = (matrix.read(*idx1, col) + matrix.read(*idx2, col)) / 2.0;
-                    matrix.write(*idx1, col, avg);
-                    matrix.write(*idx2, col, avg);
+                    let avg = (matrix[(*idx1, col)] + matrix[(*idx2, col)]) / 2.0;
+                    matrix[(*idx1, col)] = avg;
+                    matrix[(*idx2, col)] = avg;
                 }
 
-                let rhs_avg = (rhs.read(*idx1, 0) + rhs.read(*idx2, 0)) / 2.0;
-                rhs.write(*idx1, 0, rhs_avg);
-                rhs.write(*idx2, 0, rhs_avg);
+                let rhs_avg = (rhs[(*idx1, 0)] + rhs[(*idx2, 0)]) / 2.0;
+                rhs[(*idx1, 0)] = rhs_avg;
+                rhs[(*idx2, 0)] = rhs_avg;
             }
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {

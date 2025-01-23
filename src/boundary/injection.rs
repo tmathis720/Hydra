@@ -57,18 +57,17 @@ impl InjectionBC {
     ) {
         // Zero all entries in the row and set the diagonal to 1
         for col in 0..matrix.ncols() {
-            matrix.write(index, col, 0.0);
+            matrix[(index, col)] = 0.0;
         }
-        matrix.write(index, index, 1.0);
+        matrix[(index, index)] = 1.0;
 
         // Set the RHS to the specified injection value
-        rhs.write(index, 0, value);
+        rhs[(index, 0)] = value;
     }
 
     /// Applies Neumann-type injection by adding flux to the RHS
     pub fn apply_neumann_injection(&self, rhs: &mut MatMut<f64>, index: usize, flux: f64) {
-        let current_value = rhs.read(index, 0);
-        rhs.write(index, 0, current_value + flux);
+        rhs[(index, 0)] += flux;
     }
 }
 
@@ -84,6 +83,7 @@ impl BoundaryConditionApply for InjectionBC {
         self.apply_bc(matrix, rhs, entity_to_index);
     }
 }
+
 
 #[cfg(test)]
 mod tests {

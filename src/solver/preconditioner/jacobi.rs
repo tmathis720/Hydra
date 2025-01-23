@@ -63,7 +63,7 @@ mod tests {
 
         // Verify the result
         for i in 0..z.nrows() {
-            assert_eq!(z.read(i, 0), expected_z.read(i, 0));
+            assert_eq!(z[(i, 0)], expected_z[(i, 0)]);
         }
     }
 
@@ -99,7 +99,7 @@ mod tests {
 
         // Verify the result, with zero handling
         for i in 0..z.nrows() {
-            assert_eq!(z.read(i, 0), expected_z.read(i, 0));
+            assert_eq!(z[(i, 0)], expected_z[(i, 0)]);
         }
     }
 
@@ -113,9 +113,9 @@ mod tests {
 
         // Fill 'a' and 'r' with values
         for i in 0..n {
-            a.write(i, i, (i + 1) as f64);  // Diagonal matrix with increasing values
-            r.write(i, 0, (i + 1) as f64 * 2.0);  // Right-hand side vector
-            expected_z.write(i, 0, 2.0);  // Expected result (since r[i] = 2 * a[i])
+            a[(i, i)] = (i + 1) as f64;  // Diagonal matrix with increasing values
+            r[(i, 0)] = (i + 1) as f64 * 2.0;  // Right-hand side vector
+            expected_z[(i, 0)] = 2.0;  // Expected result (since r[i] = 2 * a[i])
         }
 
         // Initialize an empty result vector 'z'
@@ -127,7 +127,7 @@ mod tests {
 
         // Verify the result
         for i in 0..z.nrows() {
-            assert_eq!(z.read(i, 0), expected_z.read(i, 0));
+            assert_eq!(z[(i, 0)], expected_z[(i, 0)]);
         }
     }
 }

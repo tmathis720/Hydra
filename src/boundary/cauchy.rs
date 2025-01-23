@@ -47,9 +47,9 @@ impl CauchyBC {
         mu: f64,
     ) {
         // Apply the lambda factor to the matrix at the diagonal index
-        matrix.write(index, index, matrix.read(index, index) + lambda);
+        matrix[(index, index)] = matrix[(index, index)] + lambda;
         // Modify the RHS with the mu value at the specific index
-        rhs.write(index, 0, rhs.read(index, 0) + mu);
+        rhs[(index, 0)] = rhs[(index, 0)] + mu;
     }
 
     /// Applies all Cauchy boundary conditions within the handler to the system.

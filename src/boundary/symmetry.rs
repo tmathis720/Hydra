@@ -53,14 +53,14 @@ impl SymmetryBC {
     ) {
         // Zero all entries in the matrix row related to normal velocity
         for col in 0..matrix.ncols() {
-            matrix.write(index, col, 0.0);
+            matrix[(index, col)] = 0.0;
         }
 
         // Set the diagonal to 1 to enforce the symmetry constraint
-        matrix.write(index, index, 1.0);
+        matrix[(index, index)] = 1.0;
 
         // Ensure RHS value is zero for symmetry
-        rhs.write(index, 0, 0.0);
+        rhs[(index, 0)] = 0.0;
     }
 }
 
@@ -76,6 +76,7 @@ impl BoundaryConditionApply for SymmetryBC {
         self.apply_bc(matrix, rhs, entity_to_index);
     }
 }
+
 
 #[cfg(test)]
 mod tests {

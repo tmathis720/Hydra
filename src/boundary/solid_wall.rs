@@ -58,12 +58,12 @@ impl SolidWallBC {
         // Set diagonal entry to 1 and zero out other coefficients.
         let ncols = matrix.ncols();
         for col in 0..ncols {
-            matrix.write(index, col, 0.0);
+            matrix[(index, col)] = 0.0;
         }
-        matrix.write(index, index, 1.0);
+        matrix[(index, index)] = 1.0;
 
         // Enforce no flux at the boundary: RHS remains unchanged.
-        rhs.write(index, 0, 0.0);
+        rhs[(index, 0)] = 0.0;
     }
 
     /// Applies viscous solid wall boundary conditions.
@@ -79,12 +79,12 @@ impl SolidWallBC {
         // Similar to inviscid, set diagonal entry to 1 for zero normal velocity.
         let ncols = matrix.ncols();
         for col in 0..ncols {
-            matrix.write(index, col, 0.0);
+            matrix[(index, col)] = 0.0;
         }
-        matrix.write(index, index, 1.0);
+        matrix[(index, index)] = 1.0;
 
         // Set RHS to enforce no-slip condition.
-        rhs.write(index, 0, normal_velocity);
+        rhs[(index, 0)] = normal_velocity;
     }
 }
 
@@ -101,6 +101,7 @@ impl BoundaryConditionApply for SolidWallBC {
         self.apply_bc(matrix, rhs, entity_to_index);
     }
 }
+
 
 #[cfg(test)]
 mod tests {

@@ -76,11 +76,11 @@ impl VectorOperations for Mat<f64> {
     }
 
     fn set_value(&mut self, index: usize, value: f64) {
-        self.write(index, 0, value);
+        self[(index, 0)] = value;
     }
 
     fn get_value(&self, index: usize) -> f64 {
-        self.read(index, 0)
+        self[(index, 0)]
     }
 
     fn size(&self) -> usize {
@@ -92,7 +92,7 @@ impl ExtendedVectorOperations for Mat<f64> {
     fn resize(&mut self, new_size: usize) {
         let mut new_vector = Mat::<f64>::zeros(new_size, 1);
         for i in 0..usize::min(self.nrows(), new_size) {
-            new_vector.write(i, 0, self.read(i, 0));
+            new_vector[(i, 0)] = self[(i, 0)];
         }
         *self = new_vector;
     }
@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(vector.ncols(), 1, "Vector should be a column vector.");
 
         for i in 0..size {
-            assert_eq!(vector.read(i, 0), 0.0, "Vector should be initialized to zero.");
+            assert_eq!(vector[(i, 0)], 0.0, "Vector should be initialized to zero.");
         }
     }
 
@@ -129,16 +129,16 @@ mod tests {
     #[test]
     fn test_resize_vector() {
         let mut vector = VectorBuilder::build_dense_vector(3);
-        vector.write(0, 0, 1.0);
-        vector.write(1, 0, 2.0);
-        vector.write(2, 0, 3.0);
+        vector[(0, 0)] = 1.0;
+        vector[(1, 0)] = 2.0;
+        vector[(2, 0)] = 3.0;
 
         VectorBuilder::resize_vector(&mut vector, 5);
 
         assert_eq!(vector.nrows(), 5, "Vector length should be updated after resizing.");
         let expected_values = vec![1.0, 2.0, 3.0, 0.0, 0.0];
         for i in 0..5 {
-            assert_eq!(vector.read(i, 0), expected_values[i], "Vector element mismatch at index {}.", i);
+            assert_eq!(vector[(i, 0)], expected_values[i], "Vector element mismatch at index {}.", i);
         }
     }
 }

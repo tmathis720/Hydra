@@ -47,7 +47,7 @@ impl ExtendedMatrixOperations for Mat<f64> {
         let mut new_matrix = Mat::<f64>::zeros(new_rows, new_cols);
         for j in 0..usize::min(self.ncols(), new_cols) {
             for i in 0..usize::min(self.nrows(), new_rows) {
-                new_matrix.write(i, j, self.read(i, j));
+                new_matrix[(i, j)] = self[(i, j)];
             }
         }
         *self = new_matrix; // Replace the current matrix with the resized one

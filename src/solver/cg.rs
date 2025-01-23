@@ -222,11 +222,11 @@ mod tests {
         // Verify computed solution against expected values
         for i in 0..x.nrows() {
             assert!(
-                (x.read(i, 0) - expected_x.read(i, 0)).abs() < 1e-5,
+                (x[(i, 0)] - expected_x[(i, 0)]).abs() < 1e-5,
                 "x[{}] = {}, expected {}",
                 i,
-                x.read(i, 0),
-                expected_x.read(i, 0)
+                x[(i, 0)],
+                expected_x[(i, 0)]
             );
         }
     }
@@ -270,11 +270,11 @@ mod tests {
         // Verify computed solution against expected values
         for i in 0..x.nrows() {
             assert!(
-                (x.read(i, 0) - expected_x.read(i, 0)).abs() < 1e-5,
+                (x[(i, 0)] - expected_x[(i, 0)]).abs() < 1e-5,
                 "x[{}] = {}, expected {}",
                 i,
-                x.read(i, 0),
-                expected_x.read(i, 0)
+                x[(i, 0)],
+                expected_x[(i, 0)]
             );
         }
     }

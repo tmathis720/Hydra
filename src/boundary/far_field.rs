@@ -64,25 +64,25 @@ impl FarFieldBC {
     pub fn apply_far_field(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, index: usize, value: f64) {
         // Ensure that the solution at the far-field matches the specified value
         for col in 0..matrix.ncols() {
-            matrix.write(index, col, 0.0);
+            matrix[(index, col)] = 0.0;
         }
-        matrix.write(index, index, 1.0); // Diagonal to enforce the condition
-        rhs.write(index, 0, value); // Far-field value
+        matrix[(index, index)] = 1.0; // Diagonal to enforce the condition
+        rhs[(index, 0)] = value; // Far-field value
     }
 
     /// Applies a Dirichlet condition to enforce a fixed value.
     fn apply_dirichlet(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, index: usize, value: f64) {
         for col in 0..matrix.ncols() {
-            matrix.write(index, col, 0.0);
+            matrix[(index, col)] = 0.0;
         }
-        matrix.write(index, index, 1.0);
-        rhs.write(index, 0, value);
+        matrix[(index, index)] = 1.0;
+        rhs[(index, 0)] = value;
     }
 
     /// Applies a Neumann condition to enforce a flux at the boundary.
     fn apply_neumann(&self, rhs: &mut MatMut<f64>, index: usize, flux: f64) {
-        let current_value = rhs.read(index, 0);
-        rhs.write(index, 0, current_value + flux);
+        let current_value = rhs[(index, 0)];
+        rhs[(index, 0)] = current_value + flux;
     }
 }
 

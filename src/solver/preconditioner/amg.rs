@@ -117,7 +117,7 @@ impl AMG {
         let n = m.nrows();
         let mut diag_inv = vec![0.0; n];
         for i in 0..n {
-            let d = m.read(i, i);
+            let d = m[(i, i)];
             diag_inv[i] = if d.abs() < 1e-14 { 0.0 } else { 1.0 / d };
         }
         diag_inv
@@ -276,11 +276,11 @@ fn compute_anisotropy(a: &Mat<f64>) -> Vec<f64> {
     let n = a.nrows();
     let mut anisotropy = vec![0.0; n];
     for i in 0..n {
-        let diag = a.read(i, i);
+        let diag = a[(i, i)];
         let mut max_off_diag: f64 = 0.0;
         for j in 0..n {
             if i != j {
-                max_off_diag = max_off_diag.max(a.read(i, j).abs());
+                max_off_diag = max_off_diag.max(a[(i, j)].abs());
             }
         }
         if diag.abs() > 1e-14 {
@@ -300,7 +300,6 @@ fn compute_adaptive_threshold(a: &Mat<f64>, base_threshold: f64) -> f64 {
     } else {
         anis.iter().sum::<f64>() / (anis.len() as f64)
     };
-    // Adaptive threshold: Increase threshold if high anisotropy
     base_threshold * (1.0 + avg_anis.max(0.5))
 }
 
@@ -310,9 +309,9 @@ fn smooth_interpolation(interpolation: &mut Mat<f64>, matrix: &Mat<f64>, weight:
     let cols = interpolation.ncols();
     for i in 0..rows {
         for j in 0..cols {
-            let value = interpolation.read(i, j);
-            let smoothed_value = value - weight * matrix.read(i, j);
-            interpolation.write(i, j, smoothed_value);
+            let value = interpolation[(i, j)];
+            let smoothed_value = value - weight * matrix[(i, j)];
+            interpolation[(i, j)] = smoothed_value;
         }
     }
 }
@@ -324,7 +323,7 @@ fn minimize_energy(interpolation: &mut Mat<f64>, _matrix: &Mat<f64>) {
     for i in 0..rows {
         let mut row_sum = 0.0;
         for j in 0..cols {
-            row_sum += interpolation.read(i, j).powi(2);
+            row_sum += interpolation[(i, j)].powi(2);
         }
         let norm_factor = if row_sum.abs() > 1e-14 {
             row_sum.sqrt()
@@ -332,8 +331,7 @@ fn minimize_energy(interpolation: &mut Mat<f64>, _matrix: &Mat<f64>) {
             1.0
         };
         for j in 0..cols {
-            let value = interpolation.read(i, j) / norm_factor;
-            interpolation.write(i, j, value);
+            interpolation[(i, j)] /= norm_factor;
         }
     }
 }
@@ -382,14 +380,14 @@ fn compute_strength_matrix(a: &Mat<f64>, threshold: f64) -> Mat<f64> {
     let updates: Vec<(usize, usize, f64)> = (0..n)
         .into_par_iter()
         .flat_map(|i| {
-            let a_ii = a.read(i, i).abs();
+            let a_ii = a[(i, i)].abs();
             (0..n)
                 .filter_map(move |j| {
                     if i == j {
-                        return Some((i, j, 0.0)); // Diagonal entry
+                        return Some((i, j, 0.0));
                     }
-                    let val = a.read(i, j);
-                    let a_jj = a.read(j, j).abs();
+                    let val = a[(i, j)];
+                    let a_jj = a[(j, j)].abs();
                     if a_ii > 1e-14 && a_jj > 1e-14 {
                         let strength = (val.abs() / (a_ii * a_jj).sqrt()) as f64;
                         if strength > threshold {
@@ -403,11 +401,12 @@ fn compute_strength_matrix(a: &Mat<f64>, threshold: f64) -> Mat<f64> {
         .collect();
 
     for (i, j, value) in updates {
-        s.write(i, j, value);
+        s[(i, j)] = value;
     }
 
     s
 }
+
 
 
 /// Perform double-pairwise aggregation:
@@ -436,17 +435,15 @@ fn greedy_aggregation(s: &Mat<f64>) -> Vec<usize> {
 
     for i in 0..n {
         if aggregates[i] == usize::MAX {
-            // Find strongest neighbor j
             let mut max_strength = 0.0;
-            let mut strongest = i; // if no stronger neighbor found, the node stands alone
+            let mut strongest = i;
             for j in 0..n {
-                let strength = s.read(i, j);
+                let strength = s[(i, j)];
                 if strength > max_strength && aggregates[j] == usize::MAX && i != j {
                     max_strength = strength;
                     strongest = j;
                 }
             }
-            // Assign both i and j to the same aggregate
             aggregates[i] = next_agg_id;
             if strongest != i {
                 aggregates[strongest] = next_agg_id;
@@ -475,7 +472,7 @@ fn pairwise_aggregation(s: &Mat<f64>) -> Vec<usize> {
         let mut strongest_neighbor = None;
         for j in 0..n {
             if i != j && !visited[j] {
-                let strength = s.read(i, j);
+                let strength = s[(i, j)];
                 if strength > max_strength {
                     max_strength = strength;
                     strongest_neighbor = Some(j);
@@ -509,16 +506,13 @@ fn build_coarse_graph(s: &Mat<f64>, aggregates: &[usize]) -> Mat<f64> {
     let coarse_n = max_agg_id + 1;
     let mut coarse_mat = Mat::<f64>::zeros(coarse_n, coarse_n);
 
-    // Accumulate strengths into coarse matrix
     for (fine_node_i, &agg_i) in aggregates.iter().enumerate() {
         for fine_node_j in 0..s.ncols() {
             let agg_j = aggregates[fine_node_j];
             if agg_j < usize::MAX {
-                let val = s.read(fine_node_i, fine_node_j);
+                let val = s[(fine_node_i, fine_node_j)];
                 if val != 0.0 {
-                    // Accumulate connection strength between aggregates
-                    let old_val = coarse_mat.read(agg_i, agg_j);
-                    coarse_mat.write(agg_i, agg_j, old_val + val);
+                    coarse_mat[(agg_i, agg_j)] += val;
                 }
             }
         }
@@ -551,13 +545,13 @@ fn construct_prolongation(a: &Mat<f64>, aggregates: &[usize]) -> Mat<f64> {
 
     for i in 0..n {
         let agg_id = aggregates[i];
-        p.write(i, agg_id, 1.0);
+        p[(i, agg_id)] = 1.0;
     }
 
     p
 }
 
-// Convert a &dyn Matrix into a Mat<f64>
+/// Trait to convert a `&dyn Matrix` to `Mat<f64>`.
 trait ToMat {
     fn to_mat(&self) -> Mat<f64>;
 }
@@ -569,7 +563,7 @@ impl<'a> ToMat for dyn Matrix<Scalar = f64> + 'a {
         let mut m = Mat::<f64>::zeros(rows, cols);
         for i in 0..rows {
             for j in 0..cols {
-                m.write(i, j, self.get(i, j));
+                m[(i, j)] = self.get(i, j);
             }
         }
         m

@@ -7,7 +7,7 @@ pub mod amg;
 pub use jacobi::Jacobi;
 pub use lu::LU;
 pub use ilu::ILU;
-pub use cholesky::CholeskyPreconditioner;
+// pub use cholesky::CholeskyPreconditioner;
 pub use amg::AMG;
 
 use crate::linalg::{Matrix, Vector};
@@ -40,7 +40,7 @@ impl PreconditionerFactory {
         Arc::new(ILU::new(matrix))
     }
 
-    /// Creates a `CholeskyPreconditioner` wrapped in `Arc` from a provided matrix.
+/*     /// Creates a `CholeskyPreconditioner` wrapped in `Arc` from a provided matrix.
     ///
     /// # Arguments
     /// - `matrix`: The symmetric positive definite matrix to use for Cholesky decomposition.
@@ -50,7 +50,7 @@ impl PreconditionerFactory {
     pub fn create_cholesky(matrix: &Mat<f64>) -> Result<Arc<dyn Preconditioner>, Box<dyn std::error::Error>> {
         let preconditioner = CholeskyPreconditioner::new(matrix)?;
         Ok(Arc::new(preconditioner))
-    }
+    } */
 
     /// Creates an `LU` preconditioner wrapped in `Arc` from a provided matrix.
     ///

@@ -33,11 +33,11 @@ fn test_cg_solver_no_preconditioner() {
     assert!(result.residual_norm <= TOLERANCE, "Residual norm too large.");
     for i in 0..x.nrows() {
         assert!(
-            (x.read(i, 0) - expected_x.read(i, 0)).abs() < TOLERANCE,
+            (x[(i, 0)] - expected_x[(i, 0)]).abs() < TOLERANCE,
             "x[{}] = {}, expected {}",
             i,
-            x.read(i, 0),
-            expected_x.read(i, 0)
+            x[(i, 0)],
+            expected_x[(i, 0)]
         );
     }
 }

@@ -47,9 +47,9 @@ impl MixedBC {
         delta: f64,
     ) {
         // Apply the gamma factor to the matrix at the diagonal index
-        matrix.write(index, index, matrix.read(index, index) + gamma);
+        matrix[(index, index)] += gamma;
         // Modify the RHS with the delta value at the specific index
-        rhs.write(index, 0, rhs.read(index, 0) + delta);
+        rhs[(index, 0)] += delta;
     }
 
     /// Applies all Mixed boundary conditions within the handler to the system.
@@ -99,6 +99,7 @@ impl BoundaryConditionApply for MixedBC {
         self.apply_bc(matrix, rhs, entity_to_index, time);
     }
 }
+
 
 #[cfg(test)]
 mod tests {

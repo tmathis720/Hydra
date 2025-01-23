@@ -54,25 +54,22 @@ impl InletOutletBC {
     pub fn apply_dirichlet(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, index: usize, value: f64) {
         // Set all entries in the row to zero and set diagonal to 1
         for col in 0..matrix.ncols() {
-            matrix.write(index, col, 0.0);
+            matrix[(index, col)] = 0.0;
         }
-        matrix.write(index, index, 1.0);
+        matrix[(index, index)] = 1.0;
         // Set RHS to the prescribed value
-        rhs.write(index, 0, value);
+        rhs[(index, 0)] = value;
     }
 
     /// Applies Neumann boundary condition for outlet
     pub fn apply_neumann(&self, rhs: &mut MatMut<f64>, index: usize, flux: f64) {
-        let current_value = rhs.read(index, 0);
-        rhs.write(index, 0, current_value + flux);
+        rhs[(index, 0)] += flux;
     }
 
     /// Applies Robin boundary condition (generalized inflow/outflow)
     pub fn apply_robin(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, index: usize, alpha: f64, beta: f64) {
-        let diag_value = matrix.read(index, index) + alpha;
-        matrix.write(index, index, diag_value);
-        let rhs_value = rhs.read(index, 0) + beta;
-        rhs.write(index, 0, rhs_value);
+        matrix[(index, index)] += alpha;
+        rhs[(index, 0)] += beta;
     }
 }
 
@@ -88,6 +85,7 @@ impl BoundaryConditionApply for InletOutletBC {
         self.apply_bc(matrix, rhs, entity_to_index);
     }
 }
+
 
 #[cfg(test)]
 mod tests {

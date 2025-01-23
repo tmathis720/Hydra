@@ -26,25 +26,25 @@ impl ILU {
     /// Returns an `ILU` instance with L and U matrices approximating A.
     pub fn new(matrix: &Mat<f64>) -> Self {
         let n = matrix.nrows();
-        let mut l = Mat::identity(n,n);
+        let mut l = Mat::identity(n, n);
         let mut u = matrix.clone();
 
         // Perform ILU decomposition while preserving sparsity
         for i in 0..n {
-            for j in (i+1)..n {
-                if matrix.read(j, i) != 0.0 {
+            for j in (i + 1)..n {
+                if matrix[(j, i)] != 0.0 {
                     // Calculate L[j, i] as the scaling factor
-                    let factor = u.read(j, i) / u.read(i, i);
-                    l.write(j, i, factor);
+                    let factor = u[(j, i)] / u[(i, i)];
+                    l[(j, i)] = factor;
 
                     // Update U row j based on the factor, preserving sparsity
                     for k in i..n {
-                        let new_value = u.read(j, k) - factor * u.read(i, k);
-                        if new_value.abs() > 1e-10 { // Keep sparsity by discarding small values
-                            u.write(j, k, new_value);
+                        let new_value = u[(j, k)] - factor * u[(i, k)];
+                        u[(j, k)] = if new_value.abs() > 1e-10 {
+                            new_value
                         } else {
-                            u.write(j, k, 0.0); // Set small values to zero
-                        }
+                            0.0 // Set small values to zero
+                        };
                     }
                 }
             }
@@ -65,18 +65,18 @@ impl ILU {
         for i in 0..n {
             let mut sum = rhs[i];
             for j in 0..i {
-                sum -= self.l.read(i, j) * y[j];
+                sum -= self.l[(i, j)] * y[j];
             }
-            y[i] = sum / self.l.read(i, i);
+            y[i] = sum / self.l[(i, i)];
         }
 
         // Backward substitution: solve U * x = y
         for i in (0..n).rev() {
             let mut sum = y[i];
-            for j in (i+1)..n {
-                sum -= self.u.read(i, j) * solution[j];
+            for j in (i + 1)..n {
+                sum -= self.u[(i, j)] * solution[j];
             }
-            solution[i] = sum / self.u.read(i, i);
+            solution[i] = sum / self.u[(i, i)];
         }
     }
 }
@@ -93,6 +93,7 @@ impl Preconditioner for ILU {
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {

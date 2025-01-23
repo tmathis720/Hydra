@@ -56,8 +56,8 @@ impl RobinBC {
         alpha: f64,
         beta: f64,
     ) {
-        matrix.write(index, index, matrix.read(index, index) + alpha);
-        rhs.write(index, 0, rhs.read(index, 0) + beta);
+        matrix[(index, index)] += alpha;
+        rhs[(index, 0)] += beta;
     }
 }
 

@@ -45,7 +45,7 @@ mod tests {
         assert_eq!(matrix.ncols(), cols, "Matrix column count should match specified cols.");
         for i in 0..rows {
             for j in 0..cols {
-                assert_eq!(matrix.read(i, j), 0.0, "Matrix should be initialized to zero.");
+                assert_eq!(matrix[(i, j)], 0.0, "Matrix should be initialized to zero.");
             }
         }
     }
@@ -59,7 +59,7 @@ mod tests {
         for i in 0..matrix.nrows() {
             for j in 0..matrix.ncols() {
                 assert_eq!(
-                    matrix.read(i, j),
+                    matrix[(i, j)],
                     init_value,
                     "Each matrix element should be initialized to the specified value."
                 );
@@ -70,15 +70,15 @@ mod tests {
     #[test]
     fn test_resize_matrix() {
         let mut matrix = MatrixConstruction::build_zero_matrix(2, 2);
-        matrix.write(0, 0, 1.0);
-        matrix.write(1, 1, 2.0);
+        matrix[(0, 0)] = 1.0;
+        matrix[(1, 1)] = 2.0;
         
         MatrixConstruction::resize_matrix(&mut matrix, 3, 3);
 
         assert_eq!(matrix.nrows(), 3, "Matrix should have 3 rows after resizing.");
         assert_eq!(matrix.ncols(), 3, "Matrix should have 3 columns after resizing.");
-        assert_eq!(matrix.read(0, 0), 1.0, "Original data should be preserved.");
-        assert_eq!(matrix.read(1, 1), 2.0, "Original data should be preserved.");
-        assert_eq!(matrix.read(2, 2), 0.0, "New elements should be initialized to zero.");
+        assert_eq!(matrix[(0, 0)], 1.0, "Original data should be preserved.");
+        assert_eq!(matrix[(1, 1)], 2.0, "Original data should be preserved.");
+        assert_eq!(matrix[(2, 2)], 0.0, "New elements should be initialized to zero.");
     }
 }

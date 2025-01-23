@@ -44,7 +44,7 @@ mod tests {
         assert_eq!(vector.nrows(), size);
         assert_eq!(vector.ncols(), 1);
         for i in 0..size {
-            assert_eq!(vector.read(i, 0), 0.0);
+            assert_eq!(vector[(i, 0)], 0.0);
         }
     }
 

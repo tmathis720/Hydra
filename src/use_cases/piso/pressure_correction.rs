@@ -88,11 +88,11 @@ fn assemble_pressure_poisson(
         for neighbor in mesh.get_ordered_neighbors(&cell) {
             let neighbor_id = neighbor.get_id();
             let coefficient = compute_pressure_coefficient(mesh, fields, &cell, &neighbor)?;
-            matrix.write(cell_id, neighbor_id, coefficient); // Update the off-diagonal entry
+            matrix[(cell_id, neighbor_id)] = coefficient; // Update the off-diagonal entry
         }
 
         let diagonal_coefficient = compute_pressure_diagonal_coefficient(mesh, fields, &cell)?;
-        matrix.write(cell_id, cell_id, diagonal_coefficient); // Update the diagonal entry
+        matrix[(cell_id, cell_id)] = diagonal_coefficient; // Update the diagonal entry
     }
 
     // Apply boundary conditions
@@ -199,7 +199,7 @@ fn compute_residual(
     // Perform the matrix-vector multiplication
     for i in 0..matrix.nrows() {
         lhs_vec[i] = (0..matrix.ncols())
-            .map(|j| matrix.read(i, j) * pressure_vec[j])
+            .map(|j| matrix[(i, j)] * pressure_vec[j])
             .sum::<f64>();
     }
 

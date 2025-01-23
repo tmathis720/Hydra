@@ -127,7 +127,7 @@ mod simple_tests {
             mmio::read_matrix_market(matrix_file).expect("Failed to read matrix file");
         let mut dense_matrix = faer::mat::Mat::zeros(rows, cols);
         for ((&row, &col), &value) in row_indices.iter().zip(&col_indices).zip(&values) {
-            dense_matrix.write(row, col, value);
+            dense_matrix[(row, col)] = value;
         }
         let preconditioner_factory: Box<dyn Fn() -> Arc<dyn Preconditioner>> =
             Box::new(move || PreconditionerFactory::create_ilu(&dense_matrix));
@@ -261,7 +261,7 @@ mod options_tests {
             mmio::read_matrix_market(AMG_MATRIX_FILE).expect("Failed to read matrix file");
         let mut dense_matrix = Mat::zeros(rows, cols);
         for ((&row, &col), &value) in row_indices.iter().zip(&col_indices).zip(&values) {
-            dense_matrix.write(row, col, value);
+            dense_matrix[(row, col)] = value;
         }
 
         // Create an AMG preconditioner factory

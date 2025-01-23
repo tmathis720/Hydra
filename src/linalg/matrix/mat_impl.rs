@@ -18,7 +18,7 @@ impl Matrix for Mat<f64> {
         let min_dim = usize::min(self.nrows(), self.ncols());
         let mut trace_sum = 0.0;
         for i in 0..min_dim {
-            trace_sum += self.read(i, i);
+            trace_sum += self[(i, i)];
         }
         trace_sum
     }
@@ -27,7 +27,7 @@ impl Matrix for Mat<f64> {
         let mut sum_sq = 0.0;
         for i in 0..self.nrows() {
             for j in 0..self.ncols() {
-                let val = self.read(i, j);
+                let val = self[(i, j)];
                 sum_sq += val * val;
             }
         }
@@ -40,7 +40,7 @@ impl Matrix for Mat<f64> {
         let ncols = self.ncols();
         for i in 0..nrows {
             for j in 0..ncols {
-                data.push(self.as_ref()[(i, j)]);
+                data.push(self[(i, j)]);
             }
         }
         data.into_boxed_slice()
@@ -52,7 +52,7 @@ impl Matrix for Mat<f64> {
         let ncols = self.ncols();
         for i in 0..nrows {
             for j in 0..ncols {
-                data.push(self.as_mut()[(i, j)]);
+                data.push(self[(i, j)]);
             }
         }
         data.into_boxed_slice()
@@ -67,7 +67,7 @@ impl Matrix for Mat<f64> {
         for i in 0..nrows {
             let mut sum = 0.0;
             for j in 0..ncols {
-                sum += self.read(i, j) * x.get(j);
+                sum += self[(i, j)] * x.get(j);
             }
             y.set(i, sum);
         }
@@ -75,7 +75,7 @@ impl Matrix for Mat<f64> {
 
     fn get(&self, i: usize, j: usize) -> Self::Scalar {
         // Safely fetches the element at (i, j)
-        self.read(i, j)
+        self[(i, j)]
     }
 }
 
@@ -91,14 +91,11 @@ impl MatrixOperations for Mat<f64> {
 
     fn set(&mut self, row: usize, col: usize, value: f64) {
         // Set the element at (row, col) to value
-        self.write(row, col, value);
+        self[(row, col)] = value;
     }
 
     fn get(&self, row: usize, col: usize) -> f64 {
         // Fetches the element at (row, col)
-        self.read(row, col)
+        self[(row, col)]
     }
-    
 }
-
-

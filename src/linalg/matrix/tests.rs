@@ -15,7 +15,7 @@ mod tests {
 
         for (i, row) in data.iter().enumerate() {
             for (j, &val) in row.iter().enumerate() {
-                mat.write(i, j, val);
+                mat[(i, j)] = val;
             }
         }
 
@@ -29,7 +29,7 @@ mod tests {
         let mut mat = Mat::zeros(nrows, ncols);
 
         for (i, &val) in data.iter().enumerate() {
-            mat.write(i, 0, val);
+            mat[(i, 0)] = val;
         }
 
         mat
@@ -518,10 +518,10 @@ mod tests {
         let mut matrix = Mat::<f64>::zeros(2, 2);
     
         // Write values safely into the matrix
-        matrix.write(0, 0, 1.0);  // Ensure proper error handling with unwrap
-        matrix.write(0, 1, 2.0);  // Each write must be checked
-        matrix.write(1, 0, 3.0);
-        matrix.write(1, 1, 4.0);
+        matrix[(0, 0)] = 1.0;
+        matrix[(0, 1)] = 2.0;
+        matrix[(1, 0)] = 3.0;
+        matrix[(1, 1)] = 4.0;
     
         // Expected slice in row-major order: [1.0, 2.0, 3.0, 4.0]
         let expected_slice: Box<[f64]> = Box::new([1.0, 2.0, 3.0, 4.0]);

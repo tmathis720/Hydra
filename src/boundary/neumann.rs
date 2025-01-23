@@ -51,7 +51,7 @@ impl NeumannBC {
 
     /// Applies a constant Neumann boundary condition to the right-hand side (RHS) for a specific index.
     pub fn apply_constant_neumann(&self, rhs: &mut MatMut<f64>, index: usize, value: f64) {
-        rhs.write(index, 0, rhs.read(index, 0) + value);
+        rhs[(index, 0)] = rhs[(index, 0)] + value;
     }
 
     /// Retrieves the coordinates of the mesh entity (placeholder for real coordinates).

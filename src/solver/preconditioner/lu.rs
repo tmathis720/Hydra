@@ -9,10 +9,10 @@
 //! using partial pivoting. It then provides an efficient method to apply the preconditioner
 //! to a given right-hand side vector, solving for the preconditioned solution.
 
-use faer::{solvers::PartialPivLu, mat::Mat};
-use faer::solvers::SpSolver;
+use faer::{linalg::solvers::PartialPivLu, mat::Mat};
 use crate::linalg::{Matrix, Vector};
 use crate::solver::preconditioner::Preconditioner;
+use faer::linalg::solvers::Solve;
 
 /// LU preconditioner struct that holds the LU decomposition of a matrix.
 ///

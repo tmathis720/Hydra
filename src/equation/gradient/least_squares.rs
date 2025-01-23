@@ -1,4 +1,3 @@
-
 use crate::{boundary::bc_handler::BoundaryConditionHandler, 
     domain::section::scalar::Scalar, 
     solver::preconditioner::PreconditionerFactory, 
@@ -70,19 +69,19 @@ fn solve_least_squares(
     let mut a_matrix = crate::linalg::matrix::matrix_builder::MatrixBuilder::build_dense_matrix(3, 3);
     for i in 0..3 {
         for j in 0..3 {
-            a_matrix.write(i, j, a[i][j]);
+            a_matrix[(i, j)] = a[i][j];
         }
     }
 
     // Add regularization to make the matrix non-singular
     for i in 0..3 {
-        a_matrix.write(i, i, a_matrix.read(i, i) + 1e-8);
+        a_matrix[(i, i)] += 1e-8;
     }
 
     // Build the right-hand side vector
     let mut b_vector = crate::linalg::vector::vector_builder::VectorBuilder::build_dense_vector(3);
     for i in 0..3 {
-        b_vector.write(i, 0, b[i]);
+        b_vector[(i, 0)] = b[i];
     }
 
     // Create LU preconditioner
@@ -96,15 +95,13 @@ fn solve_least_squares(
 
     // Extract solution as a Rust array
     let solution = [
-        solution_vector.read(0, 0),
-        solution_vector.read(1, 0),
-        solution_vector.read(2, 0),
+        solution_vector[(0, 0)],
+        solution_vector[(1, 0)],
+        solution_vector[(2, 0)],
     ];
 
     Ok(solution)
 }
-
-
 
 #[cfg(test)]
 mod tests {
