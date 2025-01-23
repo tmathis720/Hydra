@@ -2,11 +2,13 @@
 //!
 //! This adds the `SolverManager` for high-level integration of solvers and preconditioners.
 
+use faer::Mat;
+
 use crate::linalg::{Matrix, Vector};
 use crate::solver::preconditioner::Preconditioner;
 use std::sync::Arc;
 
-use super::{GMRES, ConjugateGradient};
+use super::{ConjugateGradient, DirectLUSolver, GMRES};
 
 #[derive(Debug)]
 pub struct SolverResult {
@@ -96,12 +98,14 @@ impl SolverManager {
 pub enum SolverType {
     ConjugateGradient,
     GMRES,
+    DirectLU,
 }
 
 pub fn create_solver(solver_type: SolverType, max_iter: usize, tol: f64, restart: usize) -> Box<dyn KSP> {
     match solver_type {
         SolverType::ConjugateGradient => Box::new(ConjugateGradient::new(max_iter, tol)),
         SolverType::GMRES => Box::new(GMRES::new(max_iter, tol, restart)),
+        SolverType::DirectLU => Box::new(DirectLUSolver::new(&Mat::<f64>::zeros(1, 1))),
     }
 }
 
@@ -144,4 +148,30 @@ mod tests {
             "Solution contains NaN values"
         );
     }
+
+    #[test]
+    fn test_direct_lu_solver() {
+        use crate::solver::ksp::KSP;
+        use faer::mat;
+
+        let a = mat![
+            [4.0, 1.0],
+            [1.0, 3.0],
+        ];
+        let b = mat![
+            [1.0],
+            [2.0],
+        ];
+        let mut x = Mat::<f64>::zeros(2, 1);
+
+        let mut direct_solver = DirectLUSolver::new(&a);
+        let result = direct_solver.solve(&a, &b, &mut x);
+
+        println!("DirectLU Solver Result: {:?}", result);
+        println!("Computed Solution x: {:?}", x);
+
+        assert!(result.converged, "DirectLU solver did not converge.");
+        assert_eq!(result.iterations, 1, "DirectLU solver should converge in one iteration.");
+    }
+
 }
