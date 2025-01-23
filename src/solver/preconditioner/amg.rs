@@ -116,19 +116,11 @@ impl AMG {
     fn extract_diagonal_inverse(m: &Mat<f64>) -> Vec<f64> {
         assert_eq!(m.nrows(), m.ncols(), "Matrix must be square for diag_inv extraction");
         let n = m.nrows();
-<<<<<<< HEAD
-        let mut diag_inv = vec![0.0; n];
-        for i in 0..n {
-            let d = m[(i, i)];
-            diag_inv[i] = if d.abs() < 1e-14 { 0.0 } else { 1.0 / d };
-        }
-        diag_inv
-=======
     
         (0..n)
             .into_par_iter() // Parallel iterator
             .map(|i| {
-                let d = m.read(i, i);
+                let d = m[(i, i)];
                 if d.abs() < 1e-14 {
                     0.0
                 } else {
@@ -136,7 +128,6 @@ impl AMG {
                 }
             })
             .collect()
->>>>>>> 6e12a9f265287043d52e378686f96f25015b3cae
     }
 
     // Original Jacobi smoother (single-threaded)
@@ -326,30 +317,20 @@ impl Preconditioner for AMG {
 /// Anisotropy is defined as the ratio max_off_diag/diag.
 fn compute_anisotropy(a: &Mat<f64>) -> Vec<f64> {
     let n = a.nrows();
-<<<<<<< HEAD
-    let mut anisotropy = vec![0.0; n];
-    for i in 0..n {
-        let diag = a[(i, i)];
-        let mut max_off_diag: f64 = 0.0;
-        for j in 0..n {
-            if i != j {
-                max_off_diag = max_off_diag.max(a[(i, j)].abs());
-=======
 
     (0..n)
         .into_par_iter() // Parallel iterator
         .map(|i| {
-            let diag = a.read(i, i);
+            let diag = a[(i, i)];
             let max_off_diag = (0..n)
                 .filter(|&j| i != j) // Exclude the diagonal element
-                .map(|j| a.read(i, j).abs()) // Compute absolute value of off-diagonal elements
+                .map(|j| a[(i, j)].abs()) // Compute absolute value of off-diagonal elements
                 .fold(0.0, f64::max); // Find the maximum off-diagonal element
 
             if diag.abs() > 1e-14 {
                 max_off_diag / diag.abs()
             } else {
                 0.0
->>>>>>> 6e12a9f265287043d52e378686f96f25015b3cae
             }
         })
         .collect()
@@ -368,52 +349,26 @@ fn compute_adaptive_threshold(a: &Mat<f64>, base_threshold: f64) -> f64 {
 
 /// Smooth the interpolation matrix to improve prolongation accuracy.
 fn smooth_interpolation(interpolation: &mut Mat<f64>, matrix: &Mat<f64>, weight: f64) {
-    let _rows = interpolation.nrows();
-    let cols = interpolation.ncols();
-<<<<<<< HEAD
-    for i in 0..rows {
-        for j in 0..cols {
-            let value = interpolation[(i, j)];
-            let smoothed_value = value - weight * matrix[(i, j)];
-            interpolation[(i, j)] = smoothed_value;
-        }
-    }
-=======
+    let row_count = interpolation.nrows().min(matrix.nrows());
+    let col_count = interpolation.ncols().min(matrix.ncols());
 
-    interpolation
-        .as_mut_slice()
-        .par_chunks_mut(cols) // Parallelize by rows
-        .enumerate()
-        .for_each(|(i, interp_row)| {
-            if let Some(matrix_row) = matrix.row(i).try_as_slice() {
-                for j in 0..cols {
-                    interp_row[j] -= weight * matrix_row[j];
-                }
-            }
-        });
->>>>>>> 6e12a9f265287043d52e378686f96f25015b3cae
+    let interpolation = Arc::new(Mutex::new(interpolation));
+    (0..col_count).into_par_iter().for_each(|j| {
+        for i in 0..row_count {
+            let mut interpolation = interpolation.lock().unwrap();
+            let old_val = interpolation[(i, j)];
+            let diff = weight * matrix[(i, j)];
+            interpolation[(i, j)] = old_val - diff;
+        }
+    });
+    let _interpolation = Arc::try_unwrap(interpolation).expect("Failed to unwrap Arc").into_inner().unwrap();
 }
+
 
 /// Normalize rows of the interpolation matrix to minimize energy.
 fn minimize_energy(interpolation: &mut Mat<f64>, _matrix: &Mat<f64>) {
     let _rows = interpolation.nrows();
     let cols = interpolation.ncols();
-<<<<<<< HEAD
-    for i in 0..rows {
-        let mut row_sum = 0.0;
-        for j in 0..cols {
-            row_sum += interpolation[(i, j)].powi(2);
-        }
-        let norm_factor = if row_sum.abs() > 1e-14 {
-            row_sum.sqrt()
-        } else {
-            1.0
-        };
-        for j in 0..cols {
-            interpolation[(i, j)] /= norm_factor;
-        }
-    }
-=======
 
     interpolation
         .as_mut_slice()
@@ -428,7 +383,6 @@ fn minimize_energy(interpolation: &mut Mat<f64>, _matrix: &Mat<f64>) {
 
             row.iter_mut().for_each(|val| *val /= norm_factor);
         });
->>>>>>> 6e12a9f265287043d52e378686f96f25015b3cae
 }
 
 /// Parallel mat-vec multiplication using rayon.
@@ -528,7 +482,6 @@ fn greedy_aggregation(s: &Mat<f64>) -> Vec<usize> {
     let mut aggregates = vec![usize::MAX; n];
     let mut next_agg_id = 0;
 
-<<<<<<< HEAD
     for i in 0..n {
         if aggregates[i] == usize::MAX {
             let mut max_strength = 0.0;
@@ -536,38 +489,10 @@ fn greedy_aggregation(s: &Mat<f64>) -> Vec<usize> {
             for j in 0..n {
                 let strength = s[(i, j)];
                 if strength > max_strength && aggregates[j] == usize::MAX && i != j {
-=======
-    // Use a thread-safe container for the strongest neighbors
-    let strongest_neighbors = Arc::new(Mutex::new(vec![None; n]));
-
-    // Identify the strongest neighbor for each node in parallel
-    (0..n).into_par_iter().for_each(|i| {
-        let mut max_strength = 0.0;
-        let mut strongest = None;
-
-        for j in 0..n {
-            if i != j && aggregates[j] == usize::MAX {
-                let strength = s.read(i, j);
-                if strength > max_strength {
->>>>>>> 6e12a9f265287043d52e378686f96f25015b3cae
                     max_strength = strength;
-                    strongest = Some(j);
+                    strongest = j;
                 }
             }
-<<<<<<< HEAD
-=======
-        }
-
-        // Safely update the strongest_neighbors vector
-        let mut strongest_neighbors_lock = strongest_neighbors.lock().unwrap();
-        strongest_neighbors_lock[i] = strongest;
-    });
-
-    // Assign aggregates sequentially
-    for i in 0..n {
-        if aggregates[i] == usize::MAX {
-            let strongest = strongest_neighbors.lock().unwrap()[i].unwrap_or(i);
->>>>>>> 6e12a9f265287043d52e378686f96f25015b3cae
             aggregates[i] = next_agg_id;
             if strongest != i {
                 aggregates[strongest] = next_agg_id;
@@ -630,15 +555,6 @@ fn build_coarse_graph(s: &Mat<f64>, aggregates: &[usize]) -> Mat<f64> {
     let coarse_n = max_agg_id + 1;
     let mut coarse_mat = Mat::<f64>::zeros(coarse_n, coarse_n);
 
-<<<<<<< HEAD
-    for (fine_node_i, &agg_i) in aggregates.iter().enumerate() {
-        for fine_node_j in 0..s.ncols() {
-            let agg_j = aggregates[fine_node_j];
-            if agg_j < usize::MAX {
-                let val = s[(fine_node_i, fine_node_j)];
-                if val != 0.0 {
-                    coarse_mat[(agg_i, agg_j)] += val;
-=======
     coarse_mat
         .as_mut_slice()
         .par_chunks_mut(coarse_n)
@@ -647,13 +563,12 @@ fn build_coarse_graph(s: &Mat<f64>, aggregates: &[usize]) -> Mat<f64> {
             for fine_node_j in 0..s.ncols() {
                 let agg_j = aggregates[fine_node_j];
                 if agg_j < usize::MAX {
-                    let val = s.read(fine_node_i, fine_node_j);
+                    let val = s[(fine_node_i, fine_node_j)];
                     if val != 0.0 {
                         // Use atomic addition or a parallel-safe method
                         let old_val = row[agg_j];
                         row[agg_j] = old_val + val;
                     }
->>>>>>> 6e12a9f265287043d52e378686f96f25015b3cae
                 }
             }
         });
@@ -680,20 +595,13 @@ fn construct_prolongation(a: &Mat<f64>, aggregates: &[usize]) -> Mat<f64> {
 
     let p = Arc::new(Mutex::new(Mat::<f64>::zeros(n, coarse_n)));
 
-<<<<<<< HEAD
-    for i in 0..n {
-        let agg_id = aggregates[i];
-        p[(i, agg_id)] = 1.0;
-    }
-=======
     // Use parallel iterator to populate the matrix
     aggregates.par_iter().enumerate().for_each(|(i, &agg_id)| {
         let mut p = p.lock().unwrap();
-        p.write(i, agg_id, 1.0);
+        p[(i, agg_id)] = 1.0;
     });
 
     let p = Arc::try_unwrap(p).expect("Failed to unwrap Arc").into_inner().unwrap();
->>>>>>> 6e12a9f265287043d52e378686f96f25015b3cae
 
     p
 }
@@ -771,5 +679,63 @@ mod tests {
         }
         let residual_norm = residual.iter().map(|&x| x * x).sum::<f64>().sqrt();
         assert!(residual_norm < 1.0, "Residual norm too high: {}", residual_norm);
+    }
+
+    #[test]
+    fn test_smooth_interpolation_basic() {
+        // Input matrices
+        let mut interpolation = mat![
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [7.0, 8.0, 9.0]
+        ];
+        let matrix = mat![
+            [0.5, 0.5, 0.5],
+            [1.0, 1.0, 1.0],
+            [1.5, 1.5, 1.5]
+        ];
+        let weight = 0.5;
+
+        // Apply the function
+        smooth_interpolation(&mut interpolation, &matrix, weight);
+
+        // Expected result
+        let expected = mat![
+            [0.75, 1.75, 2.75],
+            [3.5, 4.5, 5.5],
+            [6.25, 7.25, 8.25]
+        ];
+
+        // Assertions
+        assert_eq!(interpolation, expected);
+    }
+
+    #[test]
+    fn test_smooth_interpolation_partial_overlap() {
+        // Matrix has fewer columns than interpolation
+        let mut interpolation = mat![
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0]
+        ];
+        let matrix = mat![
+            [0.5, 0.5],
+            [1.0, 1.0],
+            [1.5, 1.5]
+        ];
+        let weight = 1.0;
+
+        // Apply the function
+        smooth_interpolation(&mut interpolation, &matrix, weight);
+
+        // Expected result
+        let expected = mat![
+            [0.5, 1.5, 3.0, 4.0],
+            [4.0, 5.0, 7.0, 8.0],
+            [7.5, 8.5, 11.0, 12.0]
+        ];
+
+        // Assertions
+        assert_eq!(interpolation, expected);
     }
 }
