@@ -22,6 +22,10 @@ pub trait TimeDependentProblem {
 
     fn get_matrix(&self) -> Option<Box<dyn Matrix<Scalar = f64>>>;
 
+    fn get_sub_iteration_config(&self) -> Option<usize> {
+        None
+    }
+
     fn solve_linear_system(
         &self,
         matrix: &mut dyn Matrix<Scalar = f64>,
@@ -91,6 +95,48 @@ where
             solver_manager: SolverManager::new(solver),
         }
     }
+
+        /// Performs sub-iterations for specialized time-stepping methods (e.g., PISO).
+    ///
+    /// # Parameters
+    /// - `problem`: The governing equations to solve.
+    /// - `state`: The current state of the system.
+    /// - `max_iterations`: Maximum number of sub-iterations allowed.
+    /// - `tolerance`: Convergence tolerance for sub-iterations.
+    pub fn sub_iterate(
+        &mut self,
+        problem: &P,
+        state: &mut P::State,
+        max_iterations: usize,
+        tolerance: f64,
+    ) -> Result<(), TimeSteppingError> {
+        for iteration in 0..max_iterations {
+            let mut rhs = state.clone();
+            problem.compute_rhs(self.current_time, state, &mut rhs)?;
+
+            let mut matrix = problem.get_matrix()
+                .ok_or_else(|| TimeSteppingError::SolverError("Matrix not provided by problem.".into()))?;
+
+            problem.solve_linear_system(&mut *matrix, state, &rhs)?;
+
+            let residual = state.compute_residual(&rhs);
+            if residual < tolerance {
+                break;
+            }
+
+            if iteration == max_iterations - 1 {
+                return Err(TimeSteppingError::SolverError("Sub-iterations did not converge.".into()));
+            }
+        }
+        Ok(())
+    }
+
+    fn log_progress(&self, iteration: usize, residual: f64) {
+        println!(
+            "[TimeStepper] Iteration: {}, Time: {:.3}, Residual: {:.6}",
+            iteration, self.current_time.into(), residual
+        );
+    }
 }
 
 impl<P> TimeStepper<P> for FixedTimeStepper<P>
@@ -116,6 +162,11 @@ where
         problem.compute_rhs(current_time, state, &mut derivative)?;
 
         state.update_state(&derivative, dt.into());
+
+        // Perform sub-iterations if required by the problem
+        if let Some(max_iterations) = problem.get_sub_iteration_config() {
+            self.sub_iterate(problem, state, max_iterations, 1e-6)?; // Example tolerance
+        }
 
         self.current_time = self.current_time + dt;
 

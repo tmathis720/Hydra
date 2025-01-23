@@ -1,5 +1,5 @@
 use crate::{
-    boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, solver::KSP, time_stepping::{TimeDependentProblem, TimeStepper, TimeSteppingError}, Matrix
+    boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, linalg::matrix::sparse_matrix::SparseMatrix, solver::KSP, time_stepping::{TimeDependentProblem, TimeStepper, TimeSteppingError}, Matrix
 };
 use super::{Fields, Fluxes, PhysicalEquation};
 use std::sync::{Arc, RwLock};
@@ -74,19 +74,21 @@ impl EquationManager {
     ///
     /// # Arguments
     /// - `fields`: The field data to be updated.
-    pub fn step(&mut self, fields: &mut Fields) {
+    pub fn step(&mut self, fields: &mut Fields) -> Result<(), TimeSteppingError> {
         // Replace the current time stepper temporarily to ensure exclusive ownership during the step.
-        let mut time_stepper = std::mem::replace(&mut self.time_stepper, Box::new(NoOpStepper));
+        let mut time_stepper = std::mem::replace(&mut self.time_stepper, 
+            Box::new(NoOpStepper));
         let current_time = time_stepper.current_time();
         let time_step = time_stepper.get_time_step();
 
         // Perform the time-stepping operation.
-        time_stepper
-            .step(self, time_step, current_time, fields)
-            .expect("Time-stepping failed");
+        let result = time_stepper.step(self, time_step, current_time, fields);
+
 
         // Restore the time stepper after the step.
         self.time_stepper = time_stepper;
+
+        result
     }
 }
 
@@ -131,7 +133,7 @@ impl TimeDependentProblem for EquationManager {
 
     /// Returns the system matrix, if applicable (not used in this implementation).
     fn get_matrix(&self) -> Option<Box<dyn Matrix<Scalar = f64>>> {
-        None
+        Some(Box::new(SparseMatrix::new(0, 0)))
     }
 
     /// Solves the linear system, if applicable (not used in this implementation).

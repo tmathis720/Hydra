@@ -10,6 +10,9 @@ pub trait UpdateState {
     /// Updates the state of an object using a derivative and a time step (`dt`).
     fn update_state(&mut self, derivative: &Self, dt: f64);
 
+    /// Compute the L2 nnorm of the residual between the current state and another state.
+    fn compute_residual(&self, rhs: &Self) -> f64;
+
     /// Computes the difference between the current state and another state.
     fn difference(&self, other: &Self) -> Self;
 
@@ -135,6 +138,40 @@ impl UpdateState for Fields {
                 self.vector_fields.insert(key.clone(), new_section);
             }
         }
+
+        
+    }
+
+    fn compute_residual(&self, rhs: &Self) -> f64 {
+        let mut residual = 0.0;
+
+        // Compute residual for scalar fields
+        for (key, values) in &self.scalar_fields {
+            if let Some(rhs_values) = rhs.scalar_fields.get(key) {
+                for entry in values.data.iter() {
+                    if let Some(rhs_val) = rhs_values.data.get(entry.key()) {
+                        let diff = entry.value().0 - rhs_val.0;
+                        residual += diff * diff;
+                    }
+                }
+            }
+        }
+
+        // Compute residual for vector fields
+        for (key, values) in &self.vector_fields {
+            if let Some(rhs_values) = rhs.vector_fields.get(key) {
+                for entry in values.data.iter() {
+                    if let Some(rhs_val) = rhs_values.data.get(entry.key()) {
+                        for i in 0..3 {
+                            let diff = entry.value().0[i] - rhs_val.0[i];
+                            residual += diff * diff;
+                        }
+                    }
+                }
+            }
+        }
+
+        (residual as f64).sqrt()
     }
 
     /// Computes the difference between the current state and another `Fields` instance.

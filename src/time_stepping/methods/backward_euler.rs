@@ -111,6 +111,22 @@ mod tests {
     }
 
     impl crate::equation::fields::UpdateState for MockState {
+        fn compute_residual(&self, rhs: &Self) -> f64 {
+            self.fields
+                .scalar_fields
+                .iter()
+                .map(|(key, section)| {
+                    let rhs_section = rhs.fields.scalar_fields.get(key).unwrap();
+                    section
+                        .all_data()
+                        .iter()
+                        .zip(rhs_section.all_data().iter())
+                        .map(|(s, r)| (s.0 - r.0).abs())
+                        .sum::<f64>()
+                })
+                .sum()
+        }
+        
         fn update_state(&mut self, derivative: &Self, dt: f64) {
             for (key, section) in &derivative.fields.scalar_fields {
                 self.fields.scalar_fields.entry(key.clone()).and_modify(|val| {

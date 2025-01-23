@@ -15,6 +15,9 @@ mod tests {
 
     /// Trait implementation for updating and calculating differences in state
     impl UpdateState for MockState {
+        fn compute_residual(&self, rhs: &Self) -> f64 {
+            (self.value - rhs.value).abs()
+        }
         fn update_state(&mut self, derivative: &Self, dt: f64) {
             self.value += derivative.value * dt;
         }
