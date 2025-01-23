@@ -29,19 +29,37 @@ pub fn predict_velocity(
     momentum_equation: &MomentumEquation,
     time: f64,
 ) -> Result<(), String> {
+    println!("Starting velocity prediction.");
+
     // 1. Assemble momentum fluxes (convective, diffusive, etc.)
+    println!("Calculating momentum fluxes at time: {}", time);
     momentum_equation.calculate_momentum_fluxes(mesh, fields, fluxes, boundary_handler, time);
+    println!("Momentum fluxes computed.");
+
+    // Debugging: Log computed fluxes
+    println!("Momentum fluxes:");
+    for entry in fluxes.momentum_fluxes.data.iter() {
+        let (entity, flux) = entry.pair();
+        println!("Entity {:?}: Flux = {:?}", entity, flux.0);
+    }
 
     // 2. Update the velocity field using the computed fluxes
+    println!("Updating the velocity field using computed fluxes.");
     match fields.vector_fields.get_mut("velocity") {
         Some(velocity_field) => {
             // Update the velocity field based on the computed momentum fluxes
+            println!("Velocity field found. Applying updates.");
             velocity_field.update_with_derivative(&fluxes.momentum_fluxes, 1.0);
+            println!("Velocity field updated successfully.");
             Ok(())
         }
-        None => Err("Velocity field not found in the fields structure.".to_string()),
+        None => {
+            println!("Error: Velocity field not found in the fields structure.");
+            Err("Velocity field not found in the fields structure.".to_string())
+        }
     }
 }
+
 
 #[cfg(test)]
 mod tests {

@@ -32,23 +32,67 @@ pub fn solve_pressure_poisson(
     linear_solver: &mut dyn KSP,
 ) -> Result<PressureCorrectionResult, String> {
     let num_cells = mesh.count_entities(&MeshEntity::Cell(0));
+    println!("Number of cells in the mesh: {}", num_cells);
+
+    // Initialize pressure matrix and RHS
     let mut pressure_matrix = Mat::<f64>::zeros(num_cells, num_cells);
     let mut rhs = Section::<Scalar>::new();
 
-    assemble_pressure_poisson(mesh, fields, fluxes, boundary_handler, &mut pressure_matrix, &mut rhs)?;
+    println!("Starting assembly of pressure Poisson matrix and RHS.");
+    assemble_pressure_poisson(mesh, fields, fluxes, boundary_handler, &mut pressure_matrix, &mut rhs)
+        .map_err(|e| format!("Error in assembling pressure Poisson matrix: {}", e))?;
 
+    // Debugging the assembled matrix
+    println!("Assembled pressure matrix size: {}x{}", pressure_matrix.nrows(), pressure_matrix.ncols());
+    println!("RHS size: {}", rhs.data.len());
+    assert_eq!(
+        pressure_matrix.nrows(),
+        num_cells,
+        "Matrix row count does not match the number of cells."
+    );
+    assert_eq!(
+        pressure_matrix.ncols(),
+        num_cells,
+        "Matrix column count does not match the number of cells."
+    );
+
+    // Initialize pressure correction section
     let mut pressure_correction = Section::<Scalar>::new();
+    println!("Solving the pressure Poisson equation.");
+
     linear_solver
         .solve(&mut pressure_matrix, &mut pressure_correction, &mut rhs)
         .map_err(|e| format!("Pressure Poisson solver failed: {}", e))?;
 
-    update_pressure_field(fields, &pressure_correction)?;
-    correct_velocity_field(mesh, fields, &pressure_correction, boundary_handler)?;
+    // Debugging pressure correction values
+    println!(
+        "Pressure correction computed: {} entries.",
+        pressure_correction.data.len()
+    );
+    for entry in pressure_correction.data.iter() {
+        let entity = entry.key();
+        let value = entry.value();
+        println!("Pressure correction for entity {:?}: {}", entity, value.0);
+    }
 
-    let residual = compute_residual(&mesh, &pressure_matrix, &pressure_correction, &rhs);
+    // Update the pressure field
+    println!("Updating the pressure field with the computed correction.");
+    update_pressure_field(fields, &pressure_correction)
+        .map_err(|e| format!("Error updating pressure field: {}", e))?;
 
+    // Correct the velocity field
+    println!("Correcting the velocity field using the pressure correction.");
+    correct_velocity_field(mesh, fields, &pressure_correction, boundary_handler)
+        .map_err(|e| format!("Error correcting velocity field: {}", e))?;
+
+    // Compute the residual
+    let residual = compute_residual(mesh, &pressure_matrix, &pressure_correction, &rhs);
+    println!("Residual of the pressure Poisson system: {}", residual);
+
+    // Return the result
     Ok(PressureCorrectionResult { residual })
 }
+
 
 /// Assembles the pressure Poisson equation matrix and RHS.
 ///
@@ -71,33 +115,73 @@ fn assemble_pressure_poisson(
     rhs: &mut Section<Scalar>,
 ) -> Result<(), String> {
     let num_cells = mesh.count_entities(&MeshEntity::Cell(0));
+    println!("Number of cells in the mesh: {}", num_cells);
 
     // Ensure the matrix is the correct size
     assert_eq!(matrix.nrows(), num_cells, "Matrix row count mismatch.");
     assert_eq!(matrix.ncols(), num_cells, "Matrix column count mismatch.");
+    println!("Matrix size validated: {}x{}", matrix.nrows(), matrix.ncols());
+
+    // Debugging: Check initial state of RHS
+    println!("Initial RHS size: {}", rhs.data.len());
 
     // Assemble the matrix and RHS
     for cell in mesh.get_cells() {
         let cell_id = cell.get_id();
+        println!("Processing cell ID: {}", cell_id);
+
+        // Calculate divergence
         let divergence = fluxes
             .momentum_fluxes
             .restrict(&cell)
             .map_or(0.0, |flux| flux.magnitude());
+        println!("Divergence for cell {}: {}", cell_id, divergence);
+
         rhs.set_data(cell, Scalar(divergence));
 
+        // Assemble coefficients for neighbors
         for neighbor in mesh.get_ordered_neighbors(&cell) {
             let neighbor_id = neighbor.get_id();
+            println!(
+                "Processing neighbor (cell ID: {}) for cell ID: {}",
+                neighbor_id, cell_id
+            );
+
             let coefficient = compute_pressure_coefficient(mesh, fields, &cell, &neighbor)?;
+            println!(
+                "Coefficient between cell {} and neighbor {}: {}",
+                cell_id, neighbor_id, coefficient
+            );
+
             matrix[(cell_id, neighbor_id)] = coefficient; // Update the off-diagonal entry
         }
 
+        // Assemble diagonal coefficient
         let diagonal_coefficient = compute_pressure_diagonal_coefficient(mesh, fields, &cell)?;
+        println!(
+            "Diagonal coefficient for cell {}: {}",
+            cell_id, diagonal_coefficient
+        );
+
         matrix[(cell_id, cell_id)] = diagonal_coefficient; // Update the diagonal entry
     }
 
+    // Debugging: Check filled matrix
+    println!("Matrix assembly complete.");
+    for i in 0..matrix.nrows() {
+        for j in 0..matrix.ncols() {
+            let value = matrix[(i, j)];
+            if value != 0.0 {
+                println!("Matrix[{}, {}] = {}", i, j, value);
+            }
+        }
+    }
+
     // Apply boundary conditions
+    println!("Applying boundary conditions.");
     let entity_to_index_map = mesh.entity_to_index_map();
     let mut rhs_mut = SectionMatVecAdapter::section_to_matmut(rhs, &entity_to_index_map, num_cells);
+
     boundary_handler.apply_bc(
         &mut matrix.as_mut(),
         &mut rhs_mut.as_mut(),
@@ -105,9 +189,19 @@ fn assemble_pressure_poisson(
         &mesh.entity_to_index_map().into(),
         0.0, // Pass time as needed
     );
+    println!("Boundary conditions applied successfully.");
+
+    // Debugging: Final state of RHS
+    println!("Final RHS values:");
+    for entry in rhs.data.iter() {
+        let entity = entry.key();
+        let value = entry.value();
+        println!("RHS[Entity {:?}] = {}", entity, value.0);
+    }
 
     Ok(())
 }
+
 
 
 
