@@ -6,9 +6,8 @@ pub mod boundary;
 
 use crate::{
     boundary::bc_handler::BoundaryConditionHandler, domain::mesh::Mesh, equation::{
-        fields::{Fields, Fluxes},
-        momentum_equation::MomentumEquation,
-    }, time_stepping::{TimeDependentProblem, TimeStepper}
+        fields::{Fields, Fluxes}, manager::EquationManager, momentum_equation::MomentumEquation
+    }, solver::{ksp::SolverManager, KSP}, time_stepping::{TimeDependentProblem, TimeStepper, TimeSteppingError}
 };
 
 /// Errors specific to the PISO solver.
@@ -147,6 +146,69 @@ where
             .map_err(|e| PISOError::TimeSteppingError(format!("{:?}", e)))?;
 
         Ok(())
+    }
+}
+
+pub struct PISOStepper {
+    current_time: f64,
+    dt: f64,
+    _max_outer_iterations: usize,
+    _tolerance: f64,
+    solver_manager: SolverManager, 
+    // Possibly store other PISO config, e.g. relaxation factors, etc.
+}
+
+impl TimeStepper<EquationManager> for PISOStepper {
+    fn current_time(&self) -> f64 { 
+        self.current_time 
+    }
+
+    fn set_current_time(&mut self, time: f64) {
+        self.current_time = time;
+    }
+
+    fn step(
+        &mut self,
+        _problem: &EquationManager,
+        _dt: f64,
+        _current_time: f64,
+        _fields: &mut Fields,
+    ) -> Result<(), TimeSteppingError> {
+        // 1) Momentum predictor
+        // 2) Pressure correction sub-iteration
+        // 3) Velocity correction
+        // 4) Update time
+        // ...
+        Ok(())
+    }
+
+    // For a PISO stepper, if you have no adaptive stepping,
+    // you can just leave `adaptive_step()` returning an error, etc.
+    fn adaptive_step(
+        &mut self,
+        _problem: &EquationManager,
+        _state: &mut Fields,
+        _tol: f64,
+    ) -> Result<f64, TimeSteppingError> {
+        Err(TimeSteppingError::InvalidStep)
+    }
+
+    fn set_time_interval(&mut self, start_time: f64, _end_time: f64) {
+        // optional
+        self.current_time = start_time;
+        // you might store end_time somewhere if needed
+    }
+
+    fn set_time_step(&mut self, dt: f64) {
+        self.dt = dt;
+    }
+
+    fn get_time_step(&self) -> f64 {
+        self.dt
+    }
+
+    fn get_solver(&mut self) -> &mut dyn KSP {
+        &mut *self.solver_manager.solver
     }
 }
 

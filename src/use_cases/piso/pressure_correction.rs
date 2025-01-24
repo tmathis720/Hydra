@@ -5,7 +5,6 @@ use crate::{
         fields::{Fields, Fluxes},
         gradient::{Gradient, GradientCalculationMethod},
     }, solver::KSP, MeshEntity, Section,
-    interface_adapters::section_matvec_adapter::SectionMatVecAdapter,
 };
 
 /// Results from the pressure correction step.
@@ -110,12 +109,14 @@ fn assemble_pressure_poisson(
     mesh: &Mesh,
     fields: &Fields,
     fluxes: &Fluxes,
-    boundary_handler: &BoundaryConditionHandler,
+    _boundary_handler: &BoundaryConditionHandler,
     matrix: &mut Mat<f64>,
     rhs: &mut Section<Scalar>,
 ) -> Result<(), String> {
     let num_cells = mesh.count_entities(&MeshEntity::Cell(0));
     println!("Number of cells in the mesh: {}", num_cells);
+
+    let entity_to_index_map = mesh.entity_to_index_map();
 
     // Ensure the matrix is the correct size
     assert_eq!(matrix.nrows(), num_cells, "Matrix row count mismatch.");
@@ -125,82 +126,61 @@ fn assemble_pressure_poisson(
     // Debugging: Check initial state of RHS
     println!("Initial RHS size: {}", rhs.data.len());
 
-    // Assemble the matrix and RHS
     for cell in mesh.get_cells() {
-        let cell_id = cell.get_id();
-        println!("Processing cell ID: {}", cell_id);
+        let cell_index = entity_to_index_map
+            .get(&cell)
+            .ok_or_else(|| format!("Cell {:?} not found in entity_to_index_map", cell))?;
+        if *cell_index >= matrix.nrows() {
+            return Err(format!(
+                "Cell index {:?} out of bounds for matrix with {} rows.",
+                cell_index, matrix.nrows()
+            ));
+        }
 
         // Calculate divergence
         let divergence = fluxes
             .momentum_fluxes
             .restrict(&cell)
             .map_or(0.0, |flux| flux.magnitude());
-        println!("Divergence for cell {}: {}", cell_id, divergence);
+        println!("Divergence for cell {:?}: {}", cell, divergence);
 
-        rhs.set_data(cell, Scalar(divergence));
+        rhs.set_data(cell.clone(), Scalar(divergence));
 
         // Assemble coefficients for neighbors
         for neighbor in mesh.get_ordered_neighbors(&cell) {
-            let neighbor_id = neighbor.get_id();
-            println!(
-                "Processing neighbor (cell ID: {}) for cell ID: {}",
-                neighbor_id, cell_id
-            );
+            let neighbor_index = entity_to_index_map
+                .get(&neighbor)
+                .ok_or_else(|| format!("Neighbor {:?} not found in entity_to_index_map", neighbor))?;
+            if *neighbor_index >= matrix.ncols() {
+                return Err(format!(
+                    "Neighbor index {:?} out of bounds for matrix with {} columns.",
+                    neighbor_index, matrix.ncols()
+                ));
+            }
 
             let coefficient = compute_pressure_coefficient(mesh, fields, &cell, &neighbor)?;
             println!(
-                "Coefficient between cell {} and neighbor {}: {}",
-                cell_id, neighbor_id, coefficient
+                "Coefficient between cell {:?} and neighbor {:?}: {}",
+                cell, neighbor, coefficient
             );
 
-            matrix[(cell_id, neighbor_id)] = coefficient; // Update the off-diagonal entry
+            matrix[(*cell_index, *neighbor_index)] = coefficient;
         }
 
         // Assemble diagonal coefficient
         let diagonal_coefficient = compute_pressure_diagonal_coefficient(mesh, fields, &cell)?;
         println!(
-            "Diagonal coefficient for cell {}: {}",
-            cell_id, diagonal_coefficient
+            "Diagonal coefficient for cell {:?}: {}",
+            cell, diagonal_coefficient
         );
 
-        matrix[(cell_id, cell_id)] = diagonal_coefficient; // Update the diagonal entry
+        matrix[(*cell_index, *cell_index)] = diagonal_coefficient;
     }
 
-    // Debugging: Check filled matrix
     println!("Matrix assembly complete.");
-    for i in 0..matrix.nrows() {
-        for j in 0..matrix.ncols() {
-            let value = matrix[(i, j)];
-            if value != 0.0 {
-                println!("Matrix[{}, {}] = {}", i, j, value);
-            }
-        }
-    }
-
-    // Apply boundary conditions
-    println!("Applying boundary conditions.");
-    let entity_to_index_map = mesh.entity_to_index_map();
-    let mut rhs_mut = SectionMatVecAdapter::section_to_matmut(rhs, &entity_to_index_map, num_cells);
-
-    boundary_handler.apply_bc(
-        &mut matrix.as_mut(),
-        &mut rhs_mut.as_mut(),
-        &boundary_handler.get_boundary_faces(),
-        &mesh.entity_to_index_map().into(),
-        0.0, // Pass time as needed
-    );
-    println!("Boundary conditions applied successfully.");
-
-    // Debugging: Final state of RHS
-    println!("Final RHS values:");
-    for entry in rhs.data.iter() {
-        let entity = entry.key();
-        let value = entry.value();
-        println!("RHS[Entity {:?}] = {}", entity, value.0);
-    }
-
     Ok(())
 }
+
 
 
 
@@ -327,22 +307,39 @@ fn compute_pressure_coefficient(
 ) -> Result<f64, String> {
     // Step 1: Compute the distance between the centroids of the two cells
     let distance = mesh.get_distance_between_cells(cell, neighbor);
+    if distance <= 0.0 {
+        return Err(format!("Failed to compute distance between cell {:?} and neighbor {:?}", cell, neighbor));
+    }
+    
+    if distance <= 0.0 {
+        return Err(format!(
+            "Invalid distance ({}) between cell {:?} and neighbor {:?}",
+            distance, cell, neighbor
+        ));
+    }
 
     // Step 2: Identify the shared face between the two cells
     let shared_faces = mesh.get_faces_of_cell(cell)
-        .ok_or("Failed to retrieve faces of the cell")?;
+        .ok_or_else(|| format!("Failed to retrieve faces for cell {:?}", cell))?;
+
     let shared_face = shared_faces.iter()
         .find(|face| {
             let cells_sharing_face = mesh.get_cells_sharing_face(&face.key());
             cells_sharing_face.contains_key(neighbor)
         })
-        .map(|face| face.key().clone()) // Clone the key to resolve the lifetime issue
-        .ok_or("No shared face found between the cell and its neighbor")?;
-
+        .map(|face| face.key().clone())
+        .ok_or_else(|| format!("No shared face found between cell {:?} and neighbor {:?}", cell, neighbor))?;
 
     // Step 3: Compute the area of the shared face
     let area = mesh.get_face_area(&shared_face)
-        .ok_or("Failed to compute the area of the shared face")?;
+        .ok_or_else(|| format!("Failed to retrieve area for shared face {:?}", shared_face))?;
+    
+    if area <= 0.0 {
+        return Err(format!(
+            "Invalid face area ({}) for face {:?} between cell {:?} and neighbor {:?}",
+            area, shared_face, cell, neighbor
+        ));
+    }
 
     // Step 4: Get the density from the fields structure
     let density = fields.scalar_fields.get("density")
@@ -350,8 +347,15 @@ fn compute_pressure_coefficient(
         .map_or(1.0, |d| d.0); // Default density is 1.0 if not found
 
     // Step 5: Compute and return the coefficient
-    Ok(area / (density * distance)) // Coefficient = Area / (Density * Distance)
+    let coefficient = area / (density * distance);
+    println!(
+        "Cell {:?}, Neighbor {:?}, Shared Face {:?}, Distance: {}, Area: {}, Coefficient: {}",
+        cell, neighbor, shared_face, distance, area, coefficient
+    );
+
+    Ok(coefficient)
 }
+
 
 /// Computes the diagonal coefficient for a cell in the pressure Poisson equation.
 ///

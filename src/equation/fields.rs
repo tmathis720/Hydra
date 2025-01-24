@@ -99,6 +99,15 @@ impl Fields {
             field.set_data(*entry.key(), *entry.value());
         }
     }
+
+    pub fn validate(&self) -> Result<(), String> {
+        for field in &["velocity_x", "velocity_y", "velocity_z", "pressure"] {
+            if !self.scalar_fields.contains_key(*field) {
+                return Err(format!("Field {} not found in Fields.", field));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl UpdateState for Fields {

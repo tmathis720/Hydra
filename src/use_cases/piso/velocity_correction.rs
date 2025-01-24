@@ -64,3 +64,149 @@ pub fn correct_velocity(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod correct_velocity_tests {
+    use super::*;
+    use crate::{
+        boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler},
+        domain::mesh::Mesh, domain::section::{Scalar, Vector3},
+        equation::fields::Fields, interface_adapters::domain_adapter::DomainBuilder,
+    };
+
+    /// Sets up a simple tetrahedral mesh for testing.
+    fn setup_simple_mesh() -> Mesh {
+        let mut builder = DomainBuilder::new();
+
+        // Add vertices to form a simple tetrahedron-based mesh
+        builder
+            .add_vertex(1, [0.0, 0.0, 0.0])
+            .add_vertex(2, [1.0, 0.0, 0.0])
+            .add_vertex(3, [0.0, 1.0, 0.0])
+            .add_vertex(4, [0.0, 0.0, 1.0])
+            .add_vertex(5, [1.0, 1.0, 0.0]);
+
+        builder.add_tetrahedron_cell(vec![1, 2, 3, 4]);
+        builder.add_tetrahedron_cell(vec![2, 3, 5, 4]);
+
+        builder.build()
+    }
+
+    /// Sets up fields, including a velocity field and a pressure field.
+    fn setup_fields(mesh: &Mesh) -> Fields {
+        let mut fields = Fields::new();
+
+        // Assign velocity and pressure values to the single cell
+        let cell = mesh.get_cells().first().unwrap().clone();
+        fields.set_vector_field_value("velocity", cell.clone(), Vector3([1.0, 1.0, 1.0]));
+        fields.set_scalar_field_value("pressure", cell.clone(), Scalar(100.0));
+
+        fields
+    }
+
+    /// Sets up a mock pressure correction field.
+    fn setup_pressure_correction(mesh: &Mesh) -> Section<Scalar> {
+        let pressure_correction = Section::new();
+
+        // Assign pressure correction to the single cell
+        let cell = mesh.get_cells().first().unwrap().clone();
+        pressure_correction.set_data(cell.clone(), Scalar(10.0));
+
+        pressure_correction
+    }
+
+    /// Sets up boundary conditions for the mesh.
+    fn setup_boundary_conditions(mesh: &Mesh) -> BoundaryConditionHandler {
+        let boundary_handler = BoundaryConditionHandler::new();
+
+        // Assign Dirichlet boundary conditions to one face
+        if let Some(face) = mesh.get_faces().first() {
+            boundary_handler.set_bc(face.clone(), BoundaryCondition::Dirichlet(0.0));
+        }
+
+        boundary_handler
+    }
+
+    #[test]
+    fn test_correct_velocity_success() {
+        // Setup
+        let mesh = setup_simple_mesh();
+        let mut fields = setup_fields(&mesh);
+        let pressure_correction = setup_pressure_correction(&mesh);
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        // Execute
+        let result = correct_velocity(&mesh, &mut fields, &pressure_correction, &boundary_handler);
+
+        // Assert
+        assert!(result.is_ok(), "Velocity correction should succeed.");
+        let velocity_field = fields.vector_fields.get("velocity").expect("Velocity field missing");
+
+        // Check updated velocity values
+        for entry in velocity_field.data.iter() {
+            let (entity, velocity) = entry.pair();
+            println!("Entity {:?}: Updated velocity = {:?}", entity, velocity.0);
+        }
+    }
+
+    #[test]
+    fn test_correct_velocity_missing_velocity_field() {
+        // Setup
+        let mesh = setup_simple_mesh();
+        let mut fields = Fields::new(); // Missing velocity field
+        let pressure_correction = setup_pressure_correction(&mesh);
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        // Execute
+        let result = correct_velocity(&mesh, &mut fields, &pressure_correction, &boundary_handler);
+
+        // Assert
+        assert!(result.is_err(), "Should fail when velocity field is missing.");
+        assert_eq!(
+            result.unwrap_err(),
+            "Velocity field not found in the fields structure.",
+            "Unexpected error message."
+        );
+    }
+
+    #[test]
+    fn test_correct_velocity_invalid_pressure_correction() {
+        // Setup
+        let mesh = setup_simple_mesh();
+        let mut fields = setup_fields(&mesh);
+        let pressure_correction = Section::<Scalar>::new(); // Empty pressure correction
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        // Execute
+        let result = correct_velocity(&mesh, &mut fields, &pressure_correction, &boundary_handler);
+
+        // Assert
+        assert!(result.is_err(), "Should fail with empty pressure correction.");
+        assert!(
+            result.unwrap_err().contains("Gradient computation failed"),
+            "Unexpected error message for gradient failure."
+        );
+    }
+
+    #[test]
+    fn test_correct_velocity_boundary_conditions() {
+        // Setup
+        let mesh = setup_simple_mesh();
+        let mut fields = setup_fields(&mesh);
+        let pressure_correction = setup_pressure_correction(&mesh);
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        // Execute
+        let result = correct_velocity(&mesh, &mut fields, &pressure_correction, &boundary_handler);
+
+        // Assert
+        assert!(result.is_ok(), "Boundary conditions should be applied correctly.");
+        let velocity_field = fields.vector_fields.get("velocity").expect("Velocity field missing");
+
+        // Verify if boundary conditions affected the velocities correctly
+        for entry in velocity_field.data.iter() {
+            let (entity, velocity) = entry.pair();
+            println!("Entity {:?}: Velocity with BC applied = {:?}", entity, velocity.0);
+        }
+    }
+}

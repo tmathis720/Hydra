@@ -83,7 +83,7 @@ mod tests {
         let mut fields = Fields::new();
         fields.set_scalar_field_value("test", MeshEntity::Cell(0), Scalar(2.0));
 
-        manager.step(&mut fields);
+        let _ = manager.step(&mut fields);
 
         // As NoOpStepper does nothing, fields should remain unchanged
         let scalar_value = fields.get_scalar_field_value("test", &MeshEntity::Cell(0)).unwrap();

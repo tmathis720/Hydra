@@ -131,7 +131,7 @@ where
         Ok(())
     }
 
-    fn log_progress(&self, iteration: usize, residual: f64) {
+    fn _log_progress(&self, iteration: usize, residual: f64) {
         println!(
             "[TimeStepper] Iteration: {}, Time: {:.3}, Residual: {:.6}",
             iteration, self.current_time.into(), residual

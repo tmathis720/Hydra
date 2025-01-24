@@ -257,7 +257,7 @@ mod tests {
         let mut manager = EquationManager::new(Box::new(NoOpStepper), domain, boundary_handler);
 
         let mut fields = Fields::new();
-        manager.step(&mut fields);
+        let _ = manager.step(&mut fields);
 
         // Verify step completes without error
     }
