@@ -177,12 +177,26 @@ impl Mesh {
     pub fn get_entity_to_index(&self) -> DashMap<MeshEntity, usize> {
         let entity_to_index = DashMap::new();
         let mut current_index = 0;
-        let entities = self.entities.read().unwrap();
-        entities.iter().enumerate().for_each(|(_index, entity)| {
-            entity_to_index.insert(entity.clone(), current_index);
+    
+        // Collect all entities into a vector for ordered iteration
+        let entities: Vec<MeshEntity> = {
+            let entities = self.entities.read().unwrap();
+            entities.iter().cloned().collect()
+        };
+    
+        // Assign unique indices to all entities
+        for entity in entities {
+            entity_to_index.insert(entity, current_index);
             current_index += 1;
-        });
-
+        }
+    
+        // Ensure all entities are uniquely indexed
+        assert_eq!(
+            entity_to_index.len(),
+            current_index,
+            "Entity-to-index mapping is incomplete or has duplicates."
+        );
+    
         entity_to_index
     }
 
@@ -198,31 +212,27 @@ impl Mesh {
     /// - The indices are typically used for assembling sparse system matrices or RHS vectors.
     pub fn entity_to_index_map(&self) -> DashMap<MeshEntity, usize> {
         let index_map = DashMap::new();
-
-        // Iterate over all entities in the mesh and assign them indices.
-        // This example assumes cells, faces, and vertices are stored in separate collections.
-        
-        // Assign indices for cells.
-        for (i, cell) in self.get_cells().iter().enumerate() {
-            index_map.insert(MeshEntity::Cell(cell.get_id()), i);
+        let mut current_index = 0;
+    
+        // Assign indices for cells
+        for cell in self.get_cells() {
+            index_map.insert(cell.clone(), current_index);
+            current_index += 1;
         }
-
-        // Offset for face indices.
-        let face_offset = self.get_cells().len();
-
-        // Assign indices for faces.
-        for (i, face) in self.get_faces().iter().enumerate() {
-            index_map.insert(MeshEntity::Face(face.get_id()), face_offset + i);
+    
+        // Assign indices for faces
+        for face in self.get_faces() {
+            index_map.insert(face.clone(), current_index);
+            current_index += 1;
         }
-
-        // Validate all entities are indexed
+    
+        // Ensure consistency in index assignment
         assert_eq!(
             index_map.len(),
-            self.get_cells().len() + self.get_faces().len(),
-            "Entity-to-index mapping is incomplete"
+            current_index,
+            "Entity-to-index mapping has gaps or inconsistencies."
         );
-        
-
+    
         index_map
     }
 

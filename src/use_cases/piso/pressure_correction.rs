@@ -8,6 +8,7 @@ use crate::{
 };
 
 /// Results from the pressure correction step.
+#[derive(Debug)]
 pub struct PressureCorrectionResult {
     pub residual: f64, // Residual of the pressure correction
 }
@@ -30,8 +31,8 @@ pub fn solve_pressure_poisson(
     boundary_handler: &BoundaryConditionHandler,
     linear_solver: &mut dyn KSP,
 ) -> Result<PressureCorrectionResult, String> {
-    let num_cells = mesh.count_entities(&MeshEntity::Cell(0));
-    println!("Number of cells in the mesh: {}", num_cells);
+    let _entity_to_index_map = mesh.entity_to_index_map();
+    let num_cells = mesh.get_cells().len();
 
     // Initialize pressure matrix and RHS
     let mut pressure_matrix = Mat::<f64>::zeros(num_cells, num_cells);
@@ -41,55 +42,47 @@ pub fn solve_pressure_poisson(
     assemble_pressure_poisson(mesh, fields, fluxes, boundary_handler, &mut pressure_matrix, &mut rhs)
         .map_err(|e| format!("Error in assembling pressure Poisson matrix: {}", e))?;
 
-    // Debugging the assembled matrix
-    println!("Assembled pressure matrix size: {}x{}", pressure_matrix.nrows(), pressure_matrix.ncols());
-    println!("RHS size: {}", rhs.data.len());
+    // Validate RHS initialization
     assert_eq!(
-        pressure_matrix.nrows(),
+        rhs.data.len(),
         num_cells,
-        "Matrix row count does not match the number of cells."
-    );
-    assert_eq!(
-        pressure_matrix.ncols(),
+        "RHS vector is incomplete. Expected {} entries, found {}.",
         num_cells,
-        "Matrix column count does not match the number of cells."
+        rhs.data.len()
     );
 
-    // Initialize pressure correction section
+    // Initialize pressure correction vector
     let mut pressure_correction = Section::<Scalar>::new();
-    println!("Solving the pressure Poisson equation.");
+    for cell in mesh.get_cells() {
+        pressure_correction.set_data(cell.clone(), Scalar(0.0));
+    }
 
+    // Solve using the linear solver
+    println!("Solving the pressure Poisson equation.");
     linear_solver
         .solve(&mut pressure_matrix, &mut pressure_correction, &mut rhs)
         .map_err(|e| format!("Pressure Poisson solver failed: {}", e))?;
 
-    // Debugging pressure correction values
-    println!(
-        "Pressure correction computed: {} entries.",
-        pressure_correction.data.len()
+    // Validate correction size
+    assert_eq!(
+        pressure_correction.data.len(),
+        num_cells,
+        "Pressure correction vector is incomplete."
     );
-    for entry in pressure_correction.data.iter() {
-        let entity = entry.key();
-        let value = entry.value();
-        println!("Pressure correction for entity {:?}: {}", entity, value.0);
-    }
 
-    // Update the pressure field
-    println!("Updating the pressure field with the computed correction.");
+    println!("Residual of the pressure Poisson system: {}", compute_residual(
+        mesh, &pressure_matrix, &pressure_correction, &rhs
+    ));
+
+    // Update the pressure and velocity fields
     update_pressure_field(fields, &pressure_correction)
         .map_err(|e| format!("Error updating pressure field: {}", e))?;
-
-    // Correct the velocity field
-    println!("Correcting the velocity field using the pressure correction.");
     correct_velocity_field(mesh, fields, &pressure_correction, boundary_handler)
         .map_err(|e| format!("Error correcting velocity field: {}", e))?;
 
-    // Compute the residual
-    let residual = compute_residual(mesh, &pressure_matrix, &pressure_correction, &rhs);
-    println!("Residual of the pressure Poisson system: {}", residual);
-
-    // Return the result
-    Ok(PressureCorrectionResult { residual })
+    Ok(PressureCorrectionResult {
+        residual: compute_residual(mesh, &pressure_matrix, &pressure_correction, &rhs),
+    })
 }
 
 
@@ -113,73 +106,44 @@ fn assemble_pressure_poisson(
     matrix: &mut Mat<f64>,
     rhs: &mut Section<Scalar>,
 ) -> Result<(), String> {
-    let num_cells = mesh.count_entities(&MeshEntity::Cell(0));
-    println!("Number of cells in the mesh: {}", num_cells);
-
     let entity_to_index_map = mesh.entity_to_index_map();
 
-    // Ensure the matrix is the correct size
-    assert_eq!(matrix.nrows(), num_cells, "Matrix row count mismatch.");
-    assert_eq!(matrix.ncols(), num_cells, "Matrix column count mismatch.");
-    println!("Matrix size validated: {}x{}", matrix.nrows(), matrix.ncols());
-
-    // Debugging: Check initial state of RHS
-    println!("Initial RHS size: {}", rhs.data.len());
-
+    // Iterate over cells to populate matrix and RHS
     for cell in mesh.get_cells() {
-        let cell_index = entity_to_index_map
+        let cell_index = *entity_to_index_map
             .get(&cell)
             .ok_or_else(|| format!("Cell {:?} not found in entity_to_index_map", cell))?;
-        if *cell_index >= matrix.nrows() {
-            return Err(format!(
-                "Cell index {:?} out of bounds for matrix with {} rows.",
-                cell_index, matrix.nrows()
-            ));
-        }
 
-        // Calculate divergence
+        // Calculate divergence for RHS
         let divergence = fluxes
             .momentum_fluxes
             .restrict(&cell)
             .map_or(0.0, |flux| flux.magnitude());
-        println!("Divergence for cell {:?}: {}", cell, divergence);
-
         rhs.set_data(cell.clone(), Scalar(divergence));
 
         // Assemble coefficients for neighbors
         for neighbor in mesh.get_ordered_neighbors(&cell) {
-            let neighbor_index = entity_to_index_map
+            let neighbor_index = *entity_to_index_map
                 .get(&neighbor)
                 .ok_or_else(|| format!("Neighbor {:?} not found in entity_to_index_map", neighbor))?;
-            if *neighbor_index >= matrix.ncols() {
-                return Err(format!(
-                    "Neighbor index {:?} out of bounds for matrix with {} columns.",
-                    neighbor_index, matrix.ncols()
-                ));
-            }
-
             let coefficient = compute_pressure_coefficient(mesh, fields, &cell, &neighbor)?;
-            println!(
-                "Coefficient between cell {:?} and neighbor {:?}: {}",
-                cell, neighbor, coefficient
-            );
-
-            matrix[(*cell_index, *neighbor_index)] = coefficient;
+            matrix[(cell_index, neighbor_index)] = coefficient;
         }
 
         // Assemble diagonal coefficient
         let diagonal_coefficient = compute_pressure_diagonal_coefficient(mesh, fields, &cell)?;
-        println!(
-            "Diagonal coefficient for cell {:?}: {}",
-            cell, diagonal_coefficient
-        );
-
-        matrix[(*cell_index, *cell_index)] = diagonal_coefficient;
+        matrix[(cell_index, cell_index)] = diagonal_coefficient;
+        if diagonal_coefficient.abs() < 1e-12 {
+            return Err(format!(
+                "Diagonal coefficient for cell {:?} is near zero, indicating a disconnected system.",
+                cell
+            ));
+        }
     }
 
-    println!("Matrix assembly complete.");
     Ok(())
 }
+
 
 
 
@@ -377,4 +341,186 @@ fn compute_pressure_diagonal_coefficient(
         coefficient_sum += compute_pressure_coefficient(mesh, fields, cell, &neighbor)?;
     }
     Ok(-coefficient_sum) // Diagonal entry is negative of sum of neighbor coefficients
+}
+
+#[cfg(test)]
+mod pressure_correction_tests {
+    use super::*;
+    use crate::{
+        boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler},
+        domain::mesh::Mesh,
+        domain::section::{Scalar, Vector3},
+        equation::fields::{Fields, Fluxes},
+        interface_adapters::domain_adapter::DomainBuilder,
+        solver::cg::ConjugateGradient,
+    };
+
+    /// Sets up a simple tetrahedral mesh for testing.
+    fn setup_simple_mesh() -> Mesh {
+        let mut builder = DomainBuilder::new();
+
+        builder
+            .add_vertex(1, [0.0, 0.0, 0.0])
+            .add_vertex(2, [1.0, 0.0, 0.0])
+            .add_vertex(3, [0.0, 1.0, 0.0])
+            .add_vertex(4, [0.0, 0.0, 1.0])
+            .add_vertex(5, [1.0, 1.0, 0.0]);
+
+        builder.add_tetrahedron_cell(vec![1, 2, 3, 4]);
+        builder.add_tetrahedron_cell(vec![2, 3, 5, 4]);
+
+        builder.build()
+    }
+
+    /// Sets up fields, including velocity and pressure.
+    fn setup_fields(mesh: &Mesh) -> Fields {
+        let mut fields = Fields::new();
+        for cell in mesh.get_cells() {
+            fields.set_vector_field_value("velocity", cell.clone(), Vector3([1.0, 1.0, 1.0]));
+            fields.set_scalar_field_value("pressure", cell.clone(), Scalar(100.0));
+        }
+        fields
+    }
+
+    /// Sets up fluxes for testing.
+    fn setup_fluxes(mesh: &Mesh) -> Fluxes {
+        let fluxes = Fluxes::new();
+        for cell in mesh.get_cells() {
+            fluxes
+                .momentum_fluxes
+                .set_data(cell.clone(), Vector3([1.0, -1.0, 0.0]));
+        }
+        fluxes
+    }
+
+    /// Sets up boundary conditions.
+    fn setup_boundary_conditions(mesh: &Mesh) -> BoundaryConditionHandler {
+        let boundary_handler = BoundaryConditionHandler::new();
+        for face in mesh.get_faces() {
+            boundary_handler.set_bc(face.clone(), BoundaryCondition::Dirichlet(0.0));
+        }
+        boundary_handler
+    }
+
+    #[test]
+    fn test_solve_pressure_poisson_success() {
+        let mesh = setup_simple_mesh();
+        let mut fields = setup_fields(&mesh);
+        let fluxes = setup_fluxes(&mesh);
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        // Initialize the conjugate gradient solver
+        let mut cg_solver = ConjugateGradient::new(1000, 1e-6);
+
+        let result = solve_pressure_poisson(
+            &mesh,
+            &mut fields,
+            &fluxes,
+            &boundary_handler,
+            &mut cg_solver,
+        );
+
+        assert!(result.is_ok(), "Pressure Poisson solver should succeed.");
+        let result = result.unwrap();
+        println!("Residual: {}", result.residual);
+        assert!(result.residual < 1e-6, "Residual should be within tolerance.");
+    }
+
+    #[test]
+    fn test_solve_pressure_poisson_missing_pressure_field() {
+        let mesh = setup_simple_mesh();
+        let mut fields = Fields::new(); // Missing pressure field
+        let fluxes = setup_fluxes(&mesh);
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        let mut cg_solver = ConjugateGradient::new(1000, 1e-6);
+
+        let result = solve_pressure_poisson(
+            &mesh,
+            &mut fields,
+            &fluxes,
+            &boundary_handler,
+            &mut cg_solver,
+        );
+
+        assert!(result.is_err(), "Should fail due to missing pressure field.");
+        assert!(result
+            .unwrap_err()
+            .contains("Pressure field not found in the fields structure."));
+    }
+
+    #[test]
+    fn test_solve_pressure_poisson_solver_divergence() {
+        let mesh = setup_simple_mesh();
+        let mut fields = setup_fields(&mesh);
+        let fluxes = setup_fluxes(&mesh);
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        // Initialize the solver with an excessively high tolerance to simulate divergence
+        let mut cg_solver = ConjugateGradient::new(5, 1e-12); // Low max iterations to force divergence
+
+        let result = solve_pressure_poisson(
+            &mesh,
+            &mut fields,
+            &fluxes,
+            &boundary_handler,
+            &mut cg_solver,
+        );
+
+        assert!(result.is_err(), "Should fail due to solver divergence.");
+        assert!(result
+            .unwrap_err()
+            .contains("Pressure Poisson solver failed"));
+    }
+
+    #[test]
+    fn test_boundary_condition_enforcement() {
+        let mesh = setup_simple_mesh();
+        let mut fields = setup_fields(&mesh);
+        let fluxes = setup_fluxes(&mesh);
+
+        // Apply Neumann BC instead of Dirichlet
+        let boundary_handler = BoundaryConditionHandler::new();
+        for face in mesh.get_faces() {
+            boundary_handler.set_bc(face.clone(), BoundaryCondition::Neumann(0.0));
+        }
+
+        let mut cg_solver = ConjugateGradient::new(1000, 1e-6);
+
+        let result = solve_pressure_poisson(
+            &mesh,
+            &mut fields,
+            &fluxes,
+            &boundary_handler,
+            &mut cg_solver,
+        );
+
+        assert!(
+            result.is_ok(),
+            "Solver should handle Neumann boundary conditions correctly."
+        );
+    }
+
+    #[test]
+    fn test_matrix_rhs_initialization() {
+        let mesh = setup_simple_mesh();
+        let entity_to_index_map = mesh.entity_to_index_map();
+        let num_cells = mesh.get_cells().len();
+
+        // Ensure all entities are mapped
+        assert_eq!(entity_to_index_map.len(), num_cells);
+
+        // Initialize matrix and RHS
+        let _matrix = Mat::<f64>::zeros(num_cells, num_cells);
+        let rhs = Section::<Scalar>::new();
+        for cell in mesh.get_cells() {
+            rhs.set_data(cell.clone(), Scalar(0.0));
+        }
+
+        assert_eq!(
+            rhs.data.len(),
+            num_cells,
+            "RHS vector does not cover all cells."
+        );
+    }
 }
