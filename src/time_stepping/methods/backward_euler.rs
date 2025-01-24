@@ -1,11 +1,29 @@
 use crate::time_stepping::{TimeStepper, TimeSteppingError, TimeDependentProblem};
 
+/// Implements the Backward Euler method for time-dependent problems.
+///
+/// The Backward Euler method is an implicit, first-order time-stepping scheme
+/// that advances the solution state using the formula:
+/// ```text
+/// u^{n+1} - Δt * f(t^{n+1}, u^{n+1}) = u^n
+/// ```
+/// It is unconditionally stable but requires solving a linear system at each time step.
 pub struct BackwardEuler {
+    /// The current simulation time.
     current_time: f64,
+    /// The time step size.
     time_step: f64,
 }
 
 impl BackwardEuler {
+    /// Creates a new instance of the Backward Euler time-stepper.
+    ///
+    /// # Parameters
+    /// - `start_time`: The starting simulation time.
+    /// - `time_step`: The initial time step size.
+    ///
+    /// # Returns
+    /// - A new `BackwardEuler` instance.
     pub fn new(start_time: f64, time_step: f64) -> Self {
         Self {
             current_time: start_time,
@@ -19,14 +37,29 @@ where
     P: TimeDependentProblem,
     P::Time: From<f64> + Into<f64>,
 {
+    /// Returns the current simulation time.
     fn current_time(&self) -> P::Time {
         P::Time::from(self.current_time)
     }
 
+    /// Updates the current simulation time.
+    ///
+    /// # Parameters
+    /// - `time`: The new simulation time.
     fn set_current_time(&mut self, time: P::Time) {
         self.current_time = time.into();
     }
 
+    /// Advances the simulation by one time step using the Backward Euler method.
+    ///
+    /// # Parameters
+    /// - `problem`: The time-dependent problem to solve.
+    /// - `dt`: The time step size.
+    /// - `current_time`: The current simulation time.
+    /// - `state`: The current state of the system, updated in place.
+    ///
+    /// # Returns
+    /// - `Ok(())` on success, or a `TimeSteppingError` if the linear system cannot be solved.
     fn step(
         &mut self,
         problem: &P,
@@ -37,21 +70,32 @@ where
         let dt_f64: f64 = dt.into();
         self.time_step = dt_f64;
 
+        // Clone the current state to compute the right-hand side (RHS).
         let mut rhs = state.clone();
+
+        // Get the problem's matrix (required for Backward Euler).
         let mut matrix = problem
             .get_matrix()
             .ok_or(TimeSteppingError::SolverError(
                 "Matrix is required for Backward Euler.".into(),
             ))?;
 
+        // Compute the RHS of the equation.
         problem.compute_rhs(current_time, state, &mut rhs)?;
+
+        // Solve the linear system to update the state.
         problem.solve_linear_system(matrix.as_mut(), state, &rhs)?;
 
+        // Advance the simulation time.
         self.current_time += dt_f64;
 
         Ok(())
     }
 
+    /// Adaptive step is not yet implemented for Backward Euler.
+    ///
+    /// # Returns
+    /// - The current time step as a placeholder result.
     fn adaptive_step(
         &mut self,
         _problem: &P,
@@ -62,18 +106,38 @@ where
         Ok(self.time_step.into())
     }
 
+    /// Sets the simulation's time interval.
+    ///
+    /// # Parameters
+    /// - `start_time`: The start time of the simulation.
+    /// - `_end_time`: The end time of the simulation (currently unused).
     fn set_time_interval(&mut self, start_time: P::Time, _end_time: P::Time) {
         self.current_time = start_time.into();
     }
 
+    /// Sets the time step size.
+    ///
+    /// # Parameters
+    /// - `dt`: The new time step size.
     fn set_time_step(&mut self, dt: P::Time) {
         self.time_step = dt.into();
     }
 
+    /// Gets the current time step size.
+    ///
+    /// # Returns
+    /// - The current time step size.
     fn get_time_step(&self) -> P::Time {
         self.time_step.into()
     }
-    
+
+    /// Placeholder method for accessing the solver.
+    ///
+    /// # Returns
+    /// - A mutable reference to the solver.
+    ///
+    /// # Note
+    /// This method is currently unimplemented.
     fn get_solver(&mut self) -> &mut dyn crate::solver::KSP {
         todo!()
     }

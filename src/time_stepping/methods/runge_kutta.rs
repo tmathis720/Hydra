@@ -1,15 +1,40 @@
 use crate::time_stepping::{TimeStepper, TimeDependentProblem, TimeSteppingError};
 use crate::equation::fields::UpdateState;
 
+/// Implements the Runge-Kutta family of time-stepping methods.
+///
+/// The Runge-Kutta method is a general class of iterative methods
+/// for solving ordinary differential equations (ODEs). It provides
+/// a flexible approach to achieving higher-order accuracy by
+/// performing multiple intermediate evaluations (stages) of the
+/// governing equations at each time step.
+///
+/// # Parameters
+/// - `P`: The time-dependent problem to be solved, implementing `TimeDependentProblem`.
 pub struct RungeKutta<P: TimeDependentProblem> {
+    /// The current simulation time.
     current_time: P::Time,
+    /// The time step size.
     time_step: P::Time,
+    /// The start time of the simulation.
     start_time: P::Time,
+    /// The end time of the simulation.
     end_time: P::Time,
-    stages: usize, // Number of stages (defines the order of accuracy)
+    /// Number of stages for the Runge-Kutta method (defines the order of accuracy).
+    stages: usize,
 }
 
 impl<P: TimeDependentProblem> RungeKutta<P> {
+    /// Creates a new instance of the Runge-Kutta time-stepper.
+    ///
+    /// # Parameters
+    /// - `time_step`: The size of each time step.
+    /// - `start_time`: The initial simulation time.
+    /// - `end_time`: The final simulation time.
+    /// - `stages`: The number of stages (order of accuracy). Must be at least 1.
+    ///
+    /// # Panics
+    /// - Panics if `stages` is less than 1.
     pub fn new(time_step: P::Time, start_time: P::Time, end_time: P::Time, stages: usize) -> Self {
         assert!(stages >= 1, "Runge-Kutta must have at least one stage.");
         Self {
@@ -28,14 +53,34 @@ where
     P::State: UpdateState,
     P::Time: From<f64> + Into<f64> + Copy,
 {
+    /// Returns the current simulation time.
     fn current_time(&self) -> P::Time {
         self.current_time
     }
 
+    /// Updates the current simulation time.
+    ///
+    /// # Parameters
+    /// - `time`: The new simulation time.
     fn set_current_time(&mut self, time: P::Time) {
         self.current_time = time;
     }
 
+    /// Advances the solution by one time step using the Runge-Kutta method.
+    ///
+    /// # Parameters
+    /// - `problem`: The time-dependent problem to solve.
+    /// - `dt`: The time step size.
+    /// - `current_time`: The current simulation time.
+    /// - `state`: The current state of the system, updated in place.
+    ///
+    /// # Returns
+    /// - `Ok(())` on success.
+    /// - `TimeSteppingError` if the problem fails to compute the right-hand side (RHS).
+    ///
+    /// # Algorithm
+    /// 1. Compute intermediate stages (`k` values) by evaluating the derivative at various points.
+    /// 2. Use a weighted combination of these stages to update the state.
     fn step(
         &mut self,
         problem: &P,
@@ -56,6 +101,7 @@ where
                 intermediate_state.update_state(k_j, dt_f64 / self.stages as f64);
             }
 
+            // Compute the derivative at the current stage
             let mut derivative = problem.initial_state();
             problem.compute_rhs(t_stage, &intermediate_state, &mut derivative)?;
             k.push(derivative);
@@ -70,6 +116,10 @@ where
         Ok(())
     }
 
+    /// Adaptive step size control is not yet implemented for Runge-Kutta.
+    ///
+    /// # Returns
+    /// - `Err(TimeSteppingError::InvalidStep)` indicating the feature is unavailable.
     fn adaptive_step(
         &mut self,
         _problem: &P,
@@ -79,23 +129,44 @@ where
         Err(TimeSteppingError::InvalidStep)
     }
 
+    /// Sets the time interval for the simulation.
+    ///
+    /// # Parameters
+    /// - `start_time`: The start time of the simulation.
+    /// - `end_time`: The end time of the simulation.
     fn set_time_interval(&mut self, start_time: P::Time, end_time: P::Time) {
         self.start_time = start_time;
         self.end_time = end_time;
     }
 
+    /// Sets the time step size.
+    ///
+    /// # Parameters
+    /// - `dt`: The new time step size.
     fn set_time_step(&mut self, dt: P::Time) {
         self.time_step = dt;
     }
 
+    /// Returns the current time step size.
+    ///
+    /// # Returns
+    /// - The current time step size.
     fn get_time_step(&self) -> P::Time {
         self.time_step
     }
-    
+
+    /// Placeholder method for accessing the solver.
+    ///
+    /// # Returns
+    /// - A mutable reference to the solver.
+    ///
+    /// # Note
+    /// This method is currently unimplemented.
     fn get_solver(&mut self) -> &mut dyn crate::solver::KSP {
         todo!()
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -141,7 +212,7 @@ mod tests {
                 })
                 .sum()
         }
-        
+
         fn update_state(&mut self, derivative: &Self, dt: f64) {
             for (key, section) in &derivative.fields.scalar_fields {
                 self.fields.scalar_fields.entry(key.clone()).and_modify(|val| {
