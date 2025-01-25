@@ -74,7 +74,7 @@ impl Mesh {
 
         for (new_id, entity) in new_order.iter().zip(entities.iter()) {
             let new_entity = entity.with_id(*new_id);
-            id_mapping.insert(*entity, new_entity);
+            id_mapping.insert(*entity, new_entity.unwrap());
         }
 
         // Update the entities set with the new IDs.
@@ -115,6 +115,15 @@ impl Mesh {
     /// # Returns
     /// * `Vec<MeshEntity>` - A vector of entities reordered by the RCM algorithm.
     pub fn rcm_ordering(&self, start_node: MeshEntity) -> Vec<MeshEntity> {
+        // Ensure the starting node exists in the adjacency map.
+        if !self.sieve.adjacency.contains_key(&start_node) {
+            eprintln!(
+                "Error: Start node {:?} does not exist in the adjacency map.",
+                start_node
+            );
+            return Vec::new();
+        }
+
         let mut visited = FxHashSet::default();
         let mut queue = VecDeque::new();
         let mut ordering = Vec::new();
@@ -125,26 +134,49 @@ impl Mesh {
         // Perform breadth-first traversal and order nodes by degree.
         while let Some(node) = queue.pop_front() {
             ordering.push(node);
-            if let Some(neighbors) = self.sieve.cone(&node) {
-                let mut sorted_neighbors: Vec<_> = neighbors
-                    .into_iter()
-                    .filter(|n| !visited.contains(n)) // Only unvisited neighbors.
-                    .collect();
 
-                // Sort neighbors by degree.
-                sorted_neighbors.sort_by_key(|n| self.sieve.cone(n).map_or(0, |set| set.len()));
-
-                // Enqueue the sorted neighbors.
-                for neighbor in sorted_neighbors {
-                    queue.push_back(neighbor);
-                    visited.insert(neighbor);
+            // Retrieve neighbors of the current node.
+            let neighbors = match self.sieve.cone(&node) {
+                Ok(neighbors) => neighbors,
+                Err(err) => {
+                    eprintln!(
+                        "Error retrieving neighbors for node {:?}: {}",
+                        node, err
+                    );
+                    continue; // Skip this node if neighbors cannot be retrieved.
                 }
+            };
+
+            let mut sorted_neighbors: Vec<_> = neighbors
+                .into_iter()
+                .filter(|n| !visited.contains(n)) // Only unvisited neighbors.
+                .collect();
+
+            // Sort neighbors by degree (number of connections).
+            sorted_neighbors.sort_by_key(|n| {
+                match self.sieve.cone(n) {
+                    Ok(set) => set.len(),
+                    Err(_) => {
+                        eprintln!(
+                            "Warning: Failed to retrieve degree for neighbor {:?}. Assuming degree 0.",
+                            n
+                        );
+                        0
+                    }
+                }
+            });
+
+            // Enqueue the sorted neighbors.
+            for neighbor in sorted_neighbors {
+                queue.push_back(neighbor);
+                visited.insert(neighbor);
             }
         }
 
         ordering.reverse(); // Reverse the ordering to obtain RCM.
         ordering
     }
+
 
     /// Reorders elements in the mesh using Morton order (Z-order curve).
     ///

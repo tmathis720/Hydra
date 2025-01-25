@@ -42,15 +42,25 @@ impl MeshEntity {
 
     /// Creates a new `MeshEntity` with a specified identifier.
     ///
-    /// This function can be used to "update" an existing entity by creating a new instance
-    /// with a different identifier. Enums are immutable, so new data is required for changes.
-    pub fn with_id(&self, new_id: usize) -> Self {
-        match *self {
+    /// # Arguments
+    /// - `new_id`: The new identifier for the entity. Must be non-zero.
+    ///
+    /// # Returns
+    /// - `Ok(MeshEntity)`: If the `new_id` is valid.
+    /// - `Err(String)`: If the `new_id` is invalid.
+    pub fn with_id(&self, new_id: usize) -> Result<Self, String> {
+        if new_id == 0 {
+            return Err(format!(
+                "Invalid ID: {}. Entity IDs must be non-zero.",
+                new_id
+            ));
+        }
+        Ok(match *self {
             MeshEntity::Vertex(_) => MeshEntity::Vertex(new_id),
             MeshEntity::Edge(_) => MeshEntity::Edge(new_id),
             MeshEntity::Face(_) => MeshEntity::Face(new_id),
             MeshEntity::Cell(_) => MeshEntity::Cell(new_id),
-        }
+        })
     }
 }
 
@@ -65,10 +75,21 @@ pub struct Arrow {
 impl Arrow {
     /// Creates a new `Arrow` between two `MeshEntity` instances.
     ///
-    /// The `from` entity represents the starting point, and the `to` entity represents
-    /// the destination of the arrow.
-    pub fn new(from: MeshEntity, to: MeshEntity) -> Self {
-        Arrow { from, to }
+    /// # Arguments
+    /// - `from`: The starting point of the arrow.
+    /// - `to`: The ending point of the arrow.
+    ///
+    /// # Returns
+    /// - `Ok(Arrow)`: If `from` and `to` are valid and not the same.
+    /// - `Err(String)`: If `from` and `to` are identical.
+    pub fn new(from: MeshEntity, to: MeshEntity) -> Result<Self, String> {
+        if from == to {
+            return Err(format!(
+                "Invalid Arrow: 'from' and 'to' entities cannot be the same: {:?}",
+                from
+            ));
+        }
+        Ok(Arrow { from, to })
     }
 
     /// Converts any type implementing `Into<MeshEntity>` into a `MeshEntity`.
@@ -121,7 +142,7 @@ mod tests {
         let edge = MeshEntity::Edge(2);
 
         // Create a new arrow between a vertex and an edge
-        let arrow = Arrow::new(vertex, edge);
+        let arrow = Arrow::new(vertex, edge).unwrap();
 
         // Retrieve and verify the relationship
         let (from, to) = arrow.get_relation();
@@ -147,7 +168,7 @@ mod tests {
         let edge = MeshEntity::Edge(5);
 
         // Create a new edge with a different id
-        let new_edge = edge.with_id(10);
+        let new_edge = edge.with_id(10).unwrap();
 
         assert_eq!(new_edge.get_id(), 10); // New ID check
         assert_eq!(new_edge.get_entity_type(), "Edge"); // Type remains unchanged

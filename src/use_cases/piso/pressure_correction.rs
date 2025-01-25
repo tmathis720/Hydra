@@ -110,6 +110,7 @@ fn assemble_pressure_poisson(
 
     // Iterate over cells to populate matrix and RHS
     for cell in mesh.get_cells() {
+        rhs.set_data(cell.clone(), Scalar(0.0)); // Initialize with zero
         let cell_index = *entity_to_index_map
             .get(&cell)
             .ok_or_else(|| format!("Cell {:?} not found in entity_to_index_map", cell))?;
@@ -143,11 +144,6 @@ fn assemble_pressure_poisson(
 
     Ok(())
 }
-
-
-
-
-
 
 /// Updates the pressure field using the pressure correction.
 ///
@@ -271,9 +267,6 @@ fn compute_pressure_coefficient(
 ) -> Result<f64, String> {
     // Step 1: Compute the distance between the centroids of the two cells
     let distance = mesh.get_distance_between_cells(cell, neighbor);
-    if distance <= 0.0 {
-        return Err(format!("Failed to compute distance between cell {:?} and neighbor {:?}", cell, neighbor));
-    }
     
     if distance <= 0.0 {
         return Err(format!(
@@ -310,12 +303,13 @@ fn compute_pressure_coefficient(
         .and_then(|f| f.restrict(cell))
         .map_or(1.0, |d| d.0); // Default density is 1.0 if not found
 
+    assert!(distance > 0.0, "Invalid cell distance");
+    assert!(area > 0.0, "Invalid face area");
+
     // Step 5: Compute and return the coefficient
     let coefficient = area / (density * distance);
-    println!(
-        "Cell {:?}, Neighbor {:?}, Shared Face {:?}, Distance: {}, Area: {}, Coefficient: {}",
-        cell, neighbor, shared_face, distance, area, coefficient
-    );
+    println!("Cell {:?}, Neighbor {:?}, Shared Face {:?}, Distance: {}, Area: {}, Coefficient: {}",
+        cell, neighbor, shared_face, distance, area, coefficient);
 
     Ok(coefficient)
 }
@@ -400,6 +394,66 @@ mod pressure_correction_tests {
             boundary_handler.set_bc(face.clone(), BoundaryCondition::Dirichlet(0.0));
         }
         boundary_handler
+    }
+
+    #[test]
+    fn test_update_pressure_field_success() {
+        // Create a mock `Fields` structure with a "pressure" scalar field
+        let mut fields = Fields::new();
+        let cell1 = MeshEntity::Cell(1);
+        let cell2 = MeshEntity::Cell(2);
+
+        // Initialize pressure field with some values
+        let pressure_section = Section::new();
+        pressure_section.set_data(cell1.clone(), Scalar(100.0));
+        pressure_section.set_data(cell2.clone(), Scalar(120.0));
+        fields.scalar_fields.insert("pressure".to_string(), pressure_section);
+
+        // Create a pressure correction Section with some updates
+        let pressure_correction = Section::new();
+        pressure_correction.set_data(cell1.clone(), Scalar(-10.0));
+        pressure_correction.set_data(cell2.clone(), Scalar(20.0));
+
+        // Update pressure field using the correction
+        let result = update_pressure_field(&mut fields, &pressure_correction);
+
+        // Assertions
+        assert!(result.is_ok(), "Expected update to succeed.");
+        let updated_pressure_field = fields.scalar_fields.get("pressure").unwrap();
+
+        // Verify the corrected pressure values
+        assert_eq!(
+            updated_pressure_field.restrict(&cell1).unwrap().0,
+            90.0,
+            "Cell 1 pressure should be updated."
+        );
+        assert_eq!(
+            updated_pressure_field.restrict(&cell2).unwrap().0,
+            140.0,
+            "Cell 2 pressure should be updated."
+        );
+    }
+
+    #[test]
+    fn test_update_pressure_field_failure() {
+        // Create a mock `Fields` structure without a "pressure" field
+        let mut fields = Fields::new();
+
+        // Create a pressure correction Section
+        let pressure_correction = Section::new();
+        let cell = MeshEntity::Cell(1);
+        pressure_correction.set_data(cell, Scalar(-10.0));
+
+        // Attempt to update pressure field
+        let result = update_pressure_field(&mut fields, &pressure_correction);
+
+        // Assertions
+        assert!(result.is_err(), "Expected update to fail.");
+        assert_eq!(
+            result.unwrap_err(),
+            "Pressure field not found in the fields structure.",
+            "Error message should match."
+        );
     }
 
     #[test]
@@ -522,5 +576,122 @@ mod pressure_correction_tests {
             num_cells,
             "RHS vector does not cover all cells."
         );
+    }
+}
+
+#[cfg(test)]
+mod correct_velocity_tests {
+    use super::*;
+    use crate::{
+        domain::{mesh::Mesh, section::{Scalar, Vector3}},
+        equation::fields::Fields,
+        boundary::bc_handler::{BoundaryConditionHandler, BoundaryCondition},
+        interface_adapters::domain_adapter::DomainBuilder,
+    };
+
+    /// Helper function to set up a simple mesh for testing.
+    fn setup_simple_mesh() -> Mesh {
+        let mut builder = DomainBuilder::new();
+
+        builder
+            .add_vertex(1, [0.0, 0.0, 0.0])
+            .add_vertex(2, [1.0, 0.0, 0.0])
+            .add_vertex(3, [0.0, 1.0, 0.0])
+            .add_vertex(4, [0.0, 0.0, 1.0])
+            .add_tetrahedron_cell(vec![1, 2, 3, 4]);
+
+        builder.build()
+    }
+
+    /// Helper function to set up fields with velocity and pressure.
+    fn setup_fields(mesh: &Mesh) -> Fields {
+        let mut fields = Fields::new();
+        for cell in mesh.get_cells() {
+            fields.set_vector_field_value("velocity", cell.clone(), Vector3([1.0, 1.0, 1.0]));
+            fields.set_scalar_field_value("pressure", cell.clone(), Scalar(100.0));
+        }
+        fields
+    }
+
+    /// Helper function to set up a pressure correction section.
+    fn setup_pressure_correction(mesh: &Mesh) -> Section<Scalar> {
+        let pressure_correction = Section::new();
+        for cell in mesh.get_cells() {
+            pressure_correction.set_data(cell.clone(), Scalar(10.0));
+        }
+        pressure_correction
+    }
+
+    /// Helper function to set up boundary conditions.
+    fn setup_boundary_conditions(mesh: &Mesh) -> BoundaryConditionHandler {
+        let boundary_handler = BoundaryConditionHandler::new();
+        for face in mesh.get_faces() {
+            boundary_handler.set_bc(face.clone(), BoundaryCondition::Neumann(0.0));
+        }
+        boundary_handler
+    }
+
+    #[test]
+    fn test_correct_velocity_field_success() {
+        // Set up test components
+        let mesh = setup_simple_mesh();
+        let mut fields = setup_fields(&mesh);
+        let pressure_correction = setup_pressure_correction(&mesh);
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        // Correct velocity field
+        let result = correct_velocity_field(&mesh, &mut fields, &pressure_correction, &boundary_handler);
+
+        // Assertions
+        assert!(result.is_ok(), "Velocity correction should succeed.");
+
+        // Verify updated velocity field values
+        let velocity_field = fields.vector_fields.get("velocity").unwrap();
+        for cell in mesh.get_cells() {
+            let updated_velocity = velocity_field.restrict(&cell).unwrap();
+            // Velocity should decrease due to pressure gradient correction
+            assert!(updated_velocity.0[0] < 1.0);
+            assert!(updated_velocity.0[1] < 1.0);
+            assert!(updated_velocity.0[2] < 1.0);
+        }
+    }
+
+    #[test]
+    fn test_correct_velocity_field_missing_velocity_field() {
+        // Set up test components without a velocity field
+        let mesh = setup_simple_mesh();
+        let mut fields = Fields::new(); // Empty fields, no velocity field
+        let pressure_correction = setup_pressure_correction(&mesh);
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        // Attempt to correct velocity field
+        let result = correct_velocity_field(&mesh, &mut fields, &pressure_correction, &boundary_handler);
+
+        // Assertions
+        assert!(result.is_err(), "Expected failure due to missing velocity field.");
+        assert_eq!(
+            result.unwrap_err(),
+            "Velocity field not found in the fields structure.",
+            "Error message should match."
+        );
+    }
+
+    #[test]
+    fn test_correct_velocity_field_gradient_failure() {
+        // Set up test components
+        let mesh = setup_simple_mesh();
+        let mut fields = setup_fields(&mesh);
+        let pressure_correction = setup_pressure_correction(&mesh);
+        let boundary_handler = setup_boundary_conditions(&mesh);
+
+        // Introduce invalid data to trigger gradient computation failure
+        pressure_correction.set_data(MeshEntity::Cell(999), Scalar(10.0)); // Non-existent cell
+
+        // Attempt to correct velocity field
+        let result = correct_velocity_field(&mesh, &mut fields, &pressure_correction, &boundary_handler);
+
+        // Assertions
+        assert!(result.is_err(), "Expected failure due to gradient computation issue.");
+        assert!(result.unwrap_err().contains("Gradient computation failed"), "Error should indicate gradient failure.");
     }
 }

@@ -10,7 +10,7 @@ use crate::boundary::bc_handler::BoundaryConditionHandler;
 use crate::domain::section::{scalar::Scalar, vector::Vector3};
 use crate::domain::{mesh::Mesh, MeshEntity, Section};
 use crate::geometry::Geometry;
-use std::error::Error;
+use thiserror::Error;
 
 pub mod gradient_calc;
 pub mod least_squares;
@@ -35,6 +35,17 @@ impl GradientCalculationMethod {
             // Extend here with other methods as needed
         }
     }
+}
+
+/// Custom error type for gradient computation errors.
+#[derive(Debug, Error)]
+pub enum GradientError {
+    #[error("Cell {0:?} is missing from the mesh or invalid.")]
+    InvalidCell(MeshEntity),
+    #[error("Gradient calculation for cell {0:?} failed with reason: {1}")]
+    CalculationError(MeshEntity, String),
+    #[error("Unknown error during gradient computation.")]
+    Unknown,
 }
 
 /// Trait defining the interface for gradient calculation methods.
@@ -63,7 +74,7 @@ pub trait GradientMethod {
         field: &Section<Scalar>,
         cell: &MeshEntity,
         time: f64,
-    ) -> Result<[f64; 3], Box<dyn Error>>;
+    ) -> Result<[f64; 3], GradientError>;
 }
 
 /// Gradient calculator that accepts a gradient method for flexible computation.
@@ -112,16 +123,27 @@ impl<'a> Gradient<'a> {
         field: &Section<Scalar>,
         gradient: &mut Section<Vector3>,
         time: f64,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), GradientError> {
         for cell in self.mesh.get_cells() {
-            let grad_phi = self.method.calculate_gradient(
-                self.mesh,
-                self.boundary_handler,
-                &mut self.geometry,  // Now mutable
-                field,
-                &cell,
-                time,
-            )?;
+            // Check if cell is valid in the mesh
+            if !self.mesh.entity_exists(&cell) {
+                return Err(GradientError::InvalidCell(cell.clone()));
+            }
+
+            // Attempt to compute the gradient
+            let grad_phi = self
+                .method
+                .calculate_gradient(
+                    self.mesh,
+                    self.boundary_handler,
+                    &mut self.geometry,
+                    field,
+                    &cell,
+                    time,
+                )
+                .map_err(|e| GradientError::CalculationError(cell.clone(), e.to_string()))?;
+
+            // Store the computed gradient
             gradient.set_data(cell, Vector3(grad_phi));
         }
         Ok(())

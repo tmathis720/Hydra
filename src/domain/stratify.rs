@@ -36,22 +36,35 @@ impl Sieve {
     ///
     pub fn stratify(&self) -> DashMap<usize, Vec<MeshEntity>> {
         let strata: DashMap<usize, Vec<MeshEntity>> = DashMap::new();
-
-        // Iterate over the adjacency map to classify entities by their dimension.
+    
+        if self.adjacency.is_empty() {
+            eprintln!("Warning: Adjacency map is empty. Returning empty strata.");
+            return strata;
+        }
+    
         self.adjacency.iter().for_each(|entry| {
             let entity = entry.key();
-            // Determine the dimension of the current entity.
             let dimension = match entity {
-                MeshEntity::Vertex(_) => 0,  // Stratum 0 for vertices
-                MeshEntity::Edge(_) => 1,    // Stratum 1 for edges
-                MeshEntity::Face(_) => 2,    // Stratum 2 for faces
-                MeshEntity::Cell(_) => 3,    // Stratum 3 for cells
+                MeshEntity::Vertex(_) => 0,
+                MeshEntity::Edge(_) => 1,
+                MeshEntity::Face(_) => 2,
+                MeshEntity::Cell(_) => 3,
+                _ => {
+                    eprintln!("Warning: Unsupported entity type {:?}", entity);
+                    return; // Skip unsupported entities
+                }
             };
-            
-            // Insert entity into the appropriate stratum in a thread-safe manner.
+    
+            // Log entity placement for debugging
             strata.entry(dimension).or_insert_with(Vec::new).push(entity.clone());
         });
-
+    
+        println!(
+            "Stratification complete: {} entities organized into {} strata",
+            self.adjacency.len(),
+            strata.len()
+        );
+    
         strata
     }
 }

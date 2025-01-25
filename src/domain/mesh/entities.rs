@@ -153,22 +153,33 @@ impl Mesh {
     /// are sorted by their unique identifiers to ensure deterministic results.
     ///
     /// # Returns
-    /// A vector of neighboring cells sorted by ID.
-    pub fn get_ordered_neighbors(&self, cell: &MeshEntity) -> Vec<MeshEntity> {
+    /// * `Result<Vec<MeshEntity>, String>` - A vector of neighboring cells sorted by ID or an error message.
+    pub fn get_ordered_neighbors(&self, cell: &MeshEntity) -> Result<Vec<MeshEntity>, String> {
         let mut neighbors = Vec::new();
-        if let Some(faces) = self.get_faces_of_cell(cell) {
-            for face in faces.iter() {
-                let cells_sharing_face = self.get_cells_sharing_face(&face.key());
-                for neighbor in cells_sharing_face.iter() {
-                    if *neighbor.key() != *cell {
-                        neighbors.push(*neighbor.key());
-                    }
+
+        // Get faces of the cell
+        let faces = self
+            .get_faces_of_cell(cell)
+            .map_err(|err| format!("Failed to retrieve faces for cell {:?}: {}", cell, err))?;
+
+        // Iterate over each face and find neighboring cells
+        for face in faces.iter() {
+            let cells_sharing_face = self
+                .get_cells_sharing_face(&*face.key())
+                .map_err(|err| format!("Failed to retrieve cells sharing face {:?}: {}", face.key(), err))?;
+
+            for neighbor in cells_sharing_face.iter() {
+                if neighbor.key() != cell {
+                    neighbors.push(neighbor.key().clone());
                 }
             }
         }
-        neighbors.sort_by(|a, b| a.get_id().cmp(&b.get_id())); // Ensures consistent ordering by ID
-        neighbors
+
+        // Ensure neighbors are sorted by their IDs
+        neighbors.sort_by(|a, b| a.get_id().cmp(&b.get_id()));
+        Ok(neighbors)
     }
+
 
     /// Maps each `MeshEntity` in the mesh to a unique index.
     ///
@@ -220,12 +231,6 @@ impl Mesh {
             current_index += 1;
         }
     
-        // Assign indices for faces
-        for face in self.get_faces() {
-            index_map.insert(face.clone(), current_index);
-            current_index += 1;
-        }
-    
         // Ensure consistency in index assignment
         assert_eq!(
             index_map.len(),
@@ -259,5 +264,19 @@ impl Mesh {
                     None
                 }
             }); x
+    }
+
+    /// Checks if a given `MeshEntity` exists in the mesh.
+    ///
+    /// This function validates whether the provided entity is part of the mesh's domain.
+    ///
+    /// # Parameters
+    /// - `entity`: A reference to the `MeshEntity` to check.
+    ///
+    /// # Returns
+    /// - `bool`: Returns `true` if the entity exists in the mesh, otherwise `false`.
+    pub fn entity_exists(&self, entity: &MeshEntity) -> bool {
+        let entities = self.entities.read().unwrap();
+        entities.contains(entity)
     }
 }

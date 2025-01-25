@@ -591,9 +591,11 @@ dependencies = [
  "dashmap",
  "faer",
  "lazy_static",
+ "log",
  "rand",
  "rayon",
  "rustc-hash",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

@@ -5,6 +5,8 @@ use crate::equation::gradient::GradientMethod;
 use crate::domain::section::{scalar::Scalar, vector::Vector3};
 use std::error::Error;
 
+use super::GradientError;
+
 /// Struct for the finite volume gradient calculation method.
 ///
 /// This struct implements the `GradientMethod` trait for finite volume
@@ -12,19 +14,6 @@ use std::error::Error;
 pub struct FiniteVolumeGradient;
 
 impl GradientMethod for FiniteVolumeGradient {
-    /// Computes the gradient of a scalar field across each cell in the mesh.
-    ///
-    /// # Parameters
-    /// - `mesh`: Reference to the mesh structure containing cell and face connectivity.
-    /// - `boundary_handler`: Reference to a handler that manages boundary conditions.
-    /// - `geometry`: Geometry utilities for computing areas, volumes, etc.
-    /// - `field`: Scalar field values for each cell.
-    /// - `cell`: The current cell for which the gradient is computed.
-    /// - `time`: Current simulation time.
-    ///
-    /// # Returns
-    /// - `Ok([f64; 3])`: Computed gradient vector.
-    /// - `Err(Box<dyn Error>)`: If any error occurs during computation.
     fn calculate_gradient(
         &self,
         mesh: &Mesh,
@@ -33,55 +22,117 @@ impl GradientMethod for FiniteVolumeGradient {
         field: &Section<Scalar>,
         cell: &MeshEntity,
         time: f64,
-    ) -> Result<[f64; 3], Box<dyn Error>> {
-        let phi_c = field.restrict(cell).ok_or("Field value not found for cell")?.0;
-        let mut grad_phi = [0.0; 3];
-        let cell_vertices = mesh.get_cell_vertices(cell);
+    ) -> Result<[f64; 3], GradientError> {
+        let phi_c = field
+            .restrict(cell)
+            .ok_or_else(|| GradientError::CalculationError(cell.clone(), "Field value not found for cell".to_string()))?
+            .0;
 
+        let mut grad_phi = [0.0; 3];
+
+        // Retrieve vertices of the cell
+        let cell_vertices = mesh.get_cell_vertices(cell).map_err(|err| {
+            GradientError::CalculationError(cell.clone(), format!("Failed to retrieve vertices: {}", err))
+        })?;
         if cell_vertices.is_empty() {
-            return Err(format!("Cell {:?} has 0 vertices; cannot compute volume or gradient.", cell).into());
+            return Err(GradientError::CalculationError(
+                cell.clone(),
+                "Cell has no vertices; cannot compute volume or gradient.".to_string(),
+            ));
         }
 
+        // Compute cell volume
         let volume = geometry.compute_cell_volume(mesh, cell);
         if volume == 0.0 {
-            return Err("Cell volume is zero; cannot compute gradient.".into());
+            return Err(GradientError::CalculationError(
+                cell.clone(),
+                "Failed to compute cell volume: volume is zero".to_string(),
+            ));
+        }
+        if volume == 0.0 {
+            return Err(GradientError::CalculationError(
+                cell.clone(),
+                "Cell volume is zero; cannot compute gradient.".to_string(),
+            ));
         }
 
-        if let Some(faces) = mesh.get_faces_of_cell(cell) {
-            for face_entry in faces.iter() {
-                let face = face_entry.key();
-                let face_vertices = mesh.get_face_vertices(face);
-                let face_shape = self.determine_face_shape(face_vertices.len())?;
-                let area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
-                let normal = geometry.compute_face_normal(mesh, face, cell)
-                    .ok_or("Face normal not found")?;
-                let flux_vector = Vector3([normal[0] * area, normal[1] * area, normal[2] * area]);
-                let neighbor_cells = mesh.get_cells_sharing_face(face);
+        // Retrieve faces of the cell
+        let faces = mesh.get_faces_of_cell(cell).map_err(|err| {
+            GradientError::CalculationError(cell.clone(), format!("Failed to retrieve faces: {}", err))
+        })?;
 
-                let nb_cell = neighbor_cells.iter()
-                    .find(|neighbor| *neighbor.key() != *cell)
-                    .map(|entry| entry.key().clone());
+        for face_entry in faces.iter() {
+            let face = face_entry.key();
+            let face_vertices = mesh.get_face_vertices(face).map_err(|err| {
+                GradientError::CalculationError(face.clone(), format!("Failed to retrieve face vertices: {}", err))
+            })?;
 
-                if let Some(nb_cell) = nb_cell {
-                    let phi_nb = field.restrict(&nb_cell).ok_or("Field value not found for neighbor cell")?.0;
-                    let delta_phi = phi_nb - phi_c;
-                    for i in 0..3 {
-                        grad_phi[i] += delta_phi * flux_vector[i];
-                    }
-                } else {
-                    // Pass boundary_handler directly to the function
-                    self.apply_boundary_condition(face, phi_c, flux_vector, time, &mut grad_phi, boundary_handler, geometry, mesh)?;
+            // Determine face shape
+            let face_shape = self
+                .determine_face_shape(face_vertices.len())
+                .map_err(|e| GradientError::CalculationError(face.clone(), e.to_string()))?;
+
+            // Compute face area and normal
+            let area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
+            if area == 0.0 {
+                return Err(GradientError::CalculationError(
+                    face.clone(),
+                    "Failed to compute face area: area is zero".to_string(),
+                ));
+            }
+            let normal = geometry
+                .compute_face_normal(mesh, face, cell)
+                .map_err(|err| GradientError::CalculationError(face.clone(), format!("Failed to compute face normal: {}", err)))?;
+            let flux_vector = Vector3([normal[0] * area, normal[1] * area, normal[2] * area]);
+
+            // Retrieve neighboring cell
+            let neighbor_cells = mesh.get_cells_sharing_face(face).map_err(|err| {
+                GradientError::CalculationError(face.clone(), format!("Failed to retrieve neighboring cells: {}", err))
+            })?;
+            let nb_cell = neighbor_cells
+                .iter()
+                .find(|neighbor| *neighbor.key() != *cell)
+                .map(|entry| entry.key().clone());
+
+            if let Some(nb_cell) = nb_cell {
+                // Handle internal face
+                let phi_nb = field
+                    .restrict(&nb_cell)
+                    .ok_or_else(|| {
+                        GradientError::CalculationError(nb_cell.clone(), "Field value not found for neighbor cell".to_string())
+                    })?
+                    .0;
+
+                let delta_phi = phi_nb - phi_c;
+                for i in 0..3 {
+                    grad_phi[i] += delta_phi * flux_vector[i];
                 }
+            } else {
+                // Handle boundary face
+                self.apply_boundary_condition(
+                    face,
+                    phi_c,
+                    flux_vector,
+                    time,
+                    &mut grad_phi,
+                    boundary_handler,
+                    geometry,
+                    mesh,
+                )
+                .map_err(|e| GradientError::CalculationError(face.clone(), e.to_string()))?;
             }
+        }
 
-            for i in 0..3 {
-                grad_phi[i] /= volume;
-            }
+        // Normalize gradient by cell volume
+        for i in 0..3 {
+            grad_phi[i] /= volume;
         }
 
         Ok(grad_phi)
     }
 }
+
+
 
 impl FiniteVolumeGradient {
     /// Applies boundary conditions for a face without a neighboring cell.
@@ -122,12 +173,12 @@ impl FiniteVolumeGradient {
                     return Err("Robin boundary condition not implemented for gradient computation".into());
                 }
                 BoundaryCondition::DirichletFn(wrapper) => {
-                    let coords = geometry.compute_face_centroid(FaceShape::Triangle, &mesh.get_face_vertices(face));
+                    let coords = geometry.compute_face_centroid(FaceShape::Triangle, &mesh.get_face_vertices(face).unwrap());
                     let phi_nb = (wrapper.function)(time, &coords);
                     self.apply_dirichlet_boundary(phi_nb, phi_c, flux_vector, grad_phi);
                 }
                 BoundaryCondition::NeumannFn(wrapper) => {
-                    let coords = geometry.compute_face_centroid(FaceShape::Triangle, &mesh.get_face_vertices(face));
+                    let coords = geometry.compute_face_centroid(FaceShape::Triangle, &mesh.get_face_vertices(face).unwrap());
                     let flux = (wrapper.function)(time, &coords);
                     self.apply_neumann_boundary(flux, flux_vector, grad_phi);
                 }

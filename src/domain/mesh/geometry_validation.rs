@@ -62,7 +62,9 @@ impl GeometryValidation {
     pub fn test_centroid_calculation(mesh: &Mesh, geometry: &mut Geometry) -> Result<(), String> {
         // Validate face centroids
         for face in mesh.get_faces().iter() {
-            let face_vertices = mesh.get_face_vertices(face);
+            let face_vertices = mesh
+                .get_face_vertices(face)
+                .map_err(|err| format!("Failed to retrieve vertices for face {:?}: {}", face, err))?;
 
             let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
@@ -71,10 +73,11 @@ impl GeometryValidation {
                     return Err(format!(
                         "Unsupported face shape with {} vertices",
                         face_vertices.len()
-                    ))
+                    ));
                 }
             };
 
+            // Compute the centroid directly (assuming it doesn't return a `Result`)
             let calculated_centroid = geometry.compute_face_centroid(face_shape, &face_vertices);
 
             if !GeometryValidation::is_centroid_valid(face, &calculated_centroid, mesh) {
@@ -87,7 +90,13 @@ impl GeometryValidation {
 
         // Validate cell centroids
         for cell in mesh.get_cells().iter() {
-            let calculated_centroid = geometry.compute_cell_centroid(mesh, cell);
+            // Directly call the centroid computation function
+            let calculated_centroid = mesh.get_cell_centroid(cell).map_err(|err| {
+                format!(
+                    "Failed to compute centroid for cell {:?}: {}",
+                    cell, err
+                )
+            })?;
 
             if !GeometryValidation::is_centroid_valid(cell, &calculated_centroid, mesh) {
                 return Err(format!(
@@ -99,6 +108,7 @@ impl GeometryValidation {
 
         Ok(())
     }
+
 
     /// Validates the distances between each pair of cells in the mesh.
     ///
@@ -117,11 +127,20 @@ impl GeometryValidation {
         // Iterate over all pairs of cells
         for (i, cell1) in cells.iter().enumerate() {
             for cell2 in cells.iter().skip(i + 1) {
-                let calculated_distance = mesh.get_distance_between_cells(cell1, cell2);
+                // Safely handle the result of `get_distance_between_cells`
+                let calculated_distance = mesh
+                    .get_distance_between_cells(cell1, cell2)
+                    .map_err(|err| {
+                        format!(
+                            "Failed to calculate distance between cells {:?} and {:?}: {}",
+                            cell1, cell2, err
+                        )
+                    })?;
 
+                // Validate the calculated distance
                 if !GeometryValidation::is_distance_valid(cell1, cell2, calculated_distance, geometry) {
                     return Err(format!(
-                        "Incorrect distance between cells {:?} and {:?}. Calculated: {}",
+                        "Incorrect distance between cells {:?} and {:?}. Calculated: {:.6}",
                         cell1, cell2, calculated_distance
                     ));
                 }

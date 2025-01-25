@@ -87,18 +87,27 @@ impl Geometry {
     /// Caches the result for reuse.
     pub fn compute_cell_centroid(&mut self, mesh: &Mesh, cell: &MeshEntity) -> [f64; 3] {
         let cell_id = cell.get_id();
+
+        // Check if the centroid is cached
         if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.centroid) {
             return cached;
         }
-    
-        let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
-        let cell_vertices = mesh.get_cell_vertices(cell);
-    
-        // Validate that cell vertices are retrieved correctly
-        if cell_vertices.is_empty() {
-            panic!("Cell {:?} has no vertices; centroid cannot be computed.", cell);
-        }
-    
+
+        // Retrieve cell shape and vertices
+        let cell_shape = mesh
+            .get_cell_shape(cell)
+            .expect("Cell shape not found or unsupported");
+
+        let cell_vertices = match mesh.get_cell_vertices(cell) {
+            Ok(vertices) if !vertices.is_empty() => vertices,
+            Ok(_) => panic!("Cell {:?} has no vertices; centroid cannot be computed.", cell),
+            Err(err) => panic!(
+                "Failed to retrieve vertices for cell {:?}: {}",
+                cell, err
+            ),
+        };
+
+        // Compute the centroid based on the cell shape
         let centroid = match cell_shape {
             CellShape::Triangle => self.compute_triangle_centroid(&cell_vertices),
             CellShape::Quadrilateral => self.compute_quadrilateral_centroid(&cell_vertices),
@@ -107,8 +116,15 @@ impl Geometry {
             CellShape::Prism => self.compute_prism_centroid(&cell_vertices),
             CellShape::Pyramid => self.compute_pyramid_centroid(&cell_vertices),
         };
-    
-        self.cache.lock().unwrap().entry(cell_id).or_default().centroid = Some(centroid);
+
+        // Cache the computed centroid for future use
+        self.cache
+            .lock()
+            .unwrap()
+            .entry(cell_id)
+            .or_default()
+            .centroid = Some(centroid);
+
         centroid
     }
 
@@ -116,18 +132,31 @@ impl Geometry {
     /// The computed volume is cached for efficiency.
     pub fn compute_cell_volume(&mut self, mesh: &Mesh, cell: &MeshEntity) -> f64 {
         let cell_id = cell.get_id();
+
+        // Check if the volume is cached
         if let Some(cached) = self.cache.lock().unwrap().get(&cell_id).and_then(|c| c.volume) {
             return cached;
         }
-    
-        let cell_shape = mesh.get_cell_shape(cell).expect("Cell shape not found");
-        let cell_vertices = mesh.get_cell_vertices(cell);
-    
-        // Validate vertices
-        if cell_vertices.len() < 3 { // Example: tetrahedron requires 4 vertices
-            panic!("Cell {:?} does not have enough vertices to compute volume.", cell);
-        }
-    
+
+        // Retrieve cell shape
+        let cell_shape = mesh
+            .get_cell_shape(cell)
+            .expect("Cell shape not found or unsupported");
+
+        // Retrieve cell vertices
+        let cell_vertices = match mesh.get_cell_vertices(cell) {
+            Ok(vertices) if !vertices.is_empty() => vertices,
+            Ok(_) => panic!(
+                "Cell {:?} does not have enough vertices to compute volume.",
+                cell
+            ),
+            Err(err) => panic!(
+                "Failed to retrieve vertices for cell {:?}: {}",
+                cell, err
+            ),
+        };
+
+        // Compute the volume based on the cell shape
         let volume = match cell_shape {
             CellShape::Triangle => self.compute_triangle_area(&cell_vertices),
             CellShape::Quadrilateral => self.compute_quadrilateral_area(&cell_vertices),
@@ -136,8 +165,15 @@ impl Geometry {
             CellShape::Prism => self.compute_prism_volume(&cell_vertices),
             CellShape::Pyramid => self.compute_pyramid_volume(&cell_vertices),
         };
-    
-        self.cache.lock().unwrap().entry(cell_id).or_default().volume = Some(volume);
+
+        // Cache the computed volume for future use
+        self.cache
+            .lock()
+            .unwrap()
+            .entry(cell_id)
+            .or_default()
+            .volume = Some(volume);
+
         volume
     }
 
@@ -183,7 +219,7 @@ impl Geometry {
 
     /// Computes and caches the normal vector for a face based on its shape.
     ///
-    /// This function determines the face shape and calls the appropriate 
+    /// This function determines the face shape and calls the appropriate
     /// function to compute the normal vector.
     ///
     /// # Arguments
@@ -192,38 +228,82 @@ impl Geometry {
     /// * `cell` - The cell associated with the face, used to determine the orientation.
     ///
     /// # Returns
-    /// * `Option<[f64; 3]>` - The computed normal vector, or `None` if it could not be computed.
+    /// * `Result<Vector3, String>` - The computed normal vector or an error message.
     pub fn compute_face_normal(
         &mut self,
         mesh: &Mesh,
         face: &MeshEntity,
         _cell: &MeshEntity,
-    ) -> Option<Vector3> {
+    ) -> Result<Vector3, String> {
         let face_id = face.get_id();
 
         // Check if the normal is already cached
-        if let Some(cached) = self.cache.lock().unwrap().get(&face_id).and_then(|c| c.normal) {
-            return Some(domain::section::Vector3(cached));
+        if let Some(cached) = self
+            .cache
+            .lock()
+            .unwrap()
+            .get(&face_id)
+            .and_then(|c| c.normal)
+        {
+            return Ok(domain::section::Vector3(cached));
         }
 
-        let face_vertices = mesh.get_face_vertices(face);
+        // Retrieve face vertices and handle potential errors
+        let face_vertices = match mesh.get_face_vertices(face) {
+            Ok(vertices) if !vertices.is_empty() => vertices,
+            Ok(_) => {
+                return Err(format!(
+                    "Face {:?} has no vertices; normal cannot be computed.",
+                    face
+                ))
+            }
+            Err(err) => {
+                return Err(format!(
+                    "Failed to retrieve vertices for face {:?}: {}",
+                    face, err
+                ))
+            }
+        };
+
+        // Determine the face shape based on the number of vertices
         let face_shape = match face_vertices.len() {
             2 => FaceShape::Edge,
             3 => FaceShape::Triangle,
             4 => FaceShape::Quadrilateral,
-            _ => return None, // Unsupported face shape
+            _ => {
+                return Err(format!(
+                    "Unsupported face shape with {} vertices for face {:?}",
+                    face_vertices.len(),
+                    face
+                ));
+            }
         };
 
+        // Compute the normal vector based on the face shape
         let normal = match face_shape {
-            FaceShape::Edge => self.compute_edge_normal(&face_vertices),
-            FaceShape::Triangle => self.compute_triangle_normal(&face_vertices),
-            FaceShape::Quadrilateral => self.compute_quadrilateral_normal(&face_vertices),
-        };
+            FaceShape::Edge => {
+                let normal = self.compute_edge_normal(&face_vertices);
+                Ok::<[f64; 3], String>(normal)
+            },
+            FaceShape::Triangle => {
+                let normal = self.compute_triangle_normal(&face_vertices);
+                Ok(normal) // Wrap the result in `Ok`
+            }
+            FaceShape::Quadrilateral => {
+                let normal = self.compute_quadrilateral_normal(&face_vertices);
+                Ok(normal) // Wrap the result in `Ok`
+            }
+        }?;
 
         // Cache the normal vector for future use
-        self.cache.lock().unwrap().entry(face_id).or_default().normal = Some(normal);
+        self.cache
+            .lock()
+            .unwrap()
+            .entry(face_id)
+            .or_default()
+            .normal = Some(normal);
 
-        Some(domain::section::Vector3(normal))
+        Ok(domain::section::Vector3(normal))
     }
 
     /// Computes the normal vector of an edge (2D face).
@@ -490,7 +570,7 @@ mod tests {
 
         // Verify that `get_cell_vertices` retrieves the correct vertices.
         let cell_vertices = mesh.get_cell_vertices(&cell);
-        assert_eq!(cell_vertices.len(), 4, "Expected 4 vertices for a tetrahedron cell.");
+        assert_eq!(cell_vertices.unwrap().len(), 4, "Expected 4 vertices for a tetrahedron cell.");
 
         // Validate the shape before computing.
         assert_eq!(mesh.get_cell_shape(&cell), Ok(CellShape::Tetrahedron));

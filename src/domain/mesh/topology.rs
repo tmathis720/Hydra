@@ -92,26 +92,59 @@ impl<'a> TopologyValidation<'a> {
     /// # Returns
     /// * `true` if the cell is correctly connected, `false` otherwise.
     fn validate_cell_connectivity(&self, cell: &MeshEntity) -> bool {
-        if let Some(connected_faces) = self.sieve.cone(cell) {
-            for face in connected_faces {
-                // Validate that the entity is a `Face`.
-                if !matches!(face, MeshEntity::Face(_)) {
+        // Ensure the entity is a Cell
+        if !matches!(cell, MeshEntity::Cell(_)) {
+            eprintln!("Error: Entity {:?} is not a valid Cell.", cell);
+            return false;
+        }
+
+        // Retrieve connected faces using the cone function
+        let connected_faces = match self.sieve.cone(cell) {
+            Ok(faces) => faces,
+            Err(err) => {
+                eprintln!(
+                    "Error retrieving faces connected to Cell {:?}: {}",
+                    cell, err
+                );
+                return false;
+            }
+        };
+
+        for face in connected_faces {
+            // Validate that the entity is a `Face`.
+            if !matches!(face, MeshEntity::Face(_)) {
+                eprintln!(
+                    "Error: Connected entity {:?} is not a valid Face for Cell {:?}.",
+                    face, cell
+                );
+                return false;
+            }
+
+            // Retrieve vertices connected to the face
+            let connected_vertices = match self.sieve.cone(&face) {
+                Ok(vertices) => vertices,
+                Err(err) => {
+                    eprintln!(
+                        "Error retrieving vertices connected to Face {:?}: {}",
+                        face, err
+                    );
                     return false;
                 }
-                // Validate that each face is connected to valid `Vertex` entities.
-                if let Some(vertices) = self.sieve.cone(&face) {
-                    if !vertices.iter().all(|v| matches!(v, MeshEntity::Vertex(_))) {
-                        return false;
-                    }
-                } else {
-                    return false; // Face is not connected to any vertices.
-                }
+            };
+
+            // Validate that all connected entities are `Vertex`.
+            if !connected_vertices.iter().all(|v| matches!(v, MeshEntity::Vertex(_))) {
+                eprintln!(
+                    "Error: Not all connected entities for Face {:?} are valid Vertices: {:?}",
+                    face, connected_vertices
+                );
+                return false;
             }
-            true
-        } else {
-            false // Cell is not connected to any faces.
         }
+
+        true
     }
+
 
     /// Validates that edges within a cell are unique.
     ///
@@ -129,29 +162,53 @@ impl<'a> TopologyValidation<'a> {
         cell: &MeshEntity,
         edge_set: &mut FxHashSet<MeshEntity>,
     ) -> bool {
-        if let Some(edges) = self.sieve.cone(cell) {
-            for edge in edges {
-                // Validate that the entity is an `Edge`.
-                if !matches!(edge, MeshEntity::Edge(_)) {
-                    return false;
-                }
-                // Debugging: Print edge and current edge set.
-                println!(
-                    "Checking edge {:?} in cell {:?}. Current edge set: {:?}",
-                    edge, cell, edge_set
-                );
-
-                // Check for duplicates in `edge_set`.
-                if !edge_set.insert(edge) {
-                    println!("Duplicate edge {:?} found in cell {:?}", edge, cell); // Debugging statement.
-                    return false; // Duplicate edge detected.
-                }
-            }
-            true
-        } else {
-            false // Cell is not connected to any edges.
+        // Ensure the entity is a Cell
+        if !matches!(cell, MeshEntity::Cell(_)) {
+            eprintln!("Error: Entity {:?} is not a valid Cell.", cell);
+            return false;
         }
+
+        // Retrieve edges connected to the cell
+        let connected_edges = match self.sieve.cone(cell) {
+            Ok(edges) => edges,
+            Err(err) => {
+                eprintln!(
+                    "Error retrieving edges connected to Cell {:?}: {}",
+                    cell, err
+                );
+                return false;
+            }
+        };
+
+        for edge in connected_edges {
+            // Validate that the entity is an `Edge`.
+            if !matches!(edge, MeshEntity::Edge(_)) {
+                eprintln!(
+                    "Error: Connected entity {:?} is not a valid Edge for Cell {:?}.",
+                    edge, cell
+                );
+                return false;
+            }
+
+            // Debugging: Print edge and current edge set.
+            println!(
+                "Checking edge {:?} in cell {:?}. Current edge set: {:?}",
+                edge, cell, edge_set
+            );
+
+            // Check for duplicates in `edge_set`.
+            if !edge_set.insert(edge.clone()) {
+                eprintln!(
+                    "Error: Duplicate edge {:?} found in Cell {:?}.",
+                    edge, cell
+                );
+                return false; // Duplicate edge detected.
+            }
+        }
+
+        true
     }
+
 }
 
 

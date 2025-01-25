@@ -3,7 +3,7 @@ use crate::{boundary::bc_handler::BoundaryConditionHandler,
     solver::preconditioner::PreconditionerFactory, 
     Geometry, Mesh, MeshEntity, Section};
 
-use super::GradientMethod;
+use super::{GradientError, GradientMethod};
 
 /// Struct for the least-squares gradient calculation method.
 ///
@@ -20,24 +20,47 @@ impl GradientMethod for LeastSquaresGradient {
         field: &Section<Scalar>,
         cell: &MeshEntity,
         _time: f64,
-    ) -> Result<[f64; 3], Box<dyn std::error::Error>> {
+    ) -> Result<[f64; 3], GradientError> {
+        // Compute the centroid of the current cell
         let cell_center = geometry.compute_cell_centroid(mesh, cell);
-        let phi_c = field.restrict(cell).ok_or("Field value not found for cell")?.0;
-
+        
+        // Retrieve the field value for the current cell
+        let phi_c = field
+            .restrict(cell)
+            .ok_or_else(|| GradientError::CalculationError(cell.clone(), "Field value not found for cell".to_string()))?
+            .0;
+    
         let mut a = [[0.0; 3]; 3];
         let mut b = [0.0; 3];
-
+    
+        // Retrieve neighbors of the cell
         let neighbors = mesh.get_ordered_neighbors(cell);
+        if neighbors.unwrap().is_empty() {
+            return Err(GradientError::CalculationError(
+                cell.clone(),
+                "No neighbors found for cell".to_string(),
+            ));
+        }
+    
+        // Compute contributions from neighbors
         for neighbor in neighbors {
+            // Compute centroid for the neighbor
             let neighbor_center = geometry.compute_cell_centroid(mesh, &neighbor);
-            let phi_nb = field.restrict(&neighbor).ok_or("Field value not found for neighbor")?.0;
-
+    
+            // Retrieve the field value for the neighbor
+            let phi_nb = field
+                .restrict(&neighbor)
+                .ok_or_else(|| GradientError::CalculationError(neighbor.clone(), "Field value not found for neighbor".to_string()))?
+                .0;
+    
+            // Compute the displacement vector
             let delta = [
                 neighbor_center[0] - cell_center[0],
                 neighbor_center[1] - cell_center[1],
                 neighbor_center[2] - cell_center[2],
             ];
-
+    
+            // Populate the least-squares matrix (A) and RHS vector (b)
             for i in 0..3 {
                 for j in 0..3 {
                     a[i][j] += delta[i] * delta[j];
@@ -45,11 +68,14 @@ impl GradientMethod for LeastSquaresGradient {
                 b[i] += delta[i] * (phi_nb - phi_c);
             }
         }
-
-        let grad_phi = solve_least_squares(a, b)?;
-
+    
+        // Solve the least-squares system
+        let grad_phi = solve_least_squares(a, b).map_err(|e| {
+            GradientError::CalculationError(cell.clone(), format!("Failed to solve least-squares system: {}", e))
+        })?;
+    
         Ok(grad_phi)
-    }
+    }    
 }
 
 /// Solves the least-squares system A * x = b using Hydra's matrix and vector abstractions.
@@ -115,7 +141,7 @@ mod tests {
     fn create_test_mesh() -> Mesh {
         let mut mesh = Mesh::new();
     
-        // Adding vertices
+        // Add vertices
         let vertices = vec![
             MeshEntity::Vertex(1),
             MeshEntity::Vertex(2),
@@ -127,18 +153,36 @@ mod tests {
             mesh.add_entity(vertex.clone());
         }
     
-        // Setting coordinates
+        // Set coordinates for vertices
         mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
         mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
         mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
         mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]);
-        mesh.set_vertex_coordinates(5, [1.0, 1.0, 1.0]); // Additional point for diversity
+        mesh.set_vertex_coordinates(5, [1.0, 1.0, 1.0]);
     
-        // Adding a cell
-        let cell = MeshEntity::Cell(1);
-        mesh.add_entity(cell.clone());
+        // Add main test cell
+        let test_cell = MeshEntity::Cell(1);
+        mesh.add_entity(test_cell.clone());
         for vertex in &vertices {
-            mesh.add_relationship(cell.clone(), vertex.clone());
+            mesh.add_relationship(test_cell.clone(), vertex.clone());
+        }
+    
+        // Add neighboring cells and relationships
+        let neighbor_cells = vec![
+            MeshEntity::Cell(2),
+            MeshEntity::Cell(3),
+        ];
+        for neighbor in &neighbor_cells {
+            mesh.add_entity(neighbor.clone());
+            mesh.add_relationship(*neighbor, test_cell.clone());
+        }
+    
+        // Ensure neighbors are connected through shared faces
+        let face = MeshEntity::Face(1);
+        mesh.add_entity(face.clone());
+        mesh.add_relationship(test_cell.clone(), face.clone());
+        for neighbor in &neighbor_cells {
+            mesh.add_relationship(*neighbor, face.clone());
         }
     
         mesh
@@ -189,44 +233,61 @@ mod tests {
 
     #[test]
     fn test_least_squares_gradient_with_dirichlet_boundary_condition() {
-        let mesh = create_test_mesh();
-
-        // Add Dirichlet boundary condition
+        use crate::interface_adapters::domain_adapter::DomainBuilder;
+        use crate::boundary::{bc_handler::BoundaryConditionHandler, bc_handler::BoundaryCondition};
+        use crate::domain::section::{scalar::Scalar, vector::Vector3};
+        use crate::equation::gradient::{Gradient, GradientCalculationMethod};
+    
+        // Create the mesh using DomainBuilder
+        let mut builder = DomainBuilder::new();
+    
+        // Add vertices and a tetrahedron cell (4 vertices for simplicity)
+        builder
+            .add_vertex(1, [0.0, 0.0, 0.0])
+            .add_vertex(2, [1.0, 0.0, 0.0])
+            .add_vertex(3, [0.0, 1.0, 0.0])
+            .add_vertex(4, [0.0, 0.0, 1.0])
+            .add_tetrahedron_cell(vec![1, 2, 3, 4]);
+    
+        let mesh = builder.build();
+    
+        // Add Dirichlet boundary condition to the face shared by all vertices
         let boundary_handler = BoundaryConditionHandler::new();
         boundary_handler.set_bc(
-            MeshEntity::Face(1),
+            MeshEntity::Face(1), // Assuming face IDs are properly set in DomainBuilder
             BoundaryCondition::Dirichlet(2.0),
         );
-
+    
         // Initialize scalar field
         let field = Section::<Scalar>::new();
-        field.set_data(MeshEntity::Cell(1), Scalar(1.0));
-
+        field.set_data(MeshEntity::Cell(1), Scalar(1.0)); // Assign scalar to the cell
+    
+        // Initialize gradient section
         let mut gradient = Section::<Vector3>::new();
-
+    
         // Create gradient calculator
         let mut gradient_calculator = Gradient::new(
             &mesh,
             &boundary_handler,
             GradientCalculationMethod::LeastSquares,
         );
-
+    
         // Compute the gradient
         let result = gradient_calculator.compute_gradient(&field, &mut gradient, 0.0);
-
+    
         assert!(
             result.is_ok(),
             "Gradient computation failed with Dirichlet boundary: {:?}",
             result.err()
         );
-
+    
         let computed_gradient = gradient
             .restrict(&MeshEntity::Cell(1))
             .expect("Gradient not computed");
         println!("Computed gradient with Dirichlet BC: {:?}", computed_gradient);
-
-        // Updated expected gradient calculation based on Dirichlet boundary condition
-        let expected_gradient = Vector3([0.0, 0.0, 0.0]); // Modify based on least-squares geometry
+    
+        // Example expected gradient
+        let expected_gradient = Vector3([0.0, 0.0, 0.0]); // Update as per domain setup
         assert!(
             computed_gradient.iter().zip(expected_gradient.iter()).all(|(a, b)| (a - b).abs() < 1e-6),
             "Mismatch: {:?} vs {:?}",
@@ -283,7 +344,7 @@ mod tests {
         );
     }
 
-/*     #[test]
+    #[test]
     fn test_least_squares_gradient_singular_matrix() {
         let a = [[1.0, 2.0, 3.0], [2.0, 4.0, 6.0], [3.0, 6.0, 9.0]]; // Singular matrix
         let b = [1.0, 2.0, 3.0];
@@ -299,7 +360,7 @@ mod tests {
         if let Err(e) = result {
             println!("Expected error for singular matrix: {}", e);
         }
-    } */
+    }
 
     #[test]
     fn test_least_squares_gradient_debugging() {

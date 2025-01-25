@@ -2,6 +2,7 @@ use dashmap::DashMap;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use crate::domain::mesh_entity::MeshEntity;
+use log;
 
 /// A `Sieve` struct that manages the relationships (arrows) between `MeshEntity` elements.
 /// 
@@ -47,35 +48,43 @@ impl Sieve {
     /// - `point`: The `MeshEntity` for which the cone is retrieved.
     ///
     /// # Returns
-    /// - A `Vec<MeshEntity>` containing entities in the cone, or `None` if there are no related entities.
-    pub fn cone(&self, point: &MeshEntity) -> Option<Vec<MeshEntity>> {
-        self.adjacency.get(point).map(|cone| {
-            cone.iter().map(|entry| entry.key().clone()).collect()
-        })
+    /// - `Ok(Vec<MeshEntity>)`: Entities in the cone.
+    /// - `Err(String)`: If the entity does not exist or has no relationships.
+    pub fn cone(&self, point: &MeshEntity) -> Result<Vec<MeshEntity>, String> {
+        self.adjacency
+            .get(point)
+            .map(|cone| cone.iter().map(|entry| *entry.key()).collect())
+            .ok_or_else(|| format!("Entity {:?} not found in the adjacency map.", point))
     }
 
     /// Computes the closure of a given `MeshEntity`.
-    ///
-    /// The closure includes:
-    /// - The entity itself.
-    /// - All entities it covers (cones) recursively.
     ///
     /// # Parameters
     /// - `point`: The `MeshEntity` for which the closure is computed.
     ///
     /// # Returns
-    /// - A `DashMap` containing all entities in the closure.
-    pub fn closure(&self, point: &MeshEntity) -> DashMap<MeshEntity, ()> {
+    /// - `Result<DashMap<MeshEntity, ()>, String>`: Entities in the closure or an error message.
+    pub fn closure(&self, point: &MeshEntity) -> Result<DashMap<MeshEntity, ()>, String> {
         let result = DashMap::new();
         let stack = DashMap::new();
         stack.insert(point.clone(), ());
+        let mut depth = 0;
 
-        // Traverse all related entities using a stack
         while !stack.is_empty() {
-            let keys: Vec<MeshEntity> = stack.iter().map(|entry| entry.key().clone()).collect();
+            depth += 1;
+
+            // Safeguard against excessive depth (potential cyclic relationships)
+            if depth > 1000 {
+                return Err(format!(
+                    "Exceeded maximum recursion depth while computing closure for {:?}.",
+                    point
+                ));
+            }
+
+            let keys: Vec<MeshEntity> = stack.iter().map(|entry| *entry.key()).collect();
             for p in keys {
                 if result.insert(p.clone(), ()).is_none() {
-                    if let Some(cones) = self.cone(&p) {
+                    if let Ok(cones) = self.cone(&p) {
                         for q in cones {
                             stack.insert(q, ());
                         }
@@ -84,8 +93,10 @@ impl Sieve {
                 stack.remove(&p);
             }
         }
-        result
+
+        Ok(result)
     }
+
 
     /// Computes the star of a given `MeshEntity`.
     ///
@@ -98,46 +109,67 @@ impl Sieve {
     /// - `point`: The `MeshEntity` for which the star is computed.
     ///
     /// # Returns
-    /// - A `DashMap` containing all entities in the star.
-    pub fn star(&self, point: &MeshEntity) -> DashMap<MeshEntity, ()> {
+    /// - `Result<DashMap<MeshEntity, ()>, String>`: The star of the entity, or an error message.
+    pub fn star(&self, point: &MeshEntity) -> Result<DashMap<MeshEntity, ()>, String> {
         let result = DashMap::new();
         result.insert(point.clone(), ());
-        
+
         // Include supports (entities pointing to `point`)
-        let supports = self.support(point);
-        for support in supports {
-            result.insert(support, ());
-        }
-        
-        // Include cone (entities that `point` points to)
-        if let Some(cones) = self.cone(point) {
-            for cone_entity in cones {
-                result.insert(cone_entity, ());
+        match self.support(point) {
+            Ok(supports) => {
+                for support in supports {
+                    result.insert(support, ());
+                }
+            }
+            Err(err) => {
+                log::warn!("Error retrieving supports for {:?}: {}", point, err);
             }
         }
-        
-        result
+
+        // Include cone (entities that `point` points to)
+        match self.cone(point) {
+            Ok(cones) => {
+                for cone_entity in cones {
+                    result.insert(cone_entity, ());
+                }
+            }
+            Err(err) => {
+                log::warn!("Error retrieving cone for {:?}: {}", point, err);
+            }
+        }
+
+        Ok(result)
     }
 
     /// Retrieves all entities that support the given entity (`point`).
-    ///
-    /// These are entities that have an arrow pointing to `point`.
     ///
     /// # Parameters
     /// - `point`: The `MeshEntity` for which supports are retrieved.
     ///
     /// # Returns
-    /// - A `Vec<MeshEntity>` containing all supporting entities.
-    pub fn support(&self, point: &MeshEntity) -> Vec<MeshEntity> {
-        let mut supports = Vec::new();
-        self.adjacency.iter().for_each(|entry| {
-            let from = entry.key();
-            if entry.value().contains_key(point) {
-                supports.push(from.clone());
-            }
-        });
-        supports
+    /// - `Ok(Vec<MeshEntity>)`: Supporting entities.
+    /// - `Err(String)`: If no supporting entities are found.
+    pub fn support(&self, point: &MeshEntity) -> Result<Vec<MeshEntity>, String> {
+        let supports: Vec<MeshEntity> = self
+            .adjacency
+            .iter()
+            .filter_map(|entry| {
+                let from = entry.key();
+                if entry.value().contains_key(point) {
+                    Some(*from)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if supports.is_empty() {
+            Err(format!("No supports found for entity {:?}.", point))
+        } else {
+            Ok(supports)
+        }
     }
+
 
     /// Computes the meet operation for two entities, `p` and `q`.
     ///
@@ -148,10 +180,10 @@ impl Sieve {
     /// - `q`: The second `MeshEntity`.
     ///
     /// # Returns
-    /// - A `DashMap` containing all entities in the intersection of the two closures.
-    pub fn meet(&self, p: &MeshEntity, q: &MeshEntity) -> DashMap<MeshEntity, ()> {
-        let closure_p = self.closure(p);
-        let closure_q = self.closure(q);
+    /// - `Result<DashMap<MeshEntity, ()>, String>`: The intersection of the closures, or an error message.
+    pub fn meet(&self, p: &MeshEntity, q: &MeshEntity) -> Result<DashMap<MeshEntity, ()>, String> {
+        let closure_p = self.closure(p)?;
+        let closure_q = self.closure(q)?;
         let result = DashMap::new();
 
         closure_p.iter().for_each(|entry| {
@@ -161,7 +193,7 @@ impl Sieve {
             }
         });
 
-        result
+        Ok(result)
     }
 
     /// Computes the join operation for two entities, `p` and `q`.
@@ -173,10 +205,10 @@ impl Sieve {
     /// - `q`: The second `MeshEntity`.
     ///
     /// # Returns
-    /// - A `DashMap` containing all entities in the union of the two stars.
-    pub fn join(&self, p: &MeshEntity, q: &MeshEntity) -> DashMap<MeshEntity, ()> {
-        let star_p = self.star(p);
-        let star_q = self.star(q);
+    /// - `Result<DashMap<MeshEntity, ()>, String>`: The union of the stars, or an error message.
+    pub fn join(&self, p: &MeshEntity, q: &MeshEntity) -> Result<DashMap<MeshEntity, ()>, String> {
+        let star_p = self.star(p)?;
+        let star_q = self.star(q)?;
         let result = DashMap::new();
 
         star_p.iter().for_each(|entry| {
@@ -186,7 +218,7 @@ impl Sieve {
             result.insert(entry.key().clone(), ());
         });
 
-        result
+        Ok(result)
     }
 
     /// Applies a given function in parallel to all adjacency map entries.
@@ -196,18 +228,28 @@ impl Sieve {
     ///   The function is called with a tuple containing:
     ///   - A reference to a `MeshEntity` key.
     ///   - A `Vec<MeshEntity>` of entities related to the key.
+    ///
+    /// # Errors
+    /// - Logs an error if the adjacency map is empty.
     pub fn par_for_each_adjacent<F>(&self, func: F)
     where
         F: Fn((&MeshEntity, Vec<MeshEntity>)) + Sync + Send,
     {
-        // Collect entries from DashMap to avoid borrow conflicts
-        let entries: Vec<_> = self.adjacency.iter().map(|entry| {
-            let key = entry.key().clone();
-            let values: Vec<MeshEntity> = entry.value().iter().map(|e| e.key().clone()).collect();
-            (key, values)
-        }).collect();
+        if self.adjacency.is_empty() {
+            log::warn!("The adjacency map is empty. No relationships to iterate.");
+            return;
+        }
 
-        // Execute in parallel over collected entries
+        let entries: Vec<_> = self
+            .adjacency
+            .iter()
+            .map(|entry| {
+                let key = *entry.key();
+                let values: Vec<MeshEntity> = entry.value().iter().map(|e| *e.key()).collect();
+                (key, values)
+            })
+            .collect();
+
         entries.par_iter().for_each(|entry| {
             func((&entry.0, entry.1.clone()));
         });
@@ -262,7 +304,7 @@ mod tests {
         let face = MeshEntity::Face(1);
         sieve.add_arrow(vertex, edge);
         sieve.add_arrow(edge, face);
-        let closure_result = sieve.closure(&vertex);
+        let closure_result = sieve.closure(&vertex).unwrap();
         assert!(closure_result.contains_key(&vertex));
         assert!(closure_result.contains_key(&edge));
         assert!(closure_result.contains_key(&face));
@@ -278,7 +320,7 @@ mod tests {
         let edge = MeshEntity::Edge(1);
 
         sieve.add_arrow(vertex, edge);
-        let support_result = sieve.support(&edge);
+        let support_result = sieve.support(&edge).unwrap();
 
         assert!(support_result.contains(&vertex));
         assert_eq!(support_result.len(), 1);
@@ -294,7 +336,7 @@ mod tests {
 
         sieve.add_arrow(edge, face);
 
-        let star_result = sieve.star(&face);
+        let star_result = sieve.star(&face).unwrap();
 
         assert!(star_result.contains_key(&face));
         assert!(star_result.contains_key(&edge));
@@ -313,7 +355,7 @@ mod tests {
         sieve.add_arrow(vertex1, edge);
         sieve.add_arrow(vertex2, edge);
 
-        let meet_result = sieve.meet(&vertex1, &vertex2);
+        let meet_result = sieve.meet(&vertex1, &vertex2).unwrap();
 
         assert!(meet_result.contains_key(&edge));
         assert_eq!(meet_result.len(), 1);
@@ -327,7 +369,7 @@ mod tests {
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
 
-        let join_result = sieve.join(&vertex1, &vertex2);
+        let join_result = sieve.join(&vertex1, &vertex2).unwrap();
 
         assert!(join_result.contains_key(&vertex1), "Join result should contain vertex1");
         assert!(join_result.contains_key(&vertex2), "Join result should contain vertex2");
@@ -353,9 +395,9 @@ mod advanced_tests {
         sieve.add_arrow(vertex2, edge1);
         sieve.add_arrow(edge1, face1);
 
-        let cone_vertex1 = sieve.cone(&vertex1).unwrap();
-        let cone_vertex2 = sieve.cone(&vertex2).unwrap();
-        let cone_edge1 = sieve.cone(&edge1).unwrap();
+        let cone_vertex1 = sieve.cone(&vertex1).expect("Failed to compute cone for vertex1");
+        let cone_vertex2 = sieve.cone(&vertex2).expect("Failed to compute cone for vertex2");
+        let cone_edge1 = sieve.cone(&edge1).expect("Failed to compute cone for edge1");
 
         assert_eq!(cone_vertex1, vec![edge1]);
         assert_eq!(cone_vertex2, vec![edge1]);
@@ -379,7 +421,10 @@ mod advanced_tests {
         sieve.add_arrow(edge2, face1);
         sieve.add_arrow(face1, cell1);
 
-        let closure_vertex1 = sieve.closure(&vertex1);
+        let closure_vertex1 = sieve
+            .closure(&vertex1)
+            .expect("Failed to compute closure for vertex1");
+
         assert!(closure_vertex1.contains_key(&vertex1));
         assert!(closure_vertex1.contains_key(&edge1));
         assert!(closure_vertex1.contains_key(&face1));
@@ -400,7 +445,8 @@ mod advanced_tests {
         sieve.add_arrow(vertex2, edge1);
         sieve.add_arrow(edge1, face1);
 
-        let star_face1 = sieve.star(&face1);
+        let star_face1 = sieve.star(&face1).expect("Failed to compute star for face1");
+
         assert!(star_face1.contains_key(&face1));
         assert!(star_face1.contains_key(&edge1));
         assert!(!star_face1.contains_key(&vertex1));
@@ -420,7 +466,10 @@ mod advanced_tests {
         sieve.add_arrow(vertex2, edge1);
         sieve.add_arrow(edge1, face1);
 
-        let meet_result = sieve.meet(&vertex1, &vertex2);
+        let meet_result = sieve
+            .meet(&vertex1, &vertex2)
+            .expect("Failed to compute meet for vertex1 and vertex2");
+
         assert!(meet_result.contains_key(&edge1));
         assert!(meet_result.contains_key(&face1));
         assert!(!meet_result.contains_key(&vertex1));
@@ -439,7 +488,10 @@ mod advanced_tests {
         sieve.add_arrow(vertex1, edge1);
         sieve.add_arrow(vertex2, edge2);
 
-        let join_result = sieve.join(&vertex1, &vertex2);
+        let join_result = sieve
+            .join(&vertex1, &vertex2)
+            .expect("Failed to compute join for vertex1 and vertex2");
+
         assert!(join_result.contains_key(&vertex1));
         assert!(join_result.contains_key(&vertex2));
         assert!(join_result.contains_key(&edge1));
@@ -492,7 +544,4 @@ mod advanced_tests {
             assert_eq!(len, 1);
         }
     }
-
-    
-
 }
