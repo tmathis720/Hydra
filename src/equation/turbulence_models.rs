@@ -130,6 +130,7 @@ impl TurbulenceModel for GOTMModel {
         // Loop over faces and compute fluxes
         for face in domain.get_faces() {
             let face_vertices = domain.get_face_vertices(&face);
+            let face_vertices = face_vertices.unwrap();
             let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
                 4 => FaceShape::Quadrilateral,
@@ -137,17 +138,17 @@ impl TurbulenceModel for GOTMModel {
             };
 
             let normal = match domain.get_face_normal(&face, None) {
-                Some(n) => n,
-                None => continue,
+                Ok(n) => n,
+                Err(_) => continue,
             };
 
             let area = match domain.get_face_area(&face) {
-                Some(a) => a,
-                None => continue,
+                Ok(a) => a,
+                Err(_) => continue,
             };
 
             let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
-            let cells = domain.get_cells_sharing_face(&face);
+            let cells = domain.get_cells_sharing_face(&face).unwrap();
 
             if cells.is_empty() {
                 continue;
@@ -229,16 +230,16 @@ impl TurbulenceModel for GOTMModel {
 
         // Retrieve scalar field values from fields. Assume "turb_scalar_1" and "turb_scalar_2".
         let scalar_1 = fields.scalar_fields.get("turb_scalar_1")
-            .and_then(|f| f.restrict(cell))
+            .and_then(|f| f.restrict(cell).ok())
             .unwrap_or(Scalar(0.0)).0;
         let scalar_2 = fields.scalar_fields.get("turb_scalar_2")
-            .and_then(|f| f.restrict(cell))
+            .and_then(|f| f.restrict(cell).ok())
             .unwrap_or(Scalar(0.0)).0;
 
         let g1 = grad_1.restrict(cell).unwrap_or(Vector3([0.0; 3]));
         let g2 = grad_2.restrict(cell).unwrap_or(Vector3([0.0; 3]));
 
-        let center = domain.get_cell_centroid(cell);
+        let center = domain.get_cell_centroid(cell).unwrap();
 
         (scalar_1, scalar_2, g1, g2, center)
     }
@@ -321,7 +322,7 @@ mod tests {
         let faces = mesh.get_faces();
         let mut count = 0;
         for face in faces {
-            if let Some(flux) = fluxes.turbulence_fluxes.restrict(&face) {
+            if let Ok(flux) = fluxes.turbulence_fluxes.restrict(&face) {
                 // Just verify the flux is finite
                 assert!(flux.0[0].is_finite(), "Flux for turb_scalar_1 is not finite");
                 assert!(flux.0[1].is_finite(), "Flux for turb_scalar_2 is not finite");

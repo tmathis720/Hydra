@@ -67,7 +67,8 @@ impl EnergyEquation {
         let mut geometry = Geometry::new();
 
         for face in domain.get_faces() {
-            let face_vertices = domain.get_face_vertices(&face);
+            let _face_vertices = domain.get_face_vertices(&face);
+            let face_vertices = domain.get_face_vertices(&face).unwrap();
             let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
                 4 => FaceShape::Quadrilateral,
@@ -75,7 +76,7 @@ impl EnergyEquation {
             };
             let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
 
-            let cells = domain.get_cells_sharing_face(&face);
+            let cells = domain.get_cells_sharing_face(&face).unwrap();
             let cell_a = cells
                 .iter()
                 .next()
@@ -240,7 +241,7 @@ mod tests {
         // Check that fluxes were computed for the boundary face
         let computed_flux = fluxes.energy_fluxes.restrict(&boundary_face);
         assert!(
-            computed_flux.is_some(),
+            computed_flux.is_ok(),
             "Energy flux for boundary face was not computed."
         );
         println!(
@@ -266,7 +267,7 @@ mod tests {
         // Check that fluxes were computed for the boundary face
         let computed_flux = fluxes.energy_fluxes.restrict(&boundary_face);
         assert!(
-            computed_flux.is_some(),
+            computed_flux.is_ok(),
             "Energy flux for boundary face was not computed."
         );
 
@@ -298,7 +299,7 @@ mod tests {
             if boundary_handler.get_bc(&face).is_none() {
                 let computed_flux = fluxes.energy_fluxes.restrict(&face);
                 assert!(
-                    computed_flux.is_some(),
+                    computed_flux.is_ok(),
                     "Energy flux for internal (non-BC) face {:?} was not computed.",
                     face
                 );

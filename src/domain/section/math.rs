@@ -1,9 +1,9 @@
 use std::ops::{Add, Div, Neg, Sub};
 
-use super::{data::Section, scalar::Scalar, vector::Vector3};
+use super::{data::{Section, SectionError}, scalar::Scalar, vector::Vector3};
 // Add for Section<Scalar>
 impl Add for Section<Scalar> {
-    type Output = Section<Scalar>;
+    type Output = Result<Section<Scalar>, SectionError>;
 
     /// Implements addition for `Section<Scalar>`.
     ///
@@ -16,9 +16,11 @@ impl Add for Section<Scalar> {
     /// - `rhs`: The second `Section<Scalar>` operand (consumed).
     ///
     /// # Returns
-    /// A new `Section<Scalar>` containing the sum of the two sections.
+    /// A `Result<Section<Scalar>, SectionError>` containing the sum of the two sections,
+    /// or an error if an invalid operation occurs.
     fn add(self, rhs: Self) -> Self::Output {
         let result = self.clone(); // Clone the first section to use as a base
+
         for entry in rhs.data.iter() {
             let (key, value) = entry.pair(); // Access key-value pair from the second section
             if let Some(mut current) = result.data.get_mut(key) {
@@ -27,13 +29,14 @@ impl Add for Section<Scalar> {
                 result.set_data(*key, *value); // Insert the value if the key only exists in `rhs`
             }
         }
-        result
+
+        Ok(result) // Return the resulting section as a successful operation
     }
 }
 
 // Sub for Section<Scalar>
 impl Sub for Section<Scalar> {
-    type Output = Section<Scalar>;
+    type Output = Result<Section<Scalar>, SectionError>;
 
     /// Implements subtraction for `Section<Scalar>`.
     ///
@@ -46,9 +49,11 @@ impl Sub for Section<Scalar> {
     /// - `rhs`: The second `Section<Scalar>` operand (consumed).
     ///
     /// # Returns
-    /// A new `Section<Scalar>` containing the difference of the two sections.
+    /// A `Result<Section<Scalar>, SectionError>` containing the difference of the two sections,
+    /// or an error if an invalid operation occurs.
     fn sub(self, rhs: Self) -> Self::Output {
         let result = self.clone(); // Clone the first section to use as a base
+
         for entry in rhs.data.iter() {
             let (key, value) = entry.pair(); // Access key-value pair from the second section
             if let Some(mut current) = result.data.get_mut(key) {
@@ -57,13 +62,14 @@ impl Sub for Section<Scalar> {
                 result.set_data(*key, Scalar(-value.0)); // Negate and insert the value if the key only exists in `rhs`
             }
         }
-        result
+
+        Ok(result) // Return the resulting section as a successful operation
     }
 }
 
 // Neg for Section<Scalar>
 impl Neg for Section<Scalar> {
-    type Output = Section<Scalar>;
+    type Output = Result<Section<Scalar>, SectionError>;
 
     /// Implements negation for `Section<Scalar>`.
     ///
@@ -73,20 +79,23 @@ impl Neg for Section<Scalar> {
     /// - `self`: The `Section<Scalar>` operand (consumed).
     ///
     /// # Returns
-    /// A new `Section<Scalar>` with all values negated.
+    /// A `Result<Section<Scalar>, SectionError>` containing the negated section
+    /// or an error if the operation is invalid.
     fn neg(self) -> Self::Output {
         let result = self.clone(); // Clone the section to preserve original data
+
         for mut entry in result.data.iter_mut() {
             let (_, value) = entry.pair_mut(); // Access mutable key-value pair
             value.0 = -value.0; // Negate the scalar value
         }
-        result
+
+        Ok(result) // Return the negated section as a successful operation
     }
 }
 
 // Div for Section<Scalar>
 impl Div<f64> for Section<Scalar> {
-    type Output = Section<Scalar>;
+    type Output = Result<Section<Scalar>, SectionError>;
 
     /// Implements scalar division for `Section<Scalar>`.
     ///
@@ -97,20 +106,26 @@ impl Div<f64> for Section<Scalar> {
     /// - `rhs`: A scalar `f64` divisor.
     ///
     /// # Returns
-    /// A new `Section<Scalar>` with all values scaled by `1/rhs`.
+    /// A `Result<Section<Scalar>, SectionError>` containing the scaled section if successful,
+    /// or an error if division by zero is attempted.
     fn div(self, rhs: f64) -> Self::Output {
+        if rhs == 0.0 {
+            return Err(SectionError::DivisionByZero); // Handle division by zero
+        }
+
         let result = self.clone(); // Clone the section to preserve original data
         for mut entry in result.data.iter_mut() {
             let (_, value) = entry.pair_mut(); // Access mutable key-value pair
             value.0 /= rhs; // Divide the scalar value by `rhs`
         }
-        result
+
+        Ok(result) // Return the scaled section as a successful operation
     }
 }
 
 // Sub for Section<Vector3>
 impl Sub for Section<Vector3> {
-    type Output = Section<Vector3>;
+    type Output = Result<Section<Vector3>, SectionError>;
 
     /// Implements subtraction for `Section<Vector3>`.
     ///
@@ -123,7 +138,8 @@ impl Sub for Section<Vector3> {
     /// - `rhs`: The second `Section<Vector3>` operand (consumed).
     ///
     /// # Returns
-    /// A new `Section<Vector3>` containing the difference of the two sections.
+    /// A `Result<Section<Vector3>, SectionError>` containing the difference of the two sections,
+    /// or an error if the operation is invalid.
     fn sub(self, rhs: Self) -> Self::Output {
         let result = Section::new(); // Create a new section to hold the result
 
@@ -145,6 +161,6 @@ impl Sub for Section<Vector3> {
             }
         }
 
-        result
+        Ok(result) // Return the resulting section as a successful operation
     }
 }

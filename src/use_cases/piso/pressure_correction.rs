@@ -123,12 +123,15 @@ fn assemble_pressure_poisson(
         rhs.set_data(cell.clone(), Scalar(divergence));
 
         // Assemble coefficients for neighbors
-        for neighbor in mesh.get_ordered_neighbors(&cell) {
-            let neighbor_index = *entity_to_index_map
-                .get(&neighbor)
-                .ok_or_else(|| format!("Neighbor {:?} not found in entity_to_index_map", neighbor))?;
-            let coefficient = compute_pressure_coefficient(mesh, fields, &cell, &neighbor)?;
-            matrix[(cell_index, neighbor_index)] = coefficient;
+        if let Ok(neighbor) = mesh.get_ordered_neighbors(&cell) {
+            let mut coefficient = 0.0;
+            for neighbor in neighbor.iter() {
+                let neighbor_index = *entity_to_index_map
+                    .get(neighbor)
+                    .ok_or_else(|| format!("Neighbor {:?} not found in entity_to_index_map", neighbor))?;
+                coefficient = compute_pressure_coefficient(mesh, fields, &cell, neighbor)?;
+                matrix[(cell_index, neighbor_index)] = coefficient;
+            }
         }
 
         // Assemble diagonal coefficient
@@ -266,53 +269,69 @@ fn compute_pressure_coefficient(
     neighbor: &MeshEntity,
 ) -> Result<f64, String> {
     // Step 1: Compute the distance between the centroids of the two cells
-    let distance = mesh.get_distance_between_cells(cell, neighbor);
-    
+    let distance = mesh.get_distance_between_cells(cell, neighbor)?;
+
     if distance <= 0.0 {
         return Err(format!(
-            "Invalid distance ({}) between cell {:?} and neighbor {:?}",
+            "Invalid distance ({:?}) between cell {:?} and neighbor {:?}",
             distance, cell, neighbor
         ));
     }
 
     // Step 2: Identify the shared face between the two cells
-    let shared_faces = mesh.get_faces_of_cell(cell)
-        .ok_or_else(|| format!("Failed to retrieve faces for cell {:?}", cell))?;
+    let shared_faces = mesh
+        .get_faces_of_cell(cell)
+        .map_err(|e| format!("Failed to retrieve faces for cell {:?}: {}", cell, e))?; // Handle Result correctly
 
-    let shared_face = shared_faces.iter()
-        .find(|face| {
-            let cells_sharing_face = mesh.get_cells_sharing_face(&face.key());
-            cells_sharing_face.contains_key(neighbor)
+    let shared_face = shared_faces
+        .iter()
+        .find_map(|face| {
+            mesh.get_cells_sharing_face(&face.key())
+                .ok() // Convert Result to Option
+                .and_then(|cells_sharing_face| {
+                    if cells_sharing_face.contains_key(neighbor) {
+                        Some(face.key().clone())
+                    } else {
+                        None
+                    }
+                })
         })
-        .map(|face| face.key().clone())
         .ok_or_else(|| format!("No shared face found between cell {:?} and neighbor {:?}", cell, neighbor))?;
 
     // Step 3: Compute the area of the shared face
-    let area = mesh.get_face_area(&shared_face)
-        .ok_or_else(|| format!("Failed to retrieve area for shared face {:?}", shared_face))?;
-    
+    let area = mesh
+        .get_face_area(&shared_face)
+        .map_err(|e| format!("Failed to retrieve area for shared face {:?}: {}", shared_face, e))?;
+
     if area <= 0.0 {
         return Err(format!(
-            "Invalid face area ({}) for face {:?} between cell {:?} and neighbor {:?}",
+            "Invalid face area ({:?}) for face {:?} between cell {:?} and neighbor {:?}",
             area, shared_face, cell, neighbor
         ));
     }
 
     // Step 4: Get the density from the fields structure
-    let density = fields.scalar_fields.get("density")
+    let density = fields
+        .scalar_fields
+        .get("density")
         .and_then(|f| f.restrict(cell))
         .map_or(1.0, |d| d.0); // Default density is 1.0 if not found
 
-    assert!(distance > 0.0, "Invalid cell distance");
-    assert!(area > 0.0, "Invalid face area");
-
     // Step 5: Compute and return the coefficient
     let coefficient = area / (density * distance);
-    println!("Cell {:?}, Neighbor {:?}, Shared Face {:?}, Distance: {}, Area: {}, Coefficient: {}",
-        cell, neighbor, shared_face, distance, area, coefficient);
+    println!(
+        "Cell {:?}, Neighbor {:?}, Shared Face {:?}, Distance: {:?}, Area: {:?}, Coefficient: {:?}",
+        cell, neighbor, shared_face, distance, area, coefficient
+    );
+    log::debug!(
+        "Cell {:?}, Neighbor {:?}, Shared Face {:?}, Distance: {:?}, Area: {:?}, Coefficient: {:?}",
+        cell, neighbor, shared_face, distance, area, coefficient
+    );
 
+    // Return the computed coefficient
     Ok(coefficient)
 }
+
 
 
 /// Computes the diagonal coefficient for a cell in the pressure Poisson equation.
@@ -331,8 +350,10 @@ fn compute_pressure_diagonal_coefficient(
 ) -> Result<f64, String> {
     // Sum coefficients for all neighbors
     let mut coefficient_sum = 0.0;
-    for neighbor in mesh.get_ordered_neighbors(cell) {
-        coefficient_sum += compute_pressure_coefficient(mesh, fields, cell, &neighbor)?;
+    if let Ok(neighbor) = mesh.get_ordered_neighbors(cell) {
+        for neighbor in neighbor.iter() {
+            coefficient_sum += compute_pressure_coefficient(mesh, fields, cell, neighbor)?;
+        }
     }
     Ok(-coefficient_sum) // Diagonal entry is negative of sum of neighbor coefficients
 }

@@ -81,7 +81,7 @@ mod tests {
         section.set_data(entity, value);
         let retrieved = section.restrict(&entity);
 
-        assert!(retrieved.is_some());
+        assert!(retrieved.is_ok());
         assert_eq!(retrieved.unwrap().0, 3.14);
     }
 
@@ -135,7 +135,7 @@ mod tests {
             section.set_data(*entity, Scalar(1.0));
         }
 
-        let retrieved_entities = section.entities();
+        let retrieved_entities = section.entities().unwrap();
         assert_eq!(retrieved_entities.len(), entities.len());
     }
 
@@ -150,7 +150,7 @@ mod tests {
 
         section.clear();
 
-        assert!(section.restrict(&entity).is_none());
+        assert!(section.restrict(&entity).is_ok());
     }
 
     #[test]

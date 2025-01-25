@@ -40,7 +40,10 @@ impl Fields {
 
     /// Retrieves the scalar field value for a specific entity.
     pub fn get_scalar_field_value(&self, name: &str, entity: &MeshEntity) -> Option<Scalar> {
-        self.scalar_fields.get(name)?.restrict(entity)
+        match self.scalar_fields.get(name)?.restrict(entity) {
+            Ok(value) => Some(value),
+            Err(_) => None,
+        }
     }
 
     /// Sets the scalar field value for a specific entity, creating the field if it doesn't exist.
@@ -56,7 +59,10 @@ impl Fields {
 
     /// Retrieves the vector field value for a specific entity.
     pub fn get_vector_field_value(&self, name: &str, entity: &MeshEntity) -> Option<Vector3> {
-        self.vector_fields.get(name)?.restrict(entity)
+        match self.vector_fields.get(name)?.restrict(entity) {
+            Ok(value) => Some(value),
+            Err(_) => None,
+        }
     }
 
     /// Sets the vector field value for a specific entity, creating the field if it doesn't exist.
@@ -200,14 +206,18 @@ impl UpdateState for Fields {
         // Compute the difference for scalar fields
         for (key, section) in &other.scalar_fields {
             if let Some(state_section) = self.scalar_fields.get(key) {
-                result.scalar_fields.insert(key.clone(), state_section.clone() - section.clone());
+                if let Ok(diff) = state_section.clone() - section.clone() {
+                    result.scalar_fields.insert(key.clone(), diff);
+                }
             }
         }
 
         // Compute the difference for vector fields
         for (key, section) in &other.vector_fields {
             if let Some(state_section) = self.vector_fields.get(key) {
-                result.vector_fields.insert(key.clone(), state_section.clone() - section.clone());
+                if let Ok(diff) = state_section.clone() - section.clone() {
+                    result.vector_fields.insert(key.clone(), diff);
+                }
             }
         }
 

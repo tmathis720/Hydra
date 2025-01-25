@@ -90,24 +90,24 @@ impl MomentumEquation {
         for face in domain.get_faces() {
             // Determine face geometry and properties.
             let face_vertices = domain.get_face_vertices(&face);
-            let face_shape = match face_vertices.len() {
+            let face_shape = match face_vertices.as_ref().unwrap().len() {
                 3 => FaceShape::Triangle,
                 4 => FaceShape::Quadrilateral,
                 _ => continue, // Skip unsupported face shapes
             };
 
             let normal = match domain.get_face_normal(&face, None) {
-                Some(n) => n, // Use the face normal if available.
-                None => continue, // Skip if normal vector is missing.
+                Ok(n) => n, // Use the face normal if available.
+                Err(_) => continue, // Skip if normal vector is missing.
             };
 
             let area = match domain.get_face_area(&face) {
-                Some(a) => a, // Use the face area if available.
-                None => continue, // Skip if area is missing.
+                Ok(a) => a, // Use the face area if available.
+                Err(_) => continue, // Skip if area is missing.
             };
 
-            let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
-            let cells = domain.get_cells_sharing_face(&face);
+            let face_center = geometry.compute_face_centroid(face_shape, &face_vertices.unwrap());
+            let cells = domain.get_cells_sharing_face(&face).unwrap();
 
             // Extract data from the cells adjacent to the face.
             let (_cell_a, velocity_a, pressure_a, center_a, grads_a) =
@@ -216,7 +216,7 @@ impl MomentumEquation {
             .unwrap_or(Vector3([0.0; 3]));
         let pressure_field = fields.get_scalar_field_value("pressure_field", cell)
             .unwrap_or(Scalar(0.0));
-        let cell_center = domain.get_cell_centroid(cell);
+        let cell_center = domain.get_cell_centroid(cell).unwrap();
 
         let grads = [
             gradient_u.restrict(cell).unwrap_or(Vector3([0.0; 3])),

@@ -34,8 +34,11 @@ impl GradientMethod for LeastSquaresGradient {
         let mut b = [0.0; 3];
     
         // Retrieve neighbors of the cell
-        let neighbors = mesh.get_ordered_neighbors(cell);
-        if neighbors.unwrap().is_empty() {
+        let neighbors = mesh
+            .get_ordered_neighbors(cell)
+            .map_err(|e| GradientError::CalculationError(cell.clone(), format!("Failed to retrieve neighbors: {}", e)))?;
+        
+        if neighbors.is_empty() {
             return Err(GradientError::CalculationError(
                 cell.clone(),
                 "No neighbors found for cell".to_string(),
@@ -43,13 +46,13 @@ impl GradientMethod for LeastSquaresGradient {
         }
     
         // Compute contributions from neighbors
-        for neighbor in neighbors {
+        for neighbor in neighbors.iter() {
             // Compute centroid for the neighbor
-            let neighbor_center = geometry.compute_cell_centroid(mesh, &neighbor);
+            let neighbor_center = geometry.compute_cell_centroid(mesh, neighbor);
     
             // Retrieve the field value for the neighbor
             let phi_nb = field
-                .restrict(&neighbor)
+                .restrict(neighbor)
                 .ok_or_else(|| GradientError::CalculationError(neighbor.clone(), "Field value not found for neighbor".to_string()))?
                 .0;
     
@@ -75,8 +78,9 @@ impl GradientMethod for LeastSquaresGradient {
         })?;
     
         Ok(grad_phi)
-    }    
+    }
 }
+
 
 /// Solves the least-squares system A * x = b using Hydra's matrix and vector abstractions.
 ///
