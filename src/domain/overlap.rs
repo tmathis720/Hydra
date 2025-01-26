@@ -37,16 +37,16 @@ impl Overlap {
     ///
     /// # Parameters
     /// - `entity`: The `MeshEntity` to be added to the local entities.
-    pub fn add_local_entity(&self, entity: MeshEntity) {
-        self.local_entities.insert(entity, ());
+    pub fn add_local_entity(&self, entity: MeshEntity) -> Option<()> {
+        self.local_entities.insert(entity, ())
     }
 
     /// Adds a `MeshEntity` to the set of ghost entities.
     ///
     /// # Parameters
     /// - `entity`: The `MeshEntity` to be added to the ghost entities.
-    pub fn add_ghost_entity(&self, entity: MeshEntity) {
-        self.ghost_entities.insert(entity, ());
+    pub fn add_ghost_entity(&self, entity: MeshEntity) -> Option<()> {
+        self.ghost_entities.insert(entity, ())
     }
 
     /// Checks whether a given `MeshEntity` is a local entity.
@@ -75,7 +75,7 @@ impl Overlap {
     ///
     /// # Returns
     /// - A `Vec<MeshEntity>` containing all entities in `local_entities`.
-    pub fn local_entities(&self) -> Vec<MeshEntity> {
+    pub fn get_local_entities(&self) -> Vec<MeshEntity> {
         self.local_entities.iter().map(|entry| entry.key().clone()).collect()
     }
 
@@ -83,7 +83,7 @@ impl Overlap {
     ///
     /// # Returns
     /// - A `Vec<MeshEntity>` containing all entities in `ghost_entities`.
-    pub fn ghost_entities(&self) -> Vec<MeshEntity> {
+    pub fn get_ghost_entities(&self) -> Vec<MeshEntity> {
         self.ghost_entities.iter().map(|entry| entry.key().clone()).collect()
     }
 
@@ -95,16 +95,18 @@ impl Overlap {
     /// # Parameters
     /// - `other`: A reference to the `Overlap` instance to be merged.
     pub fn merge(&self, other: &Overlap) {
-        // Add all local entities from `other` to `self`.
         other.local_entities.iter().for_each(|entry| {
-            self.local_entities.insert(entry.key().clone(), ());
+            if let Some(_) = self.local_entities.insert(entry.key().clone(), ()) {
+                log::warn!("Overwriting local entity {:?}", entry.key());
+            }
         });
-
-        // Add all ghost entities from `other` to `self`.
+    
         other.ghost_entities.iter().for_each(|entry| {
-            self.ghost_entities.insert(entry.key().clone(), ());
+            if let Some(_) = self.ghost_entities.insert(entry.key().clone(), ()) {
+                log::warn!("Overwriting ghost entity {:?}", entry.key());
+            }
         });
-    }
+    }    
 }
 
 /// The `Delta` struct manages transformation data for `MeshEntity` elements.  
@@ -264,7 +266,7 @@ mod tests {
         assert!(overlap1.is_local(&vertex1));
         assert!(overlap1.is_ghost(&vertex2));
         assert!(overlap1.is_local(&vertex3));
-        assert_eq!(overlap1.local_entities().len(), 2); // Two local entities in overlap1
+        assert_eq!(overlap1.get_local_entities().len(), 2); // Two local entities in overlap1
     }
 
     /// Tests setting and retrieving data in the `Delta` struct.
@@ -315,4 +317,25 @@ mod tests {
         assert_eq!(delta1.get_data(&vertex1), Some(10));
         assert_eq!(delta1.get_data(&vertex2), Some(20));
     }
+
+    #[test]
+    fn test_overlap_nonexistent_entity() {
+        let overlap = Overlap::new();
+        let vertex = MeshEntity::Vertex(1);
+
+        // Ensure nonexistent entities are not mistakenly identified
+        assert!(!overlap.is_local(&vertex));
+        assert!(!overlap.is_ghost(&vertex));
+    }
+
+    #[test]
+    fn test_delta_nonexistent_data() {
+        let delta = Delta::<i32>::new();
+        let vertex = MeshEntity::Vertex(1);
+
+        // Ensure retrieving data for nonexistent entities returns None
+        assert_eq!(delta.get_data(&vertex), None);
+        assert!(!delta.has_data(&vertex));
+    }
+
 }

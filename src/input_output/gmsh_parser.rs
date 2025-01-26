@@ -55,7 +55,7 @@ impl GmshParser {
             // Parse individual nodes
             if in_nodes_section && current_node_line <= node_count {
                 let (vertex_id, coords) = Self::parse_node(&line)?;
-                mesh.set_vertex_coordinates(vertex_id, coords);
+                mesh.set_vertex_coordinates(vertex_id, coords).unwrap();
                 current_node_line += 1;
             }
 
@@ -63,11 +63,11 @@ impl GmshParser {
             if in_elements_section && current_element_line <= element_count {
                 if let Some((element_id, node_ids)) = Self::parse_element(&line)? {
                     let cell = MeshEntity::Cell(element_id);
-                    mesh.add_entity(cell.clone());
+                    mesh.add_entity(cell.clone()).unwrap();
             
                     for node_id in node_ids {
                         let vertex = MeshEntity::Vertex(node_id);
-                        mesh.add_relationship(cell.clone(), vertex);
+                        mesh.add_relationship(cell.clone(), vertex).unwrap();
                     }
                 }
                 current_element_line += 1;

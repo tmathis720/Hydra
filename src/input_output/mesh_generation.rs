@@ -8,7 +8,7 @@ impl MeshGenerator {
         let mut mesh = Mesh::new();
         let nodes = Self::generate_grid_nodes_2d(width, height, nx, ny);
         for (id, position) in nodes.into_iter().enumerate() {
-            mesh.set_vertex_coordinates(id, position);
+            mesh.set_vertex_coordinates(id, position).unwrap();
         }
         Self::generate_quadrilateral_cells(&mut mesh, nx, ny);
         mesh
@@ -19,7 +19,7 @@ impl MeshGenerator {
         let mut mesh = Mesh::new();
         let nodes = Self::generate_grid_nodes_3d(width, height, depth, nx, ny, nz);
         for (id, position) in nodes.into_iter().enumerate() {
-            mesh.set_vertex_coordinates(id, position);
+            mesh.set_vertex_coordinates(id, position).unwrap();
         }
         Self::generate_hexahedral_cells(&mut mesh, nx, ny, nz);
         Self::_generate_faces_3d(&mut mesh, nx, ny, nz);
@@ -31,7 +31,7 @@ impl MeshGenerator {
         let mut mesh = Mesh::new();
         let nodes = Self::generate_circle_nodes(radius, num_divisions);
         for (id, position) in nodes.into_iter().enumerate() {
-            mesh.set_vertex_coordinates(id, position);
+            mesh.set_vertex_coordinates(id, position).unwrap();
         }
         Self::generate_triangular_cells(&mut mesh, num_divisions);
         mesh
@@ -90,11 +90,11 @@ impl MeshGenerator {
                 let n4 = n1 + (nx + 1);
                 let cell = MeshEntity::Cell(cell_id);
                 cell_id += 1;
-                mesh.add_entity(cell.clone());
-                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n1));
-                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n2));
-                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n3));
-                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n4));
+                mesh.add_entity(cell.clone()).unwrap();
+                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n1)).unwrap();
+                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n2)).unwrap();
+                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n3)).unwrap();
+                mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n4)).unwrap();
             }
         }
     }
@@ -115,15 +115,15 @@ impl MeshGenerator {
                     let n8 = n7 + 1;
                     let cell = MeshEntity::Cell(cell_id);
                     cell_id += 1;
-                    mesh.add_entity(cell.clone());
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n1));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n2));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n3));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n4));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n5));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n6));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n7));
-                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n8));
+                    mesh.add_entity(cell.clone()).unwrap();
+                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n1)).unwrap();
+                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n2)).unwrap();
+                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n3)).unwrap();
+                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n4)).unwrap();
+                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n5)).unwrap();
+                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n6)).unwrap();
+                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n7)).unwrap();
+                    mesh.add_relationship(cell.clone(), MeshEntity::Vertex(n8)).unwrap();
                 }
             }
         }
@@ -136,10 +136,10 @@ impl MeshGenerator {
             let next = (i + 1) % num_divisions;
             let cell = MeshEntity::Cell(cell_id);
             cell_id += 1;
-            mesh.add_entity(cell.clone());
-            mesh.add_relationship(cell.clone(), MeshEntity::Vertex(0));
-            mesh.add_relationship(cell.clone(), MeshEntity::Vertex(i + 1));
-            mesh.add_relationship(cell.clone(), MeshEntity::Vertex(next + 1));
+            mesh.add_entity(cell.clone()).unwrap();
+            mesh.add_relationship(cell.clone(), MeshEntity::Vertex(0)).unwrap();
+            mesh.add_relationship(cell.clone(), MeshEntity::Vertex(i + 1)).unwrap();
+            mesh.add_relationship(cell.clone(), MeshEntity::Vertex(next + 1)).unwrap();
         }
     }
 
@@ -174,11 +174,11 @@ impl MeshGenerator {
                     for &(v1, v2, v3, v4) in &faces {
                         let face = MeshEntity::Face(face_id);
                         face_id += 1;
-                        mesh.add_entity(face.clone());
-                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v1));
-                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v2));
-                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v3));
-                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v4));
+                        mesh.add_entity(face.clone()).unwrap();
+                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v1)).unwrap();
+                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v2)).unwrap();
+                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v3)).unwrap();
+                        mesh.add_relationship(face.clone(), MeshEntity::Vertex(v4)).unwrap();
                     }
                 }
             }

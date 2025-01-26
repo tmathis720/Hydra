@@ -18,20 +18,20 @@ mod tests {
             MeshEntity::Vertex(4),
         ];
         for vertex in &vertices {
-            mesh.add_entity(vertex.clone());
+            mesh.add_entity(vertex.clone()).unwrap();
         }
 
         // Setting coordinates
-        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
-        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]);
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]).unwrap();
 
         // Adding a cell
         let cell = MeshEntity::Cell(1);
-        mesh.add_entity(cell.clone());
+        mesh.add_entity(cell.clone()).unwrap();
         for vertex in &vertices {
-            mesh.add_relationship(cell.clone(), vertex.clone());
+            mesh.add_relationship(cell.clone(), vertex.clone()).unwrap();
         }
 
         mesh

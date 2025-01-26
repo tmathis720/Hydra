@@ -13,8 +13,8 @@ mod tests {
 
         mesh.vertex_coordinates.insert(1, [1.0, 2.0, 3.0]);
         mesh.vertex_coordinates.insert(2, [4.0, 5.0, 6.0]);
-        mesh.add_entity(vertex1);
-        mesh.add_entity(vertex2);
+        mesh.add_entity(vertex1).unwrap();
+        mesh.add_entity(vertex2).unwrap();
 
         let (test_sender, test_receiver) = unbounded();
         mesh.set_boundary_channels(test_sender, test_receiver);
@@ -38,7 +38,7 @@ mod tests {
         let mut mesh = Mesh::new();
         let vertex = MeshEntity::Vertex(3);
         mesh.vertex_coordinates.insert(3, [7.0, 8.0, 9.0]);
-        mesh.add_entity(vertex);
+        mesh.add_entity(vertex).unwrap();
 
         mesh.send_boundary_data();
         assert!(mesh.vertex_coordinates.get(&3).is_some());
@@ -53,7 +53,7 @@ mod tests {
     fn test_add_entity() {
         let mesh = Mesh::new();
         let vertex = MeshEntity::Vertex(1);
-        mesh.add_entity(vertex);
+        mesh.add_entity(vertex).unwrap();
         assert!(mesh.entities.read().unwrap().contains(&vertex));
     }
 
@@ -87,15 +87,27 @@ mod integration_tests {
         let vertex2 = MeshEntity::Vertex(2);
         let vertex3 = MeshEntity::Vertex(3);
         let cell1 = MeshEntity::Cell(1);
+        let face1 = MeshEntity::Face(1);
 
-        mesh.add_entity(vertex1);
-        mesh.add_entity(vertex2);
-        mesh.add_entity(vertex3);
-        mesh.add_entity(cell1);
-        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
+        // Add entities to the mesh
+        assert!(mesh.add_entity(vertex1).is_ok());
+        assert!(mesh.add_entity(vertex2).is_ok());
+        assert!(mesh.add_entity(vertex3).is_ok());
+        assert!(mesh.add_entity(cell1).is_ok());
+        assert!(mesh.add_entity(face1).is_ok());
 
+        // Establish relationships between entities to populate the adjacency map
+        mesh.add_arrow(cell1, face1).unwrap(); // Cell connects to a face
+        mesh.add_arrow(face1, vertex1).unwrap(); // Face connects to vertices
+        mesh.add_arrow(face1, vertex2).unwrap();
+        mesh.add_arrow(face1, vertex3).unwrap();
+
+        // Set vertex coordinates
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
+
+        // Set up boundary data synchronization
         let (sender, receiver) = unbounded();
         mesh.set_boundary_channels(sender, receiver);
         mesh.send_boundary_data();
@@ -105,12 +117,14 @@ mod integration_tests {
             mesh.boundary_data_sender.clone().unwrap(),
             mesh.boundary_data_receiver.clone().unwrap(),
         );
-        let _ = mesh_receiver.receive_boundary_data();
+        assert!(mesh_receiver.receive_boundary_data().is_ok());
 
+        // Validate vertex coordinates
         assert_eq!(mesh_receiver.vertex_coordinates.get(&1), Some(&[0.0, 0.0, 0.0]));
         assert_eq!(mesh_receiver.vertex_coordinates.get(&2), Some(&[1.0, 0.0, 0.0]));
         assert_eq!(mesh_receiver.vertex_coordinates.get(&3), Some(&[0.0, 1.0, 0.0]));
 
+        // Refine the hierarchical mesh node
         let mut node = MeshNode::Leaf(cell1);
         node.refine(|&_cell| [
             MeshEntity::Cell(2), MeshEntity::Cell(3), MeshEntity::Cell(4), MeshEntity::Cell(5)
@@ -126,9 +140,11 @@ mod integration_tests {
             panic!("Expected the node to be refined into a branch.");
         }
 
+        // Compute RCM ordering (this should now succeed)
         let rcm_order = mesh.rcm_ordering(vertex1);
-        assert!(rcm_order.len() > 0);
+        assert!(!rcm_order.is_empty());
 
+        // Apply hanging node constraints
         let mut parent_dofs = [0.0; 4];
         let mut child_dofs = [
             [1.0, 1.5, 2.0, 2.5],

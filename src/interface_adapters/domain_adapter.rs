@@ -26,7 +26,7 @@ impl DomainBuilder {
     /// * `id` - A unique identifier for the vertex.
     /// * `coords` - The 3D coordinates of the vertex.
     pub fn add_vertex(&mut self, id: usize, coords: [f64; 3]) -> &mut Self {
-        self.mesh.set_vertex_coordinates(id, coords);
+        self.mesh.set_vertex_coordinates(id, coords).unwrap();
         self.mesh
             .entities
             .write()
@@ -41,10 +41,10 @@ impl DomainBuilder {
         let edge = MeshEntity::Edge(edge_id);
 
         // Add relationships in the sieve
-        self.mesh.add_arrow(MeshEntity::Vertex(vertex1), edge);
-        self.mesh.add_arrow(MeshEntity::Vertex(vertex2), edge);
-        self.mesh.add_arrow(edge, MeshEntity::Vertex(vertex1));
-        self.mesh.add_arrow(edge, MeshEntity::Vertex(vertex2));
+        self.mesh.add_arrow(MeshEntity::Vertex(vertex1), edge).unwrap();
+        self.mesh.add_arrow(MeshEntity::Vertex(vertex2), edge).unwrap();
+        self.mesh.add_arrow(edge, MeshEntity::Vertex(vertex1)).unwrap();
+        self.mesh.add_arrow(edge, MeshEntity::Vertex(vertex2)).unwrap();
 
         // Add the edge to the entities set
         self.mesh.entities.write().unwrap().insert(edge);
@@ -66,13 +66,13 @@ impl DomainBuilder {
         // Connect the face to all vertices of the cell
         for &vid in &vertex_ids {
             let vertex = MeshEntity::Vertex(vid);
-            self.mesh.add_arrow(face.clone(), vertex.clone());
-            self.mesh.add_arrow(vertex.clone(), face.clone());
+            self.mesh.add_arrow(face.clone(), vertex.clone()).unwrap();
+            self.mesh.add_arrow(vertex.clone(), face.clone()).unwrap();
         }
 
         // Connect cell to the face and vice versa
-        self.mesh.add_arrow(cell.clone(), face.clone());
-        self.mesh.add_arrow(face.clone(), cell.clone());
+        self.mesh.add_arrow(cell.clone(), face.clone()).unwrap();
+        self.mesh.add_arrow(face.clone(), cell.clone()).unwrap();
 
         // Insert the face into entities
         self.mesh.entities.write().unwrap().insert(face);
@@ -109,22 +109,22 @@ impl DomainBuilder {
             // Add arrows from face to vertices
             for &vid in fv {
                 let vertex = MeshEntity::Vertex(vid);
-                self.mesh.add_arrow(face.clone(), vertex.clone());
-                self.mesh.add_arrow(vertex.clone(), face.clone());
+                self.mesh.add_arrow(face.clone(), vertex.clone()).unwrap();
+                self.mesh.add_arrow(vertex.clone(), face.clone()).unwrap();
             }
 
             self.mesh.entities.write().unwrap().insert(face.clone());
 
             // Add arrows from cell to face
-            self.mesh.add_arrow(cell.clone(), face.clone());
-            self.mesh.add_arrow(face.clone(), cell.clone());
+            self.mesh.add_arrow(cell.clone(), face.clone()).unwrap();
+            self.mesh.add_arrow(face.clone(), cell.clone()).unwrap();
         }
 
         // Add arrows from cell to vertices
         for &vid in &vertex_ids {
             let vertex = MeshEntity::Vertex(vid);
-            self.mesh.add_arrow(cell.clone(), vertex.clone());
-            self.mesh.add_arrow(vertex.clone(), cell.clone());
+            self.mesh.add_arrow(cell.clone(), vertex.clone()).unwrap();
+            self.mesh.add_arrow(vertex.clone(), cell.clone()).unwrap();
         }
 
         self.mesh.entities.write().unwrap().insert(cell);
@@ -171,22 +171,22 @@ impl DomainBuilder {
             // Add arrows from face to its vertices and vice versa
             for &vid in fv {
                 let vertex = MeshEntity::Vertex(vid);
-                self.mesh.add_arrow(face.clone(), vertex.clone());
-                self.mesh.add_arrow(vertex.clone(), face.clone());
+                self.mesh.add_arrow(face.clone(), vertex.clone()).unwrap();
+                self.mesh.add_arrow(vertex.clone(), face.clone()).unwrap();
             }
 
             self.mesh.entities.write().unwrap().insert(face.clone());
 
             // Add arrows between cell and face
-            self.mesh.add_arrow(cell.clone(), face.clone());
-            self.mesh.add_arrow(face, cell.clone());
+            self.mesh.add_arrow(cell.clone(), face.clone()).unwrap();
+            self.mesh.add_arrow(face, cell.clone()).unwrap();
         }
 
         // Link the cell with its vertices
         for &vid in &vertex_ids {
             let vertex = MeshEntity::Vertex(vid);
-            self.mesh.add_arrow(cell.clone(), vertex.clone());
-            self.mesh.add_arrow(vertex, cell.clone());
+            self.mesh.add_arrow(cell.clone(), vertex.clone()).unwrap();
+            self.mesh.add_arrow(vertex, cell.clone()).unwrap();
         }
 
         // Insert the cell into the mesh entities

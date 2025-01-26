@@ -544,4 +544,108 @@ mod advanced_tests {
             assert_eq!(len, 1);
         }
     }
+
+    #[test]
+    fn test_cone_error_handling() {
+        let sieve = Sieve::new();
+        let vertex = MeshEntity::Vertex(1);
+
+        let result = sieve.cone(&vertex);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Entity Vertex(1) not found in the adjacency map."
+        );
+    }
+
+    #[test]
+    fn test_closure_error_handling() {
+        let sieve = Sieve::new();
+        let mut current_entity = MeshEntity::Vertex(1);
+    
+        // Create a deep chain of relationships to exceed depth limit
+        for i in 2..=2000 {
+            let next_entity = MeshEntity::Vertex(i);
+            sieve.add_arrow(current_entity, next_entity);
+            current_entity = next_entity;
+        }
+    
+        let result = sieve.closure(&MeshEntity::Vertex(1));
+    
+        // Ensure the method detects excessive recursion depth
+        assert!(result.is_err(), "Expected an error due to excessive recursion depth.");
+        assert_eq!(
+            result.unwrap_err(),
+            "Exceeded maximum recursion depth while computing closure for Vertex(1)."
+        );
+    }
+    
+
+    #[test]
+    fn test_self_referential_arrow() {
+        let sieve = Sieve::new();
+        let vertex = MeshEntity::Vertex(1);
+
+        sieve.add_arrow(vertex, vertex);
+
+        let closure_result = sieve.closure(&vertex).unwrap();
+        assert!(closure_result.contains_key(&vertex));
+        assert_eq!(closure_result.len(), 1);
+
+        let cone_result = sieve.cone(&vertex).unwrap();
+        assert!(cone_result.contains(&vertex));
+        assert_eq!(cone_result.len(), 1);
+    }
+
+    #[test]
+    fn test_parallel_vs_sequential_iteration() {
+        let sieve = Sieve::new();
+        for i in 1..=100 {
+            sieve.add_arrow(MeshEntity::Vertex(i), MeshEntity::Edge(i));
+        }
+    
+        let mut sequential_results = Vec::new();
+        sieve.adjacency.iter().for_each(|entry| {
+            sequential_results.push((*entry.key(), entry.value().len()));
+        });
+    
+        use std::sync::Mutex;
+        let parallel_results = Mutex::new(Vec::new());
+        sieve.par_for_each_adjacent(|(entity, related)| {
+            let mut results = parallel_results.lock().unwrap();
+            results.push((entity.clone(), related.len()));
+        });
+    
+        let mut parallel_results = parallel_results.into_inner().unwrap();
+    
+        // Sort results by entity ID for consistent comparison
+        sequential_results.sort_by(|a, b| a.0.get_id().cmp(&b.0.get_id()));
+        parallel_results.sort_by(|a, b| a.0.get_id().cmp(&b.0.get_id()));
+    
+        assert_eq!(
+            sequential_results, parallel_results,
+            "Sequential and parallel results should match after sorting."
+        );
+    }
+    
+
+    #[test]
+    fn test_dynamic_relationship_updates() {
+        let sieve = Sieve::new();
+        let vertex = MeshEntity::Vertex(1);
+        let edge1 = MeshEntity::Edge(1);
+        let edge2 = MeshEntity::Edge(2);
+
+        sieve.add_arrow(vertex, edge1);
+
+        let initial_cone = sieve.cone(&vertex).unwrap();
+        assert!(initial_cone.contains(&edge1));
+        assert!(!initial_cone.contains(&edge2));
+
+        sieve.add_arrow(vertex, edge2);
+        let updated_cone = sieve.cone(&vertex).unwrap();
+        assert!(updated_cone.contains(&edge1));
+        assert!(updated_cone.contains(&edge2));
+        assert_eq!(updated_cone.len(), 2);
+    }
 }

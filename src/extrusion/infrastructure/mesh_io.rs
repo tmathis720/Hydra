@@ -245,15 +245,15 @@ mod tests {
         ];
 
         for (id, vertex) in vertices.into_iter().enumerate() {
-            mesh.set_vertex_coordinates(id, vertex);
+            mesh.set_vertex_coordinates(id, vertex).unwrap();
         }
 
         let cell = crate::domain::mesh_entity::MeshEntity::Cell(0);
-        mesh.add_entity(cell.clone());
-        mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(0));
-        mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(1));
-        mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(2));
-        mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(3));
+        mesh.add_entity(cell.clone()).unwrap();
+        mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(0)).unwrap();
+        mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(1)).unwrap();
+        mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(2)).unwrap();
+        mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(3)).unwrap();
 
         let file_path = "outputs/test_save_3d_mesh.msh";
         let result = MeshIO::save_3d_mesh(&mesh, file_path);

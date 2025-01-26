@@ -87,41 +87,37 @@ mod tests {
 
     #[test]
     /// Tests parallel updates for a `Section<Scalar>`.
-    ///
-    /// Validates that all values in the section are updated correctly and efficiently in parallel.
     fn test_section_parallel_update() {
         let section: Section<Scalar> = Section::new();
         let entities: Vec<MeshEntity> = (1..=10).map(create_test_mesh_entity).collect();
-
+    
         for (i, entity) in entities.iter().enumerate() {
             section.set_data(*entity, Scalar(i as f64));
         }
-
-        section.parallel_update(|value| {
+    
+        let _ = section.parallel_update(|value| {
             value.0 *= 2.0; // Double each value
         });
-
+    
         for (i, entity) in entities.iter().enumerate() {
             assert_eq!(section.restrict(entity).unwrap().0, (i as f64) * 2.0);
         }
     }
-
+    
     #[test]
     /// Tests updating a `Section<Scalar>` with a derivative section.
-    ///
-    /// Ensures that the update correctly adds the scaled derivative to the section's values.
     fn test_section_update_with_derivative() {
         let section: Section<Scalar> = Section::new();
         let derivative: Section<Scalar> = Section::new();
         let entity = create_test_mesh_entity(1);
-
+    
         section.set_data(entity, Scalar(1.0));
         derivative.set_data(entity, Scalar(0.5));
-
-        section.update_with_derivative(&derivative, 2.0); // Time step is 2.0
-
+    
+        let _ = section.update_with_derivative(&derivative, 2.0); // Time step is 2.0
+    
         assert_eq!(section.restrict(&entity).unwrap().0, 2.0);
-    }
+    }    
 
     #[test]
     /// Tests retrieving all `MeshEntity` objects from a `Section<Scalar>`.
@@ -147,11 +143,13 @@ mod tests {
         let section: Section<Scalar> = Section::new();
         let entity = create_test_mesh_entity(1);
         section.set_data(entity, Scalar(1.0));
-
+    
         section.clear();
-
-        assert!(section.restrict(&entity).is_ok());
+    
+        // Assert that the section no longer contains data for the entity
+        assert!(section.restrict(&entity).is_err());
     }
+    
 
     #[test]
     /// Tests scaling all values in a `Section<Scalar>`.
@@ -162,7 +160,7 @@ mod tests {
         let entity = create_test_mesh_entity(1);
         section.set_data(entity, Scalar(2.0));
 
-        section.scale(3.0); // Scale by 3.0
+        let _ = section.scale(3.0); // Scale by 3.0
 
         assert_eq!(section.restrict(&entity).unwrap().0, 6.0);
     }

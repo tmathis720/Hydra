@@ -67,6 +67,7 @@ impl MeshEntity {
 /// A struct representing a directed relationship between two `MeshEntity` elements,
 /// referred to as an `Arrow`. It stores a "from" entity and a "to" entity, signifying
 /// a directed connection or dependency between the two.
+#[derive(Debug)]
 pub struct Arrow {
     pub from: MeshEntity,  // Source entity of the relationship
     pub to: MeshEntity,    // Target entity of the relationship
@@ -172,5 +173,95 @@ mod tests {
 
         assert_eq!(new_edge.get_id(), 10); // New ID check
         assert_eq!(new_edge.get_entity_type(), "Edge"); // Type remains unchanged
+    }
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    #[test]
+    fn test_with_id_error() {
+        let vertex = MeshEntity::Vertex(1);
+
+        // Attempt to create a vertex with an invalid id
+        let result = vertex.with_id(0);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Invalid ID: 0. Entity IDs must be non-zero.");
+    }
+
+    #[test]
+    fn test_arrow_creation_error() {
+        let vertex = MeshEntity::Vertex(1);
+
+        // Attempt to create an arrow with identical `from` and `to` entities
+        let result = Arrow::new(vertex, vertex);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Invalid Arrow: 'from' and 'to' entities cannot be the same: Vertex(1)"
+        );
+    }
+
+    #[test]
+    fn test_arrow_set_from_and_to() {
+        let vertex1 = MeshEntity::Vertex(1);
+        let vertex2 = MeshEntity::Vertex(2);
+        let edge = MeshEntity::Edge(3);
+
+        let mut arrow = Arrow::new(vertex1, edge).unwrap();
+
+        // Update the `from` and `to` entities
+        arrow.set_from(vertex2);
+        arrow.set_to(vertex1);
+
+        let (from, to) = arrow.get_relation();
+        assert_eq!(*from, MeshEntity::Vertex(2));
+        assert_eq!(*to, MeshEntity::Vertex(1));
+    }
+
+    #[test]
+    fn test_entity_variants_id_and_type() {
+        let entities = vec![
+            MeshEntity::Vertex(1),
+            MeshEntity::Edge(2),
+            MeshEntity::Face(3),
+            MeshEntity::Cell(4),
+        ];
+
+        for entity in entities {
+            let id = match entity {
+                MeshEntity::Vertex(id) => {
+                    assert_eq!(entity.get_entity_type(), "Vertex");
+                    id
+                }
+                MeshEntity::Edge(id) => {
+                    assert_eq!(entity.get_entity_type(), "Edge");
+                    id
+                }
+                MeshEntity::Face(id) => {
+                    assert_eq!(entity.get_entity_type(), "Face");
+                    id
+                }
+                MeshEntity::Cell(id) => {
+                    assert_eq!(entity.get_entity_type(), "Cell");
+                    id
+                }
+            };
+
+            assert_eq!(entity.get_id(), id);
+        }
+    }
+
+    #[test]
+    fn test_add_entity_consistency() {
+        let vertex = MeshEntity::Vertex(10);
+
+        // Convert to a `MeshEntity` and check consistency
+        let added_entity = Arrow::add_entity(vertex);
+
+        assert_eq!(added_entity, vertex);
     }
 }

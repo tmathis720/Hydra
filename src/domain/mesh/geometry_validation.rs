@@ -195,15 +195,15 @@ mod tests {
         let mut mesh = Mesh::new();
 
         // Add unique vertices
-        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
 
         // Ensure validation passes
         assert!(GeometryValidation::test_vertex_coordinates(&mesh).is_ok());
 
         // Add duplicate vertex coordinates
-        mesh.set_vertex_coordinates(4, [0.0, 0.0, 0.0]);
+        mesh.set_vertex_coordinates(4, [0.0, 0.0, 0.0]).unwrap();
 
         // Ensure validation fails
         assert!(GeometryValidation::test_vertex_coordinates(&mesh).is_err());
@@ -217,14 +217,14 @@ mod tests {
         let face = MeshEntity::Face(1);
 
         // Define vertices for the face
-        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
 
         // Establish relationships for the face
-        mesh.add_arrow(face, MeshEntity::Vertex(1));
-        mesh.add_arrow(face, MeshEntity::Vertex(2));
-        mesh.add_arrow(face, MeshEntity::Vertex(3));
+        mesh.add_arrow(face, MeshEntity::Vertex(1)).unwrap();
+        mesh.add_arrow(face, MeshEntity::Vertex(2)).unwrap();
+        mesh.add_arrow(face, MeshEntity::Vertex(3)).unwrap();
 
         // Ensure centroid calculation validation passes
         assert!(GeometryValidation::test_centroid_calculation(&mesh, &mut geometry).is_ok());
@@ -239,12 +239,12 @@ mod tests {
         let cell2 = MeshEntity::Cell(2);
 
         // Define vertices for the cells
-        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
 
         // Establish relationships for the cells
-        mesh.add_arrow(cell1, MeshEntity::Vertex(1));
-        mesh.add_arrow(cell2, MeshEntity::Vertex(2));
+        mesh.add_arrow(cell1, MeshEntity::Vertex(1)).unwrap();
+        mesh.add_arrow(cell2, MeshEntity::Vertex(2)).unwrap();
 
         // Ensure distance calculation validation passes
         assert!(GeometryValidation::test_distance_between_cells(&mesh, &geometry).is_ok());

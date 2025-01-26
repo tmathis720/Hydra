@@ -551,23 +551,23 @@ mod tests {
         let cell = MeshEntity::Cell(1);
 
         // Set vertex coordinates.
-        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
-        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]);
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]).unwrap();
 
         // Add entities to the mesh.
-        mesh.add_entity(vertex1);
-        mesh.add_entity(vertex2);
-        mesh.add_entity(vertex3);
-        mesh.add_entity(vertex4);
-        mesh.add_entity(cell);
+        mesh.add_entity(vertex1).unwrap();
+        mesh.add_entity(vertex2).unwrap();
+        mesh.add_entity(vertex3).unwrap();
+        mesh.add_entity(vertex4).unwrap();
+        mesh.add_entity(cell).unwrap();
 
         // Establish relationships between the cell and vertices.
-        mesh.add_arrow(cell, vertex1);
-        mesh.add_arrow(cell, vertex2);
-        mesh.add_arrow(cell, vertex3);
-        mesh.add_arrow(cell, vertex4);
+        mesh.add_arrow(cell, vertex1).unwrap();
+        mesh.add_arrow(cell, vertex2).unwrap();
+        mesh.add_arrow(cell, vertex3).unwrap();
+        mesh.add_arrow(cell, vertex4).unwrap();
 
         // Verify that `get_cell_vertices` retrieves the correct vertices.
         let cell_vertices = mesh.get_cell_vertices(&cell);

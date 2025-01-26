@@ -228,19 +228,19 @@ mod tests {
         let vertex2 = MeshEntity::Vertex(2);
         let vertex3 = MeshEntity::Vertex(3);
 
-        mesh.add_entity(cell);
-        mesh.add_entity(face1);
-        mesh.add_entity(face2);
-        mesh.add_entity(vertex1);
-        mesh.add_entity(vertex2);
-        mesh.add_entity(vertex3);
+        mesh.add_entity(cell).unwrap();
+        mesh.add_entity(face1).unwrap();
+        mesh.add_entity(face2).unwrap();
+        mesh.add_entity(vertex1).unwrap();
+        mesh.add_entity(vertex2).unwrap();
+        mesh.add_entity(vertex3).unwrap();
 
-        mesh.add_arrow(cell, face1);
-        mesh.add_arrow(cell, face2);
-        mesh.add_arrow(face1, vertex1);
-        mesh.add_arrow(face1, vertex2);
-        mesh.add_arrow(face2, vertex2);
-        mesh.add_arrow(face2, vertex3);
+        mesh.add_arrow(cell, face1).unwrap();
+        mesh.add_arrow(cell, face2).unwrap();
+        mesh.add_arrow(face1, vertex1).unwrap();
+        mesh.add_arrow(face1, vertex2).unwrap();
+        mesh.add_arrow(face2, vertex2).unwrap();
+        mesh.add_arrow(face2, vertex3).unwrap();
 
         let topology_validation = TopologyValidation::new(&mesh);
         assert!(topology_validation.validate_connectivity(), "Connectivity validation failed");
@@ -256,17 +256,17 @@ mod tests {
         let edge2 = MeshEntity::Edge(2);
         let edge3 = MeshEntity::Edge(3);
 
-        mesh.add_entity(cell1);
-        mesh.add_entity(cell2);
-        mesh.add_entity(edge1);
-        mesh.add_entity(edge2);
-        mesh.add_entity(edge3);
+        mesh.add_entity(cell1).unwrap();
+        mesh.add_entity(cell2).unwrap();
+        mesh.add_entity(edge1).unwrap();
+        mesh.add_entity(edge2).unwrap();
+        mesh.add_entity(edge3).unwrap();
 
         // Establish valid relationships between cells and edges
-        mesh.add_arrow(cell1, edge1);
-        mesh.add_arrow(cell1, edge2);
-        mesh.add_arrow(cell2, edge2); // Edge2 is reused here, valid as it's unique within each cell.
-        mesh.add_arrow(cell2, edge3);
+        mesh.add_arrow(cell1, edge1).unwrap();
+        mesh.add_arrow(cell1, edge2).unwrap();
+        mesh.add_arrow(cell2, edge2).unwrap(); // Edge2 is reused here, valid as it's unique within each cell.
+        mesh.add_arrow(cell2, edge3).unwrap();
 
         // Initialize TopologyValidation to verify unique relationships per cell
         let topology_validation = TopologyValidation::new(&mesh);

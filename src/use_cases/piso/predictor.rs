@@ -49,7 +49,7 @@ pub fn predict_velocity(
         Some(velocity_field) => {
             // Update the velocity field based on the computed momentum fluxes
             println!("Velocity field found. Applying updates.");
-            velocity_field.update_with_derivative(&fluxes.momentum_fluxes, 1.0);
+            velocity_field.update_with_derivative(&fluxes.momentum_fluxes, 1.0).unwrap();
             println!("Velocity field updated successfully.");
             Ok(())
         }

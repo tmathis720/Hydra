@@ -221,7 +221,7 @@ mod tests {
         fn update_state(&mut self, derivative: &Self, dt: f64) {
             for (key, section) in &derivative.fields.scalar_fields {
                 self.fields.scalar_fields.entry(key.clone()).and_modify(|val| {
-                    val.update_with_derivative(section, dt);
+                    val.update_with_derivative(section, dt).unwrap();
                 });
             }
         }

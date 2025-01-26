@@ -132,11 +132,11 @@ impl UpdateState for Fields {
         for (key, section) in &derivative.scalar_fields {
             if let Some(state_section) = self.scalar_fields.get_mut(key) {
                 // Update existing scalar field with the derivative
-                state_section.update_with_derivative(section, dt);
+                state_section.update_with_derivative(section, dt).unwrap();
             } else {
                 // Create a new scalar field if it does not exist
                 let new_section = Section::new();
-                new_section.update_with_derivative(section, dt);
+                new_section.update_with_derivative(section, dt).unwrap();
                 self.scalar_fields.insert(key.clone(), new_section);
             }
         }
@@ -145,11 +145,11 @@ impl UpdateState for Fields {
         for (key, section) in &derivative.vector_fields {
             if let Some(state_section) = self.vector_fields.get_mut(key) {
                 // Update existing vector field with the derivative
-                state_section.update_with_derivative(section, dt);
+                state_section.update_with_derivative(section, dt).unwrap();
             } else {
                 // Create a new vector field if it does not exist
                 let new_section = Section::new();
-                new_section.update_with_derivative(section, dt);
+                new_section.update_with_derivative(section, dt).unwrap();
                 self.vector_fields.insert(key.clone(), new_section);
             }
         }

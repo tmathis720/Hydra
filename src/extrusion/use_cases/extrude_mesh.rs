@@ -67,14 +67,14 @@ impl ExtrudeMeshUseCase {
         // Build the final Mesh
         let mut extruded_mesh = Mesh::new();
         for (id, vertex) in extruded_vertices.into_iter().enumerate() {
-            extruded_mesh.set_vertex_coordinates(id, vertex);
+            extruded_mesh.set_vertex_coordinates(id, vertex).unwrap();
         }
 
         for (cell_id, vertices) in extruded_cells.into_iter().enumerate() {
             let cell = crate::domain::mesh_entity::MeshEntity::Cell(cell_id);
-            extruded_mesh.add_entity(cell.clone());
+            extruded_mesh.add_entity(cell.clone()).unwrap();
             for vertex in vertices {
-                extruded_mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(vertex));
+                extruded_mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(vertex)).unwrap();
             }
         }
 
@@ -123,14 +123,14 @@ impl ExtrudeMeshUseCase {
         // Build the final Mesh
         let mut extruded_mesh = Mesh::new();
         for (id, vertex) in extruded_vertices.into_iter().enumerate() {
-            extruded_mesh.set_vertex_coordinates(id, vertex);
+            extruded_mesh.set_vertex_coordinates(id, vertex).unwrap();
         }
 
         for (cell_id, vertices) in extruded_cells.into_iter().enumerate() {
             let cell = crate::domain::mesh_entity::MeshEntity::Cell(cell_id);
-            extruded_mesh.add_entity(cell.clone());
+            extruded_mesh.add_entity(cell.clone()).unwrap();
             for vertex in vertices {
-                extruded_mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(vertex));
+                extruded_mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(vertex)).unwrap();
             }
         }
 

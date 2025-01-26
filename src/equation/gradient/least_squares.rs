@@ -156,21 +156,21 @@ mod tests {
             MeshEntity::Vertex(5),
         ];
         for vertex in &vertices {
-            mesh.add_entity(vertex.clone());
+            mesh.add_entity(vertex.clone()).unwrap();
         }
     
         // Set coordinates for vertices
-        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]);
-        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]);
-        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]);
-        mesh.set_vertex_coordinates(5, [1.0, 1.0, 1.0]);
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
+        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]).unwrap();
+        mesh.set_vertex_coordinates(5, [1.0, 1.0, 1.0]).unwrap();
     
         // Add main test cell
         let test_cell = MeshEntity::Cell(1);
-        mesh.add_entity(test_cell.clone());
+        mesh.add_entity(test_cell.clone()).unwrap();
         for vertex in &vertices {
-            mesh.add_relationship(test_cell.clone(), vertex.clone());
+            mesh.add_relationship(test_cell.clone(), vertex.clone()).unwrap();
         }
     
         // Add neighboring cells and relationships
@@ -179,16 +179,16 @@ mod tests {
             MeshEntity::Cell(3),
         ];
         for neighbor in &neighbor_cells {
-            mesh.add_entity(neighbor.clone());
-            mesh.add_relationship(*neighbor, test_cell.clone());
+            mesh.add_entity(neighbor.clone()).unwrap();
+            mesh.add_relationship(*neighbor, test_cell.clone()).unwrap();
         }
     
         // Ensure neighbors are connected through shared faces
         let face = MeshEntity::Face(1);
-        mesh.add_entity(face.clone());
-        mesh.add_relationship(test_cell.clone(), face.clone());
+        mesh.add_entity(face.clone()).unwrap();
+        mesh.add_relationship(test_cell.clone(), face.clone()).unwrap();
         for neighbor in &neighbor_cells {
-            mesh.add_relationship(*neighbor, face.clone());
+            mesh.add_relationship(*neighbor, face.clone()).unwrap();
         }
     
         mesh

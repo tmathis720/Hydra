@@ -59,7 +59,7 @@ pub fn correct_velocity(
 
     // 4. Correct the velocity field using the pressure gradient
     println!("Correcting the velocity field using the computed pressure gradient.");
-    velocity_field.update_with_derivative(&pressure_gradient, -1.0); // Apply the correction
+    velocity_field.update_with_derivative(&pressure_gradient, -1.0).unwrap(); // Apply the correction
     println!("Velocity field updated successfully.");
 
     Ok(())

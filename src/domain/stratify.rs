@@ -49,13 +49,8 @@ impl Sieve {
                 MeshEntity::Edge(_) => 1,
                 MeshEntity::Face(_) => 2,
                 MeshEntity::Cell(_) => 3,
-                _ => {
-                    eprintln!("Warning: Unsupported entity type {:?}", entity);
-                    return; // Skip unsupported entities
-                }
             };
     
-            // Log entity placement for debugging
             strata.entry(dimension).or_insert_with(Vec::new).push(entity.clone());
         });
     
@@ -66,7 +61,7 @@ impl Sieve {
         );
     
         strata
-    }
+    }    
 }
 
 #[cfg(test)]
@@ -199,5 +194,42 @@ mod tests {
         assert_eq!(strata.get(&1).unwrap().len(), 100); // 100 edges
         assert_eq!(strata.get(&2).unwrap().len(), 100); // 100 faces
         assert_eq!(strata.get(&3).unwrap().len(), 100); // 100 cells
+    }
+
+    #[test]
+    fn test_stratify_concurrent_access() {
+        let sieve = Sieve::new();
+        for i in 0..100 {
+            sieve.add_arrow(MeshEntity::Vertex(i), MeshEntity::Edge(i));
+            sieve.add_arrow(MeshEntity::Edge(i), MeshEntity::Face(i));
+            sieve.add_arrow(MeshEntity::Face(i), MeshEntity::Cell(i));
+    
+            // Ensure adjacency map entries exist
+            sieve.adjacency.entry(MeshEntity::Vertex(i)).or_insert_with(DashMap::new);
+            sieve.adjacency.entry(MeshEntity::Edge(i)).or_insert_with(DashMap::new);
+            sieve.adjacency.entry(MeshEntity::Face(i)).or_insert_with(DashMap::new);
+            sieve.adjacency.entry(MeshEntity::Cell(i)).or_insert_with(DashMap::new);
+        }
+    
+        use std::sync::Arc;
+        use std::thread;
+    
+        let sieve = Arc::new(sieve);
+        let mut handles = vec![];
+    
+        for _ in 0..10 {
+            let sieve_clone = Arc::clone(&sieve);
+            handles.push(thread::spawn(move || {
+                let strata = sieve_clone.stratify();
+                assert_eq!(strata.get(&0).unwrap().len(), 100); // 100 vertices
+                assert_eq!(strata.get(&1).unwrap().len(), 100); // 100 edges
+                assert_eq!(strata.get(&2).unwrap().len(), 100); // 100 faces
+                assert_eq!(strata.get(&3).unwrap().len(), 100); // 100 cells
+            }));
+        }
+    
+        for handle in handles {
+            handle.join().expect("Thread panicked");
+        }
     }
 }

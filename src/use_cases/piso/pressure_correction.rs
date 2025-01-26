@@ -159,7 +159,7 @@ fn assemble_pressure_poisson(
 fn update_pressure_field(fields: &mut Fields, pressure_correction: &Section<Scalar>) -> Result<(), String> {
     match fields.scalar_fields.get_mut("pressure") {
         Some(pressure_field) => {
-            pressure_field.update_with_derivative(pressure_correction, 1.0); // Apply correction
+            pressure_field.update_with_derivative(pressure_correction, 1.0).unwrap(); // Apply correction
             Ok(())
         }
         None => Err("Pressure field not found in the fields structure.".to_string()),
@@ -196,7 +196,7 @@ fn correct_velocity_field(
     .map_err(|e| format!("Gradient computation failed: {:?}", e))?;
 
     // Subtract the pressure gradient from the velocity field
-    velocity_field.update_with_derivative(&pressure_gradient, -1.0); // Correct the velocity field
+    velocity_field.update_with_derivative(&pressure_gradient, -1.0).unwrap(); // Correct the velocity field
 
     Ok(())
 }
