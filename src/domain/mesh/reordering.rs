@@ -25,30 +25,29 @@ pub fn cuthill_mckee(
     let mut queue = VecDeque::new();
     let mut ordered = Vec::new();
 
-    // Find the starting entity with the smallest degree (number of neighbors).
     if let Some((start, _)) = entities.iter()
         .map(|entity| (entity, adjacency.get(entity).map_or(0, |neighbors| neighbors.len())))
         .min_by_key(|&(_, degree)| degree)
     {
         queue.push_back(*start);
         visited.insert(*start);
+    } else {
+        log::warn!("No entities provided for reordering.");
+        return ordered;
     }
 
-    // Perform Cuthill-McKee reordering using breadth-first traversal.
     while let Some(entity) = queue.pop_front() {
         ordered.push(entity);
 
         if let Some(neighbors) = adjacency.get(&entity) {
             let mut sorted_neighbors: Vec<_> = neighbors
                 .iter()
-                .filter(|&&n| !visited.contains(&n)) // Only process unvisited neighbors.
+                .filter(|&&n| !visited.contains(&n))
                 .cloned()
                 .collect();
 
-            // Sort neighbors by increasing degree.
             sorted_neighbors.sort_by_key(|n| adjacency.get(n).map_or(0, |neighbors| neighbors.len()));
 
-            // Enqueue the sorted neighbors.
             for neighbor in sorted_neighbors {
                 queue.push_back(neighbor);
                 visited.insert(neighbor);
@@ -68,23 +67,40 @@ impl Mesh {
     /// # Arguments
     /// * `new_order` - A slice of new IDs corresponding to the desired order of entities.
     pub fn apply_reordering(&mut self, new_order: &[usize]) {
-        // Map old entities to new entities based on the new order.
-        let entities: Vec<_> = self.entities.read().unwrap().iter().cloned().collect();
-        let mut id_mapping: FxHashMap<MeshEntity, MeshEntity> = FxHashMap::default();
+        let entities = match self.entities.read() {
+            Ok(entities) => entities.iter().cloned().collect::<Vec<_>>(),
+            Err(err) => {
+                log::error!("Failed to acquire read lock on entities: {}", err);
+                return;
+            }
+        };
 
+        let mut id_mapping: FxHashMap<MeshEntity, MeshEntity> = FxHashMap::default();
         for (new_id, entity) in new_order.iter().zip(entities.iter()) {
-            let new_entity = entity.with_id(*new_id);
-            id_mapping.insert(*entity, new_entity.unwrap());
+            match entity.with_id(*new_id) {
+                Ok(new_entity) => {
+                    id_mapping.insert(*entity, new_entity);
+                }
+                Err(err) => {
+                    log::error!("Failed to create new ID for entity {:?}: {}", entity, err);
+                    return;
+                }
+            }
         }
 
-        // Update the entities set with the new IDs.
-        let mut entities_write = self.entities.write().unwrap();
+        let mut entities_write = match self.entities.write() {
+            Ok(write_lock) => write_lock,
+            Err(err) => {
+                log::error!("Failed to acquire write lock on entities: {}", err);
+                return;
+            }
+        };
+
         entities_write.clear();
         for new_entity in id_mapping.values() {
             entities_write.insert(*new_entity);
         }
 
-        // Update the sieve with the new IDs.
         let new_adjacency = DashMap::new();
         for entry in self.sieve.adjacency.iter() {
             let old_from = *entry.key();
@@ -102,6 +118,8 @@ impl Mesh {
         let mut sieve = Arc::clone(&self.sieve);
         Arc::make_mut(&mut sieve).adjacency = new_adjacency;
         self.sieve = sieve;
+
+        log::info!("Reordering successfully applied.");
     }
 
     /// Computes the Reverse Cuthill-McKee (RCM) ordering of the mesh entities.
@@ -115,12 +133,8 @@ impl Mesh {
     /// # Returns
     /// * `Vec<MeshEntity>` - A vector of entities reordered by the RCM algorithm.
     pub fn rcm_ordering(&self, start_node: MeshEntity) -> Vec<MeshEntity> {
-        // Ensure the starting node exists in the adjacency map.
         if !self.sieve.adjacency.contains_key(&start_node) {
-            eprintln!(
-                "Error: Start node {:?} does not exist in the adjacency map.",
-                start_node
-            );
+            log::error!("Start node {:?} does not exist in the adjacency map.", start_node);
             return Vec::new();
         }
 
@@ -131,49 +145,39 @@ impl Mesh {
         queue.push_back(start_node);
         visited.insert(start_node);
 
-        // Perform breadth-first traversal and order nodes by degree.
         while let Some(node) = queue.pop_front() {
             ordering.push(node);
 
-            // Retrieve neighbors of the current node.
             let neighbors = match self.sieve.cone(&node) {
                 Ok(neighbors) => neighbors,
                 Err(err) => {
-                    eprintln!(
-                        "Error retrieving neighbors for node {:?}: {}",
-                        node, err
-                    );
-                    continue; // Skip this node if neighbors cannot be retrieved.
+                    log::error!("Error retrieving neighbors for node {:?}: {}", node, err);
+                    continue;
                 }
             };
 
             let mut sorted_neighbors: Vec<_> = neighbors
                 .into_iter()
-                .filter(|n| !visited.contains(n)) // Only unvisited neighbors.
+                .filter(|n| !visited.contains(n))
                 .collect();
 
-            // Sort neighbors by degree (number of connections).
             sorted_neighbors.sort_by_key(|n| {
                 match self.sieve.cone(n) {
                     Ok(set) => set.len(),
                     Err(_) => {
-                        eprintln!(
-                            "Warning: Failed to retrieve degree for neighbor {:?}. Assuming degree 0.",
-                            n
-                        );
+                        log::warn!("Failed to retrieve degree for neighbor {:?}. Assuming degree 0.", n);
                         0
                     }
                 }
             });
 
-            // Enqueue the sorted neighbors.
             for neighbor in sorted_neighbors {
                 queue.push_back(neighbor);
                 visited.insert(neighbor);
             }
         }
 
-        ordering.reverse(); // Reverse the ordering to obtain RCM.
+        ordering.reverse();
         ordering
     }
 
@@ -188,6 +192,7 @@ impl Mesh {
     /// * `elements` - A mutable slice of 2D elements represented as `(x, y)` coordinate pairs.
     pub fn reorder_by_morton_order(&mut self, elements: &mut [(u32, u32)]) {
         elements.par_sort_by_key(|&(x, y)| Self::morton_order_2d(x, y));
+        log::info!("Morton order applied to {} elements.", elements.len());
     }
 
     /// Computes the Morton order (Z-order curve) for a 2D point `(x, y)`.
@@ -202,7 +207,6 @@ impl Mesh {
     /// # Returns
     /// * `u64` - The Morton order value for the point.
     pub fn morton_order_2d(x: u32, y: u32) -> u64 {
-        // Helper function to interleave the bits of a 32-bit integer.
         fn part1by1(n: u32) -> u64 {
             let mut n = n as u64;
             n = (n | (n << 16)) & 0x0000_0000_ffff_0000;
@@ -213,7 +217,6 @@ impl Mesh {
             n
         }
 
-        // Interleave x and y bits to compute Morton order.
         part1by1(x) | (part1by1(y) << 1)
     }
 }
