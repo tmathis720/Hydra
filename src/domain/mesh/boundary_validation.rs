@@ -117,6 +117,7 @@ impl<'a> BoundaryValidation<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::mesh::DefaultMeshLogger;
     use crate::{domain::mesh::Mesh, Sieve};
     use crate::domain::mesh_entity::MeshEntity;
     use rustc_hash::{FxHashMap, FxHashSet};
@@ -130,14 +131,15 @@ mod tests {
     ///   and a `Receiver` for receiving boundary data.
     fn create_mock_mesh() -> (Mesh, Sender<FxHashMap<MeshEntity, [f64; 3]>>, Receiver<FxHashMap<MeshEntity, [f64; 3]>>) {
         let (sender, receiver) = unbounded();
-        let mesh = Mesh {
+        let _mesh = Mesh {
             sieve: Sieve::new().into(),
             entities: Arc::new(RwLock::new(FxHashSet::default())),
             vertex_coordinates: FxHashMap::default(),
             boundary_data_sender: Some(sender.clone()),
             boundary_data_receiver: Some(receiver.clone()),
+            logger: Arc::new(DefaultMeshLogger), // Replace with a valid logger if available
         };
-        (mesh, sender, receiver)
+        (_mesh, sender, receiver)
     }
 
     #[test]

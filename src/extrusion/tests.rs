@@ -16,7 +16,7 @@ mod tests {
         assert!(result.is_ok());
 
         let mesh_2d = result.unwrap();
-        let quad_mesh = QuadrilateralMesh::new(mesh_2d.get_vertices(), mesh_2d.get_cell_vertex_indices());
+        let quad_mesh = QuadrilateralMesh::new(mesh_2d.get_vertices_vec(), mesh_2d.get_cell_vertex_indices());
 
         let depth = 5.0;
         let layers = 3;
@@ -41,7 +41,7 @@ mod tests {
         assert!(result.is_ok());
 
         let mesh_2d = result.unwrap();
-        let tri_mesh = TriangularMesh::new(mesh_2d.get_vertices(), mesh_2d.get_cell_vertex_indices());
+        let tri_mesh = TriangularMesh::new(mesh_2d.get_vertices_vec(), mesh_2d.get_cell_vertex_indices());
 
         let depth = 4.0;
         let layers = 2;
@@ -65,7 +65,7 @@ mod tests {
         assert!(result.is_ok());
 
         let mesh_2d = result.unwrap();
-        let quad_mesh = QuadrilateralMesh::new(mesh_2d.get_vertices(), mesh_2d.get_cell_vertex_indices());
+        let quad_mesh = QuadrilateralMesh::new(mesh_2d.get_vertices_vec(), mesh_2d.get_cell_vertex_indices());
 
         let depth = 3.0;
         let layers = 2;

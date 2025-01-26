@@ -23,13 +23,14 @@ impl GradientMethod for FiniteVolumeGradient {
         cell: &MeshEntity,
         time: f64,
     ) -> Result<[f64; 3], GradientError> {
+        // Use `map_err` to convert the Option to a Result
         let phi_c = field
             .restrict(cell)
-            .ok_or_else(|| GradientError::CalculationError(cell.clone(), "Field value not found for cell".to_string()))?
-            .0;
-
+            .and_then(|scalar| Ok(Some(scalar.0)))
+            .map_err(|_| GradientError::CalculationError(cell.clone(), "Field value not found for cell".to_string()))?;
+    
         let mut grad_phi = [0.0; 3];
-
+    
         // Retrieve vertices of the cell
         let cell_vertices = mesh.get_cell_vertices(cell).map_err(|err| {
             GradientError::CalculationError(cell.clone(), format!("Failed to retrieve vertices: {}", err))
@@ -40,7 +41,7 @@ impl GradientMethod for FiniteVolumeGradient {
                 "Cell has no vertices; cannot compute volume or gradient.".to_string(),
             ));
         }
-
+    
         // Compute cell volume
         let volume = geometry.compute_cell_volume(mesh, cell);
         if volume == 0.0 {
@@ -49,29 +50,23 @@ impl GradientMethod for FiniteVolumeGradient {
                 "Failed to compute cell volume: volume is zero".to_string(),
             ));
         }
-        if volume == 0.0 {
-            return Err(GradientError::CalculationError(
-                cell.clone(),
-                "Cell volume is zero; cannot compute gradient.".to_string(),
-            ));
-        }
-
+    
         // Retrieve faces of the cell
         let faces = mesh.get_faces_of_cell(cell).map_err(|err| {
             GradientError::CalculationError(cell.clone(), format!("Failed to retrieve faces: {}", err))
         })?;
-
+    
         for face_entry in faces.iter() {
             let face = face_entry.key();
             let face_vertices = mesh.get_face_vertices(face).map_err(|err| {
                 GradientError::CalculationError(face.clone(), format!("Failed to retrieve face vertices: {}", err))
             })?;
-
+    
             // Determine face shape
             let face_shape = self
                 .determine_face_shape(face_vertices.len())
                 .map_err(|e| GradientError::CalculationError(face.clone(), e.to_string()))?;
-
+    
             // Compute face area and normal
             let area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
             if area == 0.0 {
@@ -84,7 +79,7 @@ impl GradientMethod for FiniteVolumeGradient {
                 .compute_face_normal(mesh, face, cell)
                 .map_err(|err| GradientError::CalculationError(face.clone(), format!("Failed to compute face normal: {}", err)))?;
             let flux_vector = Vector3([normal[0] * area, normal[1] * area, normal[2] * area]);
-
+    
             // Retrieve neighboring cell
             let neighbor_cells = mesh.get_cells_sharing_face(face).map_err(|err| {
                 GradientError::CalculationError(face.clone(), format!("Failed to retrieve neighboring cells: {}", err))
@@ -93,17 +88,17 @@ impl GradientMethod for FiniteVolumeGradient {
                 .iter()
                 .find(|neighbor| *neighbor.key() != *cell)
                 .map(|entry| entry.key().clone());
-
+    
             if let Some(nb_cell) = nb_cell {
                 // Handle internal face
                 let phi_nb = field
                     .restrict(&nb_cell)
-                    .ok_or_else(|| {
+                    .map(|scalar| scalar.0)
+                    .map_err(|_| {
                         GradientError::CalculationError(nb_cell.clone(), "Field value not found for neighbor cell".to_string())
-                    })?
-                    .0;
-
-                let delta_phi = phi_nb - phi_c;
+                    })?;
+    
+                let delta_phi = phi_nb - phi_c.unwrap();
                 for i in 0..3 {
                     grad_phi[i] += delta_phi * flux_vector[i];
                 }
@@ -111,7 +106,7 @@ impl GradientMethod for FiniteVolumeGradient {
                 // Handle boundary face
                 self.apply_boundary_condition(
                     face,
-                    phi_c,
+                    phi_c.unwrap(),
                     flux_vector,
                     time,
                     &mut grad_phi,
@@ -122,14 +117,14 @@ impl GradientMethod for FiniteVolumeGradient {
                 .map_err(|e| GradientError::CalculationError(face.clone(), e.to_string()))?;
             }
         }
-
+    
         // Normalize gradient by cell volume
         for i in 0..3 {
             grad_phi[i] /= volume;
         }
-
+    
         Ok(grad_phi)
-    }
+    }    
 }
 
 

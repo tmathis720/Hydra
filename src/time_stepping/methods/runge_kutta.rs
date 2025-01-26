@@ -225,10 +225,9 @@ mod tests {
             let mut diff_fields = Fields::new();
             for (key, section) in &self.fields.scalar_fields {
                 if let Some(other_section) = other.fields.scalar_fields.get(key) {
-                    diff_fields.scalar_fields.insert(
-                        key.clone(),
-                        section.clone() - other_section.clone(),
-                    );
+                    if let Ok(diff_section) = section.clone() - other_section.clone() {
+                        diff_fields.scalar_fields.insert(key.clone(), diff_section);
+                    }
                 }
             }
             MockState { fields: diff_fields }

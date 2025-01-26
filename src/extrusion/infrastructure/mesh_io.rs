@@ -62,7 +62,7 @@ impl MeshIO {
         // Based on the collected cells, decide the predominant mesh type
         if is_quad_mesh && !is_tri_mesh {
             let quad_mesh = QuadrilateralMesh::new(
-                mesh.get_vertices(),
+                mesh.get_vertices_vec(),
                 quad_cells,
             );
             if quad_mesh.is_valid_for_extrusion() {
@@ -72,7 +72,7 @@ impl MeshIO {
             }
         } else if is_tri_mesh && !is_quad_mesh {
             let tri_mesh = TriangularMesh::new(
-                mesh.get_vertices(),
+                mesh.get_vertices_vec(),
                 tri_cells,
             );
             if tri_mesh.is_valid_for_extrusion() {
@@ -110,7 +110,7 @@ impl MeshIO {
         // Write vertices
         writeln!(file, "$Nodes").map_err(|e| e.to_string())?;
         writeln!(file, "{}", mesh.get_vertices().len()).map_err(|e| e.to_string())?;
-        for (id, coords) in mesh.get_vertices().iter().enumerate() {
+        for (id, coords) in mesh.get_vertices_vec().iter().enumerate() {
             writeln!(file, "{} {} {} {}", id + 1, coords[0], coords[1], coords[2])
                 .map_err(|e| e.to_string())?;
         }
@@ -136,7 +136,7 @@ impl MeshIO {
 
 impl Mesh {
     /// Retrieves all vertices in the mesh as a vector of `[f64; 3]` coordinates.
-    pub fn get_vertices(&self) -> Vec<[f64; 3]> {
+    pub fn get_vertices_vec(&self) -> Vec<[f64; 3]> {
         self.entities
             .read()
             .expect("Failed to acquire read lock")

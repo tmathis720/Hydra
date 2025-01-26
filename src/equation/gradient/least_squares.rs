@@ -27,8 +27,8 @@ impl GradientMethod for LeastSquaresGradient {
         // Retrieve the field value for the current cell
         let phi_c = field
             .restrict(cell)
-            .ok_or_else(|| GradientError::CalculationError(cell.clone(), "Field value not found for cell".to_string()))?
-            .0;
+            .and_then(|scalar| Ok(Some(scalar.0)))
+            .map_err(|_| GradientError::CalculationError(cell.clone(), "Field value not found for cell".to_string()))?;
     
         let mut a = [[0.0; 3]; 3];
         let mut b = [0.0; 3];
@@ -53,8 +53,10 @@ impl GradientMethod for LeastSquaresGradient {
             // Retrieve the field value for the neighbor
             let phi_nb = field
                 .restrict(neighbor)
-                .ok_or_else(|| GradientError::CalculationError(neighbor.clone(), "Field value not found for neighbor".to_string()))?
-                .0;
+                .map(|scalar| scalar.0)
+                .map_err(|_| {
+                    GradientError::CalculationError(neighbor.clone(), "Field value not found for neighbor".to_string())
+                })?;
     
             // Compute the displacement vector
             let delta = [
@@ -68,7 +70,7 @@ impl GradientMethod for LeastSquaresGradient {
                 for j in 0..3 {
                     a[i][j] += delta[i] * delta[j];
                 }
-                b[i] += delta[i] * (phi_nb - phi_c);
+                b[i] += delta[i] * (phi_nb - phi_c.unwrap());
             }
         }
     

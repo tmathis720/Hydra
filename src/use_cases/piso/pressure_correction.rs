@@ -314,7 +314,7 @@ fn compute_pressure_coefficient(
     let density = fields
         .scalar_fields
         .get("density")
-        .and_then(|f| f.restrict(cell))
+        .and_then(|f| f.restrict(cell).ok())
         .map_or(1.0, |d| d.0); // Default density is 1.0 if not found
 
     // Step 5: Compute and return the coefficient

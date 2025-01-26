@@ -540,6 +540,7 @@ mod tests {
             vertex_coordinates: FxHashMap::default(),
             boundary_data_sender: None,
             boundary_data_receiver: None,
+            logger: todo!(),
         };
 
         // Define vertices and a cell.

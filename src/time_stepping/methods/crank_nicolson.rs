@@ -232,7 +232,10 @@ mod tests {
                 if let Some(other_section) = other.fields.scalar_fields.get(key) {
                     diff_fields.scalar_fields.insert(
                         key.clone(),
-                        section.clone() - other_section.clone(),
+                        match section.clone() - other_section.clone() {
+                            Ok(diff_section) => diff_section,
+                            Err(_) => return MockState { fields: Fields::new() },
+                        },
                     );
                 }
             }

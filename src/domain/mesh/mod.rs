@@ -13,15 +13,69 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::{Arc, RwLock};
 use crossbeam::channel::{Sender, Receiver};
 use lazy_static::lazy_static;
+use log::{info, warn, error}; // Using `log` crate for structured logging.
+use thiserror::Error; // Using `thiserror` crate for robust error handling.
 
 // Delegate methods to corresponding modules
 
+/// Represents errors that can occur in the `Mesh` module.
+#[derive(Debug, Error)]
+pub enum MeshError {
+    #[error("Entity {0} already exists in the mesh.")]
+    EntityExists(String),
+
+    #[error("Entity {0} not found in the mesh.")]
+    EntityNotFound(String),
+
+    #[error("Failed to add relationship: {0}")]
+    RelationshipError(String),
+
+    #[error("Boundary synchronization error: {0}")]
+    BoundarySyncError(String),
+
+    #[error("Geometry calculation error: {0}")]
+    GeometryError(String),
+
+    #[error("Topology validation error: {0}")]
+    TopologyError(String),
+
+    #[error("Invalid entity type: {0}")]
+    InvalidEntityType(String),
+
+    #[error("Connectivity error: Face {0} error {1}")]
+    ConnectivityError(String, String),
+
+    #[error("Unknown error: {0}")]
+    Unknown(String),
+}
+
+/// A trait for structured logging in the `Mesh` module.
+pub trait MeshLogger: std::fmt::Debug {
+    fn log_info(&self, message: &str);
+    fn log_warn(&self, message: &str);
+    fn log_error(&self, error: &MeshError);
+}
+
+/// Default implementation of `MeshLogger` using the `log` crate.
+#[derive(Debug)]
+pub struct DefaultMeshLogger;
+
+impl MeshLogger for DefaultMeshLogger {
+    fn log_info(&self, message: &str) {
+        info!("{}", message);
+    }
+
+    fn log_warn(&self, message: &str) {
+        warn!("{}", message);
+    }
+
+    fn log_error(&self, error: &MeshError) {
+        error!("{:?}", error);
+    }
+}
+
 /// Represents the mesh structure, which is composed of a sieve for entity management,  
 /// a set of mesh entities, vertex coordinates, and channels for boundary data.  
-/// 
-/// The `Mesh` struct is the central component for managing mesh entities and  
-/// their relationships. It stores entities such as vertices, edges, faces,  
-/// and cells, along with their geometric data and boundary-related information.  
 #[derive(Clone, Debug)]
 pub struct Mesh {
     /// The sieve structure used for organizing the mesh entities' relationships.  
@@ -35,6 +89,8 @@ pub struct Mesh {
     pub boundary_data_sender: Option<Sender<FxHashMap<MeshEntity, [f64; 3]>>>,  
     /// An optional channel receiver for receiving boundary data related to mesh entities.  
     pub boundary_data_receiver: Option<Receiver<FxHashMap<MeshEntity, [f64; 3]>>>,  
+    /// The logger used for logging events and errors in the mesh.
+    pub logger: Arc<dyn MeshLogger + Sync + Send>,
 }
 
 lazy_static! {
@@ -57,11 +113,17 @@ impl Mesh {
             vertex_coordinates: FxHashMap::default(),
             boundary_data_sender: Some(sender),
             boundary_data_receiver: Some(receiver),
+            logger: Arc::new(DefaultMeshLogger),
         }
     }
 
     pub fn global() -> Arc<RwLock<Mesh>> {
         GLOBAL_MESH.clone()
+    }
+
+    /// Logs an error when an operation fails.
+    pub fn handle_error(&self, error: MeshError) {
+        self.logger.log_error(&error);
     }
 }
 

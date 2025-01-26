@@ -520,7 +520,7 @@ mod tests {
         // Each face should have 4 vertices
         for face in &faces {
             let face_vertices = mesh.get_vertices_of_face(face);
-            assert_eq!(face_vertices.len(), 4, "Each hexahedron face should have 4 vertices.");
+            assert_eq!(face_vertices.unwrap().len(), 4, "Each hexahedron face should have 4 vertices.");
         }
 
         // Verify that the cell and faces are connected properly
