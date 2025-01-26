@@ -1,5 +1,7 @@
+use super::geometry_validation::GeometryValidationError;
 use super::Mesh;
 use crate::domain;
+use crate::domain::mesh::MeshError;
 use crate::domain::mesh_entity::MeshEntity;
 use crate::geometry::{Geometry, CellShape, FaceShape};
 use dashmap::DashMap;
@@ -15,40 +17,41 @@ impl Mesh {
     /// * `cell` - A `MeshEntity` representing the cell whose faces are being retrieved.
     ///
     /// # Returns
-    /// * `Result<DashMap<MeshEntity, ()>, String>` - A map of face entities connected to the cell,
-    ///   or an error message if the operation fails.
-    pub fn get_faces_of_cell(&self, cell: &MeshEntity) -> Result<DashMap<MeshEntity, ()>, String> {
+    /// * `Result<DashMap<MeshEntity, ()>, GeometryValidationError>` - A map of face entities connected to the cell,
+    ///   or a `GeometryValidationError` if the operation fails.
+    pub fn get_faces_of_cell(
+        &self,
+        cell: &MeshEntity,
+    ) -> Result<DashMap<MeshEntity, ()>, GeometryValidationError> {
         // Attempt to retrieve the cone (connected entities) for the cell.
-        let cone_result = self.sieve.cone(cell);
-        match cone_result {
-            Ok(connected_entities) => {
-                let faces = DashMap::new();
+        let connected_entities = self.sieve.cone(cell).map_err(|err| {
+            log::error!(
+                "Failed to retrieve connected entities for cell {:?}: {}",
+                cell,
+                err
+            );
+            GeometryValidationError::DistanceCalculationError(*cell, *cell, err.to_string())
+        })?;
 
-                // Filter for face entities and insert them into the `faces` map.
-                connected_entities
-                    .into_iter()
-                    .filter(|entity| matches!(entity, MeshEntity::Face(_)))
-                    .for_each(|face| {
-                        faces.insert(face, ());
-                    });
+        let faces = DashMap::new();
 
-                if faces.is_empty() {
-                    Err(format!(
-                        "No faces found for cell {:?}. This may indicate an invalid topology.",
-                        cell
-                    ))
-                } else {
-                    Ok(faces)
-                }
-            }
-            Err(err) => {
-                // Log and return the error if the cone retrieval fails.
-                Err(format!(
-                    "Failed to retrieve connected entities for cell {:?}: {}",
-                    cell, err
-                ))
-            }
+        // Filter for face entities and insert them into the `faces` map.
+        connected_entities
+            .into_iter()
+            .filter(|entity| matches!(entity, MeshEntity::Face(_)))
+            .for_each(|face| {
+                faces.insert(face, ());
+            });
+
+        if faces.is_empty() {
+            log::warn!(
+                "No faces found for cell {:?}. This may indicate an invalid topology.",
+                cell
+            );
+            return Err(GeometryValidationError::MissingVertexCoordinates(cell.get_id() as u64));
         }
+
+        Ok(faces)
     }
 
 
@@ -61,42 +64,54 @@ impl Mesh {
     /// * `face` - A `MeshEntity` representing the face.
     ///
     /// # Returns
-    /// * `Result<DashMap<MeshEntity, ()>, String>` - A map of cell entities sharing the face,
-    ///   or an error message if the operation fails.
-    pub fn get_cells_sharing_face(&self, face: &MeshEntity) -> Result<DashMap<MeshEntity, ()>, String> {
+    /// * `Result<DashMap<MeshEntity, ()>, GeometryValidationError>` - A map of cell entities sharing the face,
+    ///   or a `GeometryValidationError` if the operation fails.
+    pub fn get_cells_sharing_face(
+        &self,
+        face: &MeshEntity,
+    ) -> Result<DashMap<MeshEntity, ()>, GeometryValidationError> {
         // Attempt to retrieve supporting entities for the face.
-        match self.sieve.support(face) {
-            Ok(supporting_entities) => {
-                let cells = DashMap::new();
-                let entities = self.entities.read().map_err(|_| {
-                    "Failed to acquire read lock on entities during cell sharing computation.".to_string()
-                })?;
+        let supporting_entities = self.sieve.support(face).map_err(|err| {
+            log::error!(
+                "Failed to retrieve supporting entities for face {:?}: {}",
+                face,
+                err
+            );
+            GeometryValidationError::TopologyError(format!(
+                "Failed to retrieve supporting entities for face {:?}: {}",
+                face, err
+            ))
+        })?;
 
-                // Filter for valid cell entities and insert them into the `cells` map.
-                supporting_entities
-                    .into_iter()
-                    .filter(|entity| matches!(entity, MeshEntity::Cell(_)) && entities.contains(entity))
-                    .for_each(|cell| {
-                        cells.insert(cell, ());
-                    });
+        let cells = DashMap::new();
 
-                if cells.is_empty() {
-                    Err(format!(
-                        "No cells found sharing face {:?}. This may indicate an invalid topology.",
-                        face
-                    ))
-                } else {
-                    Ok(cells)
-                }
-            }
-            Err(err) => {
-                // Log and return the error if the support retrieval fails.
-                Err(format!(
-                    "Failed to retrieve supporting entities for face {:?}: {}",
-                    face, err
-                ))
-            }
+        let entities = self.entities.read().map_err(|_| {
+            let message = format!(
+                "Failed to acquire read lock on entities during cell sharing computation for face {:?}.",
+                face
+            );
+            log::error!("{}", message);
+            GeometryValidationError::EntityAccessError(message)
+        })?;
+
+        // Filter for valid cell entities and insert them into the `cells` map.
+        supporting_entities
+            .into_iter()
+            .filter(|entity| matches!(entity, MeshEntity::Cell(_)) && entities.contains(entity))
+            .for_each(|cell| {
+                cells.insert(cell, ());
+            });
+
+        if cells.is_empty() {
+            let message = format!(
+                "No cells found sharing face {:?}. This may indicate an invalid topology.",
+                face
+            );
+            log::warn!("{}", message);
+            return Err(GeometryValidationError::TopologyError(message));
         }
+
+        Ok(cells)
     }
 
 
@@ -107,23 +122,49 @@ impl Mesh {
     /// * `cell_j` - The second cell entity.
     ///
     /// # Returns
-    /// * `Result<f64, String>` - The computed distance between the centroids of the two cells,
-    ///   or an error message if the centroids cannot be computed.
+    /// * `Result<f64, GeometryValidationError>` - The computed distance between the centroids of the two cells,
+    ///   or a `GeometryValidationError` if the centroids cannot be computed.
     pub fn get_distance_between_cells(
         &self,
         cell_i: &MeshEntity,
         cell_j: &MeshEntity,
-    ) -> Result<f64, String> {
-        // Compute the centroids of the two cells.
-        let centroid_i = self
-            .get_cell_centroid(cell_i)
-            .map_err(|err| format!("Failed to compute centroid for cell {:?}: {}", cell_i, err))?;
-        let centroid_j = self
-            .get_cell_centroid(cell_j)
-            .map_err(|err| format!("Failed to compute centroid for cell {:?}: {}", cell_j, err))?;
+    ) -> Result<f64, GeometryValidationError> {
+        // Compute the centroid for the first cell.
+        let centroid_i = self.get_cell_centroid(cell_i).map_err(|err| {
+            log::error!(
+                "Failed to compute centroid for cell {:?}: {}",
+                cell_i,
+                err
+            );
+            GeometryValidationError::CentroidError(format!(
+                "Failed to compute centroid for cell {:?}: {}",
+                cell_i, err
+            ))
+        })?;
 
-        // Compute the distance using the Geometry module.
-        Ok(Geometry::compute_distance(&centroid_i, &centroid_j))
+        // Compute the centroid for the second cell.
+        let centroid_j = self.get_cell_centroid(cell_j).map_err(|err| {
+            log::error!(
+                "Failed to compute centroid for cell {:?}: {}",
+                cell_j,
+                err
+            );
+            GeometryValidationError::CentroidError(format!(
+                "Failed to compute centroid for cell {:?}: {}",
+                cell_j, err
+            ))
+        })?;
+
+        // Compute the Euclidean distance using the `Geometry` module.
+        let distance = Geometry::compute_distance(&centroid_i, &centroid_j);
+        log::info!(
+            "Computed distance between cells {:?} and {:?}: {:.6}",
+            cell_i,
+            cell_j,
+            distance
+        );
+
+        Ok(distance)
     }
 
 
@@ -133,10 +174,21 @@ impl Mesh {
     /// * `face` - The face entity for which to compute the area.
     ///
     /// # Returns
-    /// * `Result<f64, String>` - The area of the face, or an error message if the face shape is unsupported.
-    pub fn get_face_area(&self, face: &MeshEntity) -> Result<f64, String> {
+    /// * `Result<f64, GeometryValidationError>` - The area of the face, or a `GeometryValidationError`
+    ///   if the face shape is unsupported or vertices cannot be retrieved.
+    pub fn get_face_area(&self, face: &MeshEntity) -> Result<f64, GeometryValidationError> {
         // Retrieve the vertices of the face
-        let face_vertices = self.get_face_vertices(face)?;
+        let face_vertices = self.get_face_vertices(face).map_err(|err| {
+            log::error!(
+                "Failed to retrieve vertices for face {:?}: {}",
+                face,
+                err
+            );
+            GeometryValidationError::VertexError(format!(
+                "Failed to retrieve vertices for face {:?}: {}",
+                face, err
+            ))
+        })?;
 
         // Determine the shape of the face based on the number of vertices
         let face_shape = match face_vertices.len() {
@@ -144,18 +196,38 @@ impl Mesh {
             3 => FaceShape::Triangle,
             4 => FaceShape::Quadrilateral,
             _ => {
-                return Err(format!(
+                let error_message = format!(
                     "Unsupported face shape with {} vertices. Expected 2, 3, or 4 vertices.",
                     face_vertices.len()
-                ));
+                );
+                log::error!("Unsupported face shape: {:?}", error_message);
+                return Err(GeometryValidationError::ShapeError(error_message));
             }
         };
 
         // Compute the area using the geometry utility
         let mut geometry = Geometry::new();
         let face_id = face.get_id();
+        let area = geometry
+            .compute_face_area(face_id, face_shape, &face_vertices);
 
-        Ok(geometry.compute_face_area(face_id, face_shape, &face_vertices))
+        if area.is_nan() {
+            let err_msg = format!(
+                "Failed to compute area for face {:?} with shape {:?}: Computation resulted in NaN",
+                face, face_shape
+            );
+            log::error!("{}", err_msg);
+            return Err(GeometryValidationError::ComputationError(err_msg));
+        }
+
+        log::info!(
+            "Computed area for face {:?} with shape {:?}: {:.6}",
+            face,
+            face_shape,
+            area
+        );
+
+        Ok(area)
     }
 
     /// Computes the centroid of a cell based on its vertices.
@@ -164,31 +236,39 @@ impl Mesh {
     /// * `cell` - The cell entity for which to compute the centroid.
     ///
     /// # Returns
-    /// * `Result<[f64; 3], String>` - The 3D coordinates of the cell's centroid or an error message.
-    pub fn get_cell_centroid(&self, cell: &MeshEntity) -> Result<[f64; 3], String> {
-        // Retrieve the vertices of the cell.
+    /// * `Result<[f64; 3], GeometryValidationError>` - The 3D coordinates of the cell's centroid or a structured error.
+    pub fn get_cell_centroid(&self, cell: &MeshEntity) -> Result<[f64; 3], GeometryValidationError> {
+        // Retrieve the vertices of the cell
         let cell_vertices = self.get_cell_vertices(cell).map_err(|err| {
-            format!(
+            log::error!("Failed to retrieve vertices for cell {:?}: {}", cell, err);
+            GeometryValidationError::VertexError(format!(
                 "Failed to retrieve vertices for cell {:?}: {}",
                 cell, err
-            )
+            ))
         })?;
 
-        // Determine the shape of the cell based on the number of vertices.
-        match cell_vertices.len() {
-            4 | 5 | 6 | 8 => {
-                // Compute the centroid using the geometry module.
-                let mut geometry = Geometry::new();
-                let centroid = geometry.compute_cell_centroid(self, cell);
-
-                Ok(centroid) // Return the computed centroid directly
-            }
-            _ => Err(format!(
-                "Unsupported cell shape with {} vertices for cell {:?}",
+        // Validate the number of vertices for supported cell shapes
+        if !matches!(cell_vertices.len(), 4 | 5 | 6 | 8) {
+            let error_message = format!(
+                "Unsupported cell shape with {} vertices for cell {:?}. Expected 4, 5, 6, or 8 vertices.",
                 cell_vertices.len(),
                 cell
-            )),
+            );
+            log::error!("{}", error_message);
+            return Err(GeometryValidationError::ShapeError(error_message));
         }
+
+        // Compute the centroid using the Geometry module
+        let mut geometry = Geometry::new();
+        let centroid = geometry.compute_cell_centroid(self, cell); // Directly retrieve the centroid
+
+        log::info!(
+            "Computed centroid for cell {:?}: {:?}",
+            cell,
+            centroid
+        );
+
+        Ok(centroid) // Return the centroid directly
     }
 
     /// Retrieves all vertices connected to a given vertex via shared cells.
@@ -197,52 +277,70 @@ impl Mesh {
     /// * `vertex` - The vertex entity for which to find neighboring vertices.
     ///
     /// # Returns
-    /// * `Result<Vec<MeshEntity>, String>` - A list of neighboring vertex entities,
-    ///   or an error message if the operation fails.
-    pub fn get_neighboring_vertices(&self, vertex: &MeshEntity) -> Result<Vec<MeshEntity>, String> {
-        // Ensure the input entity is a vertex.
+    /// * `Result<Vec<MeshEntity>, MeshError>` - A list of neighboring vertex entities,
+    ///   or a structured error if the operation fails.
+    pub fn get_neighboring_vertices(
+        &self,
+        vertex: &MeshEntity,
+    ) -> Result<Vec<MeshEntity>, MeshError> {
+        // Validate that the input entity is a vertex.
         if !matches!(vertex, MeshEntity::Vertex(_)) {
-            return Err(format!(
-                "Invalid input: {:?} is not a vertex entity.",
-                vertex
-            ));
+            let error_message = format!("Invalid input: {:?} is not a vertex entity.", vertex);
+            log::error!("{}", error_message);
+            return Err(MeshError::InvalidEntityType(error_message));
         }
 
         // Retrieve cells connected to the given vertex.
-        let connected_cells = self
-            .sieve
-            .support(vertex)
-            .map_err(|err| format!("Failed to retrieve supporting cells for vertex {:?}: {}", vertex, err))?;
+        let connected_cells = self.sieve.support(vertex).map_err(|err| {
+            let error_message = format!(
+                "Failed to retrieve supporting cells for vertex {:?}: {}",
+                vertex, err
+            );
+            log::error!("{}", error_message);
+            MeshError::ConnectivityQueryError(error_message)
+        })?;
 
         let neighbors = DashMap::new();
 
-        // Iterate over connected cells and find neighboring vertices.
+        // Iterate over connected cells to find neighboring vertices.
         for cell in connected_cells {
             match self.sieve.cone(&cell) {
                 Ok(cell_vertices) => {
                     for v in cell_vertices {
+                        // Only add vertices other than the input vertex itself.
                         if v != *vertex && matches!(v, MeshEntity::Vertex(_)) {
                             neighbors.insert(v.clone(), ());
                         }
                     }
                 }
                 Err(err) => {
-                    return Err(format!(
+                    let error_message = format!(
                         "Failed to retrieve vertices for cell {:?} connected to vertex {:?}: {}",
                         cell, vertex, err
-                    ));
+                    );
+                    log::error!("{}", error_message);
+                    return Err(MeshError::ConnectivityQueryError(error_message));
                 }
             }
         }
 
         // Collect and return neighboring vertices.
         if neighbors.is_empty() {
-            Err(format!(
+            let warning_message = format!(
                 "No neighboring vertices found for vertex {:?}.",
                 vertex
-            ))
+            );
+            log::warn!("{}", warning_message);
+            Err(MeshError::NoNeighborsError(warning_message))
         } else {
-            Ok(neighbors.into_iter().map(|(vertex, _)| vertex).collect())
+            let neighbors_vec: Vec<MeshEntity> =
+                neighbors.into_iter().map(|(vertex, _)| vertex).collect();
+            log::info!(
+                "Found {} neighboring vertices for vertex {:?}.",
+                neighbors_vec.len(),
+                vertex
+            );
+            Ok(neighbors_vec)
         }
     }
 

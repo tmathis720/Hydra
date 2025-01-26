@@ -269,7 +269,7 @@ fn compute_pressure_coefficient(
     neighbor: &MeshEntity,
 ) -> Result<f64, String> {
     // Step 1: Compute the distance between the centroids of the two cells
-    let distance = mesh.get_distance_between_cells(cell, neighbor)?;
+    let distance = mesh.get_distance_between_cells(cell, neighbor).map_err(|e| e.to_string())?;
 
     if distance <= 0.0 {
         return Err(format!(

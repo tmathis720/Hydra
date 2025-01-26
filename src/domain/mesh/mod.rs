@@ -45,8 +45,14 @@ pub enum MeshError {
     #[error("Connectivity error: Face {0} error {1}")]
     ConnectivityError(String, String),
 
+    #[error("Failed to retrieve supporting entities for {0}")]
+    ConnectivityQueryError(String),
+
     #[error("Unknown error: {0}")]
     Unknown(String),
+
+    #[error("No neighboring vertices found for vertex {0}")]
+    NoNeighborsError(String),
 }
 
 /// A trait for structured logging in the `Mesh` module.
