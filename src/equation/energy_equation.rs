@@ -185,25 +185,30 @@ mod tests {
     /// Helper function to set up a basic 3D mesh for testing using a hexahedron cell.
     fn setup_simple_mesh() -> Mesh {
         let mut builder = DomainBuilder::new();
-
+    
         // Add vertices for a unit cube (hexahedron):
         // Bottom face (z=0): (1)->(0,0,0), (2)->(1,0,0), (3)->(1,1,0), (4)->(0,1,0)
         // Top face (z=1): (5)->(0,0,1), (6)->(1,0,1), (7)->(1,1,1), (8)->(0,1,1)
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0])
-            .add_vertex(3, [1.0, 1.0, 0.0])
-            .add_vertex(4, [0.0, 1.0, 0.0])
-            .add_vertex(5, [0.0, 0.0, 1.0])
-            .add_vertex(6, [1.0, 0.0, 1.0])
-            .add_vertex(7, [1.0, 1.0, 1.0])
-            .add_vertex(8, [0.0, 1.0, 1.0]);
-
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 1");
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 2");
+        assert!(builder.add_vertex(3, [1.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 3");
+        assert!(builder.add_vertex(4, [0.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 4");
+        assert!(builder.add_vertex(5, [0.0, 0.0, 1.0]).is_ok(), "Failed to add vertex 5");
+        assert!(builder.add_vertex(6, [1.0, 0.0, 1.0]).is_ok(), "Failed to add vertex 6");
+        assert!(builder.add_vertex(7, [1.0, 1.0, 1.0]).is_ok(), "Failed to add vertex 7");
+        assert!(builder.add_vertex(8, [0.0, 1.0, 1.0]).is_ok(), "Failed to add vertex 8");
+    
         // Add a hexahedron cell with the 8 vertices defined above
-        builder.add_hexahedron_cell(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-
+        assert!(
+            builder
+                .add_hexahedron_cell(vec![1, 2, 3, 4, 5, 6, 7, 8])
+                .is_ok(),
+            "Failed to add hexahedron cell"
+        );
+    
         builder.build()
     }
+    
 
     /// Helper function to populate field data for the mesh.
     fn setup_fields(mesh: &Mesh) -> Fields {

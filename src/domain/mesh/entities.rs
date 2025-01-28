@@ -76,20 +76,23 @@ impl Mesh {
     /// - `Err(MeshError)` if either entity does not exist in the mesh.
     pub fn add_arrow(&self, from: MeshEntity, to: MeshEntity) -> Result<(), MeshError> {
         let entities = self.entities.read().unwrap();
-
+    
         // Validate the existence of the entities
         if !entities.contains(&from) {
             let error = MeshError::EntityNotFound(format!("From entity: {:?}", from));
             self.logger.log_error(&error);
             return Err(error);
         }
-
+    
         if !entities.contains(&to) {
             let error = MeshError::EntityNotFound(format!("To entity: {:?}", to));
             self.logger.log_error(&error);
             return Err(error);
         }
-
+    
+        // Log the relationship addition
+        log::info!("Adding arrow from {:?} to {:?}", from, to);
+    
         // Add the arrow and log success
         self.sieve.add_arrow(from, to);
         self.logger.log_info(&format!(
@@ -98,6 +101,7 @@ impl Mesh {
         ));
         Ok(())
     }
+    
 
     /// Sets the 3D coordinates of a vertex and adds the vertex to the mesh.
     ///
@@ -118,22 +122,25 @@ impl Mesh {
         coords: [f64; 3],
     ) -> Result<(), MeshError> {
         self.vertex_coordinates.insert(vertex_id, coords);
-
+    
         let vertex = MeshEntity::Vertex(vertex_id);
-        match self.add_entity(vertex) {
-            Ok(_) => {
-                self.logger.log_info(&format!(
-                    "Vertex {:?} coordinates set to {:?}.",
-                    vertex_id, coords
-                ));
-                Ok(())
-            }
-            Err(err) => {
-                self.logger.log_error(&err);
-                Err(err)
-            }
+        if !self.entities.read().unwrap().contains(&vertex) {
+            // Only add the vertex if it doesn't exist
+            self.add_entity(vertex)?;
+        } else {
+            self.logger.log_info(&format!(
+                "Vertex {:?} already exists, skipping addition.",
+                vertex_id
+            ));
         }
+    
+        self.logger.log_info(&format!(
+            "Vertex {:?} coordinates set to {:?}.",
+            vertex_id, coords
+        ));
+        Ok(())
     }
+    
 
     /// Retrieves the 3D coordinates of a vertex by its identifier.
     ///

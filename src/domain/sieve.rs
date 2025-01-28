@@ -38,6 +38,12 @@ impl Sieve {
             .entry(from)
             .or_insert_with(DashMap::new)
             .insert(to, ());
+    
+        log::info!(
+            "Updated adjacency: {:?} -> {:?}",
+            from,
+            self.adjacency.get(&from).unwrap()
+        );
     }
 
     /// Retrieves all entities directly related to the given entity (`point`).

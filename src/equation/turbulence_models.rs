@@ -285,13 +285,11 @@ mod tests {
         let mut builder = DomainBuilder::new();
 
         // A minimal mesh
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0])
-            .add_vertex(3, [0.0, 1.0, 0.0])
-            .add_vertex(4, [0.0, 0.0, 1.0]);
-
-        builder.add_tetrahedron_cell(vec![1, 2, 3, 4]);
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(3, [0.0, 1.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(4, [0.0, 0.0, 1.0]).is_ok());
+        assert!(builder.add_tetrahedron_cell(vec![1, 2, 3, 4]).is_ok());
 
         builder.build()
     }

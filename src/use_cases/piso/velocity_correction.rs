@@ -77,18 +77,24 @@ mod correct_velocity_tests {
     /// Sets up a simple tetrahedral mesh for testing.
     fn setup_simple_mesh() -> Mesh {
         let mut builder = DomainBuilder::new();
-
+    
         // Add vertices to form a simple tetrahedron-based mesh
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0])
-            .add_vertex(3, [0.0, 1.0, 0.0])
-            .add_vertex(4, [0.0, 0.0, 1.0])
-            .add_vertex(5, [1.0, 1.0, 0.0]);
-
-        builder.add_tetrahedron_cell(vec![1, 2, 3, 4]);
-        builder.add_tetrahedron_cell(vec![2, 3, 5, 4]);
-
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 1");
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 2");
+        assert!(builder.add_vertex(3, [0.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 3");
+        assert!(builder.add_vertex(4, [0.0, 0.0, 1.0]).is_ok(), "Failed to add vertex 4");
+        assert!(builder.add_vertex(5, [1.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 5");
+    
+        // Add tetrahedron cells
+        assert!(
+            builder.add_tetrahedron_cell(vec![1, 2, 3, 4]).is_ok(),
+            "Failed to add first tetrahedron cell"
+        );
+        assert!(
+            builder.add_tetrahedron_cell(vec![2, 3, 5, 4]).is_ok(),
+            "Failed to add second tetrahedron cell"
+        );
+    
         builder.build()
     }
 

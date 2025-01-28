@@ -2,6 +2,7 @@ use crate::extrusion::core::{hexahedral_mesh::QuadrilateralMesh, prismatic_mesh:
 use crate::extrusion::core::extrudable_mesh::ExtrudableMesh;
 use crate::extrusion::use_cases::{vertex_extrusion::VertexExtrusion, cell_extrusion::CellExtrusion};
 use crate::domain::mesh::Mesh;
+use crate::MeshEntity;
 
 /// The `ExtrudeMeshUseCase` struct provides methods for extruding 2D meshes (either quadrilateral or triangular)
 /// into 3D volumetric meshes (hexahedrons or prisms) based on a given extrusion depth and layer count.
@@ -113,29 +114,35 @@ impl ExtrudeMeshUseCase {
         if !mesh.is_valid_for_extrusion() {
             return Err("Invalid mesh: Expected a triangular mesh".to_string());
         }
-
-        // Extrude vertices
+    
         let extruded_vertices = VertexExtrusion::extrude_vertices(mesh.get_vertices(), depth, layers);
-
-        // Extrude triangular cells to prisms
         let extruded_cells = CellExtrusion::extrude_triangular_cells(mesh.get_cells(), layers);
-
-        // Build the final Mesh
+    
         let mut extruded_mesh = Mesh::new();
         for (id, vertex) in extruded_vertices.into_iter().enumerate() {
-            extruded_mesh.set_vertex_coordinates(id, vertex).unwrap();
-        }
-
-        for (cell_id, vertices) in extruded_cells.into_iter().enumerate() {
-            let cell = crate::domain::mesh_entity::MeshEntity::Cell(cell_id);
-            extruded_mesh.add_entity(cell.clone()).unwrap();
-            for vertex in vertices {
-                extruded_mesh.add_relationship(cell.clone(), crate::domain::mesh_entity::MeshEntity::Vertex(vertex)).unwrap();
+            if let Err(err) = extruded_mesh.set_vertex_coordinates(id, vertex) {
+                log::error!("Failed to add vertex {}: {:?}", id, err);
+                return Err(format!("Failed to add vertex {}: {:?}", id, err));
             }
         }
-
+    
+        for (cell_id, vertices) in extruded_cells.into_iter().enumerate() {
+            let cell = MeshEntity::Cell(cell_id);
+            if let Err(err) = extruded_mesh.add_entity(cell.clone()) {
+                log::error!("Failed to add cell {}: {:?}", cell_id, err);
+                return Err(format!("Failed to add cell {}: {:?}", cell_id, err));
+            }
+    
+            for vertex in vertices {
+                if let Err(err) = extruded_mesh.add_arrow(cell.clone(), MeshEntity::Vertex(vertex)) {
+                    log::error!("Failed to add relationship for cell {:?} to vertex {:?}: {:?}", cell, vertex, err);
+                    return Err(format!("Failed to add relationship for cell {:?} to vertex {:?}: {:?}", cell, vertex, err));
+                }
+            }
+        }
+    
         Ok(extruded_mesh)
-    }
+    }    
 }
 
 #[cfg(test)]

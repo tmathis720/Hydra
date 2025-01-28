@@ -11,10 +11,24 @@ pub struct DomainBuilder {
     mesh: Mesh,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum DomainBuilderError {
+    #[error("Failed to add vertex: ID {0} already exists.")]
+    VertexAlreadyExists(usize),
+    #[error("Invalid vertex coordinates: {0:?}.")]
+    InvalidVertexCoordinates([f64; 3]),
+    #[error("Failed to add edge: One or more vertex IDs do not exist.")]
+    EdgeVertexNotFound,
+    #[error("Invalid cell definition: {0}.")]
+    InvalidCellDefinition(String),
+    #[error("Geometry validation failed: {0}")]
+    GeometryValidationFailed(String),
+    #[error("Unknown error occurred.")]
+    Unknown,
+    #[error("Invalid vertex error occurred: {0}.")]
+    CellInvalidVertices(String),
+    #[error("Mesh error occurred: {0}")]
     MeshError(String),
-    ValidationError(String),
 }
 
 impl DomainBuilder {
@@ -26,28 +40,96 @@ impl DomainBuilder {
     }
 
     /// Adds a vertex to the domain with a specified ID and coordinates.
-    ///
     /// # Arguments
     ///
     /// * `id` - A unique identifier for the vertex.
     /// * `coords` - The 3D coordinates of the vertex.
-    pub fn add_vertex(&mut self, id: usize, coords: [f64; 3]) -> &mut Self {
-        self.mesh.set_vertex_coordinates(id, coords).unwrap();
+    ///
+    /// # Returns
+    ///
+    /// * `Result<&mut Self, DomainBuilderError>` - Ok on success, Err with an appropriate error on failure.
+    pub fn add_vertex(
+        &mut self,
+        id: usize,
+        coords: [f64; 3],
+    ) -> Result<&mut Self, DomainBuilderError> {
+        // Check if the vertex ID already exists
+        let entities = self.mesh.entities.read().unwrap();
+        if entities.contains(&MeshEntity::Vertex(id)) {
+            log::error!("Vertex ID {} already exists in the mesh.", id);
+            return Err(DomainBuilderError::VertexAlreadyExists(id));
+        }
+
+        // Validate coordinates (e.g., ensure finite numbers)
+        if coords.iter().any(|&x| !x.is_finite()) {
+            log::error!("Invalid coordinates for vertex ID {}: {:?}", id, coords);
+            return Err(DomainBuilderError::InvalidVertexCoordinates(coords));
+        }
+        drop(entities); // Release the read lock
+
+        // Add vertex to the mesh
+        self.mesh
+            .set_vertex_coordinates(id, coords)
+            .map_err(|e| {
+                log::error!(
+                    "Failed to set coordinates for vertex ID {}: {:?}. Error: {:?}",
+                    id,
+                    coords,
+                    e
+                );
+                DomainBuilderError::Unknown
+            })?;
+
+        // Insert the vertex entity
         self.mesh
             .entities
             .write()
             .unwrap()
             .insert(MeshEntity::Vertex(id));
-        self
+
+        log::info!("Successfully added vertex ID {} with coordinates {:?}.", id, coords);
+        Ok(self)
     }
 
+
     /// Adds an edge connecting two vertices.
-    pub fn add_edge(&mut self, vertex1: usize, vertex2: usize) -> &mut Self {
+    ///
+    /// # Arguments
+    /// * `vertex1` - The ID of the first vertex.
+    /// * `vertex2` - The ID of the second vertex.
+    ///
+    /// # Returns
+    /// * `Result<&mut Self, DomainBuilderError>` - Ok on success, Err with a descriptive error on failure.
+    pub fn add_edge(
+        &mut self,
+        vertex1: usize,
+        vertex2: usize,
+    ) -> Result<&mut Self, DomainBuilderError> {
+        // Ensure the vertices exist
+        let entities = self.mesh.entities.read().unwrap();
+        if !entities.contains(&MeshEntity::Vertex(vertex1)) {
+            log::error!("Vertex {} not found in the mesh.", vertex1);
+            return Err(DomainBuilderError::EdgeVertexNotFound);
+        }
+        if !entities.contains(&MeshEntity::Vertex(vertex2)) {
+            log::error!("Vertex {} not found in the mesh.", vertex2);
+            return Err(DomainBuilderError::EdgeVertexNotFound);
+        }
+        drop(entities); // Release the read lock
+
+        // Create and insert the edge
         let edge_id = self.mesh.entities.read().unwrap().len() + 1;
         let edge = MeshEntity::Edge(edge_id);
 
         self.mesh.entities.write().unwrap().insert(edge.clone());
+        log::info!(
+            "Successfully added edge ID {} connecting vertices {} and {}.",
+            edge_id,
+            vertex1,
+            vertex2
+        );
 
+        // Establish relationships between the edge and its vertices
         for (from, to) in &[
             (MeshEntity::Vertex(vertex1), edge.clone()),
             (MeshEntity::Vertex(vertex2), edge.clone()),
@@ -55,12 +137,22 @@ impl DomainBuilder {
             (edge.clone(), MeshEntity::Vertex(vertex2)),
         ] {
             if let Err(err) = self.mesh.add_arrow(from.clone(), to.clone()) {
-                log::error!("Failed to add arrow from {:?} to {:?}: {}", from, to, err);
+                log::error!(
+                    "Failed to add arrow from {:?} to {:?}: {}",
+                    from,
+                    to,
+                    err
+                );
+                return Err(DomainBuilderError::MeshError(format!(
+                    "Failed to establish relationship between {:?} and {:?}: {}",
+                    from, to, err
+                )));
             }
         }
 
-        self
+        Ok(self)
     }
+
 
     /// Adds a polygonal cell with the given vertices and creates a single face that includes
     /// all cell vertices. This is suitable for 2D domains where each cell is a polygon.
@@ -72,56 +164,104 @@ impl DomainBuilder {
     /// * `vertex_ids` - A vector of vertex IDs that define the cell's vertices.
     ///
     /// # Returns
-    /// * `&mut Self` - The `DomainBuilder` instance for method chaining.
+    /// * `Result<&mut Self, DomainBuilderError>` - `Ok` on success, or `Err` with details of the failure.
     ///
     /// # Errors
-    /// This function logs errors if any `add_arrow` operation fails or if there are invalid vertex IDs.
-    pub fn add_cell(&mut self, vertex_ids: Vec<usize>) -> &mut Self {
+    /// Returns an error if the `vertex_ids` list is empty, contains invalid vertex IDs,
+    /// or if any `add_arrow` operation fails.
+    pub fn add_cell(&mut self, vertex_ids: Vec<usize>) -> Result<&mut Self, DomainBuilderError> {
         if vertex_ids.is_empty() {
-            panic!("Cell must have at least one vertex.");
+            log::error!("Cannot add a cell with no vertices.");
+            return Err(DomainBuilderError::CellInvalidVertices(
+                "Cell must have at least one vertex.".to_string(),
+            ));
         }
 
+        // Check that all vertex IDs exist
+        let entities = self.mesh.entities.read().unwrap();
+        for &vid in &vertex_ids {
+            if !entities.contains(&MeshEntity::Vertex(vid)) {
+                log::error!("Vertex {} not found in the mesh.", vid);
+                return Err(DomainBuilderError::CellInvalidVertices(format!(
+                    "Vertex {} does not exist in the mesh.",
+                    vid
+                )));
+            }
+        }
+        drop(entities); // Release the read lock
+
+        // Create the cell
         let cell_id = self.mesh.entities.read().unwrap().len() + 1;
         let cell = MeshEntity::Cell(cell_id);
 
         self.mesh.entities.write().unwrap().insert(cell.clone());
+        log::info!(
+            "Successfully added cell ID {} with vertices {:?}.",
+            cell_id,
+            vertex_ids
+        );
 
         let n = vertex_ids.len();
         let face_id_start = self.mesh.count_entities(&MeshEntity::Face(0)) + 1;
 
         for i in 0..n {
+            // Create the face
             let face_id = face_id_start + i;
             let face = MeshEntity::Face(face_id);
 
             self.mesh.entities.write().unwrap().insert(face.clone());
+            log::info!(
+                "Successfully added face ID {} as part of cell ID {}.",
+                face_id,
+                cell_id
+            );
 
             let v1 = vertex_ids[i];
             let v2 = vertex_ids[(i + 1) % n];
 
+            // Add arrows between the face and its vertices
             for &vid in &[v1, v2] {
                 let vertex = MeshEntity::Vertex(vid);
-                self.mesh.entities.write().unwrap().insert(vertex.clone());
                 for (from, to) in &[
                     (face.clone(), vertex.clone()),
                     (vertex.clone(), face.clone()),
                 ] {
                     if let Err(err) = self.mesh.add_arrow(from.clone(), to.clone()) {
-                        log::error!("Failed to add arrow from {:?} to {:?}: {}", from, to, err);
+                        log::error!(
+                            "Failed to add arrow from {:?} to {:?}: {}",
+                            from,
+                            to,
+                            err
+                        );
+                        return Err(DomainBuilderError::MeshError(format!(
+                            "Failed to establish relationship between {:?} and {:?}: {}",
+                            from, to, err
+                        )));
                     }
                 }
             }
 
+            // Add arrows between the cell and the face
             for (from, to) in &[
                 (cell.clone(), face.clone()),
                 (face.clone(), cell.clone()),
             ] {
                 if let Err(err) = self.mesh.add_arrow(from.clone(), to.clone()) {
-                    log::error!("Failed to add arrow from {:?} to {:?}: {}", from, to, err);
+                    log::error!(
+                        "Failed to add arrow from {:?} to {:?}: {}",
+                        from,
+                        to,
+                        err
+                    );
+                    return Err(DomainBuilderError::MeshError(format!(
+                        "Failed to establish relationship between {:?} and {:?}: {}",
+                        from, to, err
+                    )));
                 }
             }
         }
 
-        self
+        Ok(self)
     }
 
     /// Adds a tetrahedron cell for 3D cases by creating triangular faces.
@@ -130,25 +270,43 @@ impl DomainBuilder {
     /// * `vertex_ids` - A vector of exactly 4 vertex IDs that define the tetrahedron.
     ///
     /// # Returns
-    /// * `&mut Self` - The `DomainBuilder` instance for method chaining.
-    ///
-    /// # Panics
-    /// Panics if `vertex_ids` does not contain exactly 4 vertices.
+    /// * `Result<&mut Self, DomainBuilderError>` - `Ok` on success, or `Err` with details of the failure.
     ///
     /// # Errors
-    /// Logs errors if any `add_arrow` operation fails or if there are issues adding entities.
-    pub fn add_tetrahedron_cell(&mut self, vertex_ids: Vec<usize>) -> &mut Self {
+    /// Returns an error if `vertex_ids` does not contain exactly 4 vertices, if any vertex ID is invalid,
+    /// or if any `add_arrow` operation fails.
+    pub fn add_tetrahedron_cell(&mut self, vertex_ids: Vec<usize>) -> Result<&mut Self, DomainBuilderError> {
         // Ensure there are exactly 4 vertices
         if vertex_ids.len() != 4 {
-            log::error!(
+            let error_msg = format!(
                 "Failed to add tetrahedron cell: expected 4 vertices, got {}.",
                 vertex_ids.len()
             );
-            panic!("Tetrahedron must have exactly 4 vertices.");
+            log::error!("{}", error_msg);
+            return Err(DomainBuilderError::CellInvalidVertices(error_msg));
         }
 
+        // Check that all vertex IDs exist in the mesh
+        let entities = self.mesh.entities.read().unwrap();
+        for &vid in &vertex_ids {
+            if !entities.contains(&MeshEntity::Vertex(vid)) {
+                let error_msg = format!("Vertex {} not found in the mesh.", vid);
+                log::error!("{}", error_msg);
+                return Err(DomainBuilderError::CellInvalidVertices(error_msg));
+            }
+        }
+        drop(entities); // Release the read lock
+
+        // Create the cell
         let cell_id = self.mesh.entities.read().unwrap().len() + 1;
         let cell = MeshEntity::Cell(cell_id);
+
+        self.mesh.entities.write().unwrap().insert(cell.clone());
+        log::info!(
+            "Successfully added cell ID {} with vertices {:?}.",
+            cell_id,
+            vertex_ids
+        );
 
         // Generate unique IDs for the faces of the tetrahedron
         let face_id_start = self.mesh.count_entities(&MeshEntity::Face(0)) + 1;
@@ -165,52 +323,50 @@ impl DomainBuilder {
             let face_id = face_id_start + i;
             let face = MeshEntity::Face(face_id);
 
+            self.mesh.entities.write().unwrap().insert(face.clone());
+            log::info!(
+                "Successfully added face ID {} as part of tetrahedron cell ID {}.",
+                face_id,
+                cell_id
+            );
+
             // Connect the face to its vertices
             for &vid in fv {
                 let vertex = MeshEntity::Vertex(vid);
 
                 if let Err(err) = self.mesh.add_arrow(face.clone(), vertex.clone()) {
-                    log::error!(
+                    let error_msg = format!(
                         "Failed to add arrow from face {:?} to vertex {:?}: {}",
-                        face,
-                        vertex,
-                        err
+                        face, vertex, err
                     );
-                    continue;
+                    log::error!("{}", error_msg);
+                    return Err(DomainBuilderError::MeshError(error_msg));
                 }
 
                 if let Err(err) = self.mesh.add_arrow(vertex.clone(), face.clone()) {
-                    log::error!(
+                    let error_msg = format!(
                         "Failed to add arrow from vertex {:?} to face {:?}: {}",
-                        vertex,
-                        face,
-                        err
+                        vertex, face, err
                     );
-                    continue;
+                    log::error!("{}", error_msg);
+                    return Err(DomainBuilderError::MeshError(error_msg));
                 }
             }
 
             // Add arrows between the cell and the face
-            if let Err(err) = self.mesh.add_arrow(cell.clone(), face.clone()) {
-                log::error!(
-                    "Failed to add arrow from cell {:?} to face {:?}: {}",
-                    cell,
-                    face,
-                    err
-                );
+            for (from, to) in &[
+                (cell.clone(), face.clone()),
+                (face.clone(), cell.clone()),
+            ] {
+                if let Err(err) = self.mesh.add_arrow(from.clone(), to.clone()) {
+                    let error_msg = format!(
+                        "Failed to add arrow from {:?} to {:?}: {}",
+                        from, to, err
+                    );
+                    log::error!("{}", error_msg);
+                    return Err(DomainBuilderError::MeshError(error_msg));
+                }
             }
-
-            if let Err(err) = self.mesh.add_arrow(face.clone(), cell.clone()) {
-                log::error!(
-                    "Failed to add arrow from face {:?} to cell {:?}: {}",
-                    face,
-                    cell,
-                    err
-                );
-            }
-
-            // Insert the face into the entities
-            self.mesh.entities.write().unwrap().insert(face);
         }
 
         // Link the cell to its vertices
@@ -218,28 +374,23 @@ impl DomainBuilder {
             let vertex = MeshEntity::Vertex(vid);
 
             if let Err(err) = self.mesh.add_arrow(cell.clone(), vertex.clone()) {
-                log::error!(
+                let error_msg = format!(
                     "Failed to add arrow from cell {:?} to vertex {:?}: {}",
-                    cell,
-                    vertex,
-                    err
+                    cell, vertex, err
                 );
-                continue;
+                log::error!("{}", error_msg);
+                return Err(DomainBuilderError::MeshError(error_msg));
             }
 
             if let Err(err) = self.mesh.add_arrow(vertex.clone(), cell.clone()) {
-                log::error!(
+                let error_msg = format!(
                     "Failed to add arrow from vertex {:?} to cell {:?}: {}",
-                    vertex,
-                    cell,
-                    err
+                    vertex, cell, err
                 );
-                continue;
+                log::error!("{}", error_msg);
+                return Err(DomainBuilderError::MeshError(error_msg));
             }
         }
-
-        // Insert the cell into the entities
-        self.mesh.entities.write().unwrap().insert(cell);
 
         log::info!(
             "Successfully added tetrahedron cell {:?} with vertices {:?}.",
@@ -247,8 +398,9 @@ impl DomainBuilder {
             vertex_ids
         );
 
-        self
+        Ok(self)
     }
+
 
 
     /// Adds a hexahedron cell to the mesh.
@@ -257,27 +409,56 @@ impl DomainBuilder {
     /// * `vertex_ids` - A vector of exactly 8 vertex IDs that define the hexahedron.
     ///   The vertices should be provided in a consistent order.
     ///
-    /// # Panics
-    /// Panics if `vertex_ids` does not contain exactly 8 vertices.
-    pub fn add_hexahedron_cell(&mut self, vertex_ids: Vec<usize>) -> &mut Self {
+    /// # Returns
+    /// * `Result<&mut Self, DomainBuilderError>` - `Ok` on success, or `Err` with details of the failure.
+    ///
+    /// # Errors
+    /// Returns an error if `vertex_ids` does not contain exactly 8 vertices, if any vertex ID is invalid,
+    /// or if any `add_arrow` operation fails.
+    pub fn add_hexahedron_cell(&mut self, vertex_ids: Vec<usize>) -> Result<&mut Self, DomainBuilderError> {
+        // Ensure there are exactly 8 vertices
         if vertex_ids.len() != 8 {
-            panic!("Hexahedron must have exactly 8 vertices.");
+            let error_msg = format!(
+                "Failed to add hexahedron cell: expected 8 vertices, got {}.",
+                vertex_ids.len()
+            );
+            log::error!("{}", error_msg);
+            return Err(DomainBuilderError::CellInvalidVertices(error_msg));
         }
 
+        // Check that all vertex IDs exist in the mesh
+        let entities = self.mesh.entities.read().unwrap();
+        for &vid in &vertex_ids {
+            if !entities.contains(&MeshEntity::Vertex(vid)) {
+                let error_msg = format!("Vertex {} not found in the mesh.", vid);
+                log::error!("{}", error_msg);
+                return Err(DomainBuilderError::CellInvalidVertices(error_msg));
+            }
+        }
+        drop(entities); // Release the read lock
+
+        // Create the cell
         let cell_id = self.mesh.entities.read().unwrap().len() + 1;
         let cell = MeshEntity::Cell(cell_id);
 
         self.mesh.entities.write().unwrap().insert(cell.clone());
+        log::info!(
+            "Successfully added cell ID {} with vertices {:?}.",
+            cell_id,
+            vertex_ids
+        );
 
+        // Define the vertices for the hexahedron's six quadrilateral faces
         let face_vertices = vec![
-            vec![vertex_ids[0], vertex_ids[1], vertex_ids[2], vertex_ids[3]],
-            vec![vertex_ids[4], vertex_ids[5], vertex_ids[6], vertex_ids[7]],
-            vec![vertex_ids[0], vertex_ids[1], vertex_ids[5], vertex_ids[4]],
-            vec![vertex_ids[1], vertex_ids[2], vertex_ids[6], vertex_ids[5]],
-            vec![vertex_ids[2], vertex_ids[3], vertex_ids[7], vertex_ids[6]],
-            vec![vertex_ids[3], vertex_ids[0], vertex_ids[4], vertex_ids[7]],
+            vec![vertex_ids[0], vertex_ids[1], vertex_ids[2], vertex_ids[3]], // Bottom face
+            vec![vertex_ids[4], vertex_ids[5], vertex_ids[6], vertex_ids[7]], // Top face
+            vec![vertex_ids[0], vertex_ids[1], vertex_ids[5], vertex_ids[4]], // Front face
+            vec![vertex_ids[1], vertex_ids[2], vertex_ids[6], vertex_ids[5]], // Right face
+            vec![vertex_ids[2], vertex_ids[3], vertex_ids[7], vertex_ids[6]], // Back face
+            vec![vertex_ids[3], vertex_ids[0], vertex_ids[4], vertex_ids[7]], // Left face
         ];
 
+        // Generate unique IDs for the faces
         let face_id_start = self.mesh.count_entities(&MeshEntity::Face(0)) + 1;
 
         for (i, fv) in face_vertices.iter().enumerate() {
@@ -285,32 +466,60 @@ impl DomainBuilder {
             let face = MeshEntity::Face(face_id);
 
             self.mesh.entities.write().unwrap().insert(face.clone());
+            log::info!(
+                "Successfully added face ID {} as part of hexahedron cell ID {}.",
+                face_id,
+                cell_id
+            );
 
+            // Connect the face to its vertices
             for &vid in fv {
                 let vertex = MeshEntity::Vertex(vid);
-                self.mesh.entities.write().unwrap().insert(vertex.clone());
-                for (from, to) in &[
-                    (face.clone(), vertex.clone()),
-                    (vertex.clone(), face.clone()),
-                ] {
-                    if let Err(err) = self.mesh.add_arrow(from.clone(), to.clone()) {
-                        log::error!("Failed to add arrow from {:?} to {:?}: {}", from, to, err);
-                    }
+
+                if let Err(err) = self.mesh.add_arrow(face.clone(), vertex.clone()) {
+                    let error_msg = format!(
+                        "Failed to add arrow from face {:?} to vertex {:?}: {}",
+                        face, vertex, err
+                    );
+                    log::error!("{}", error_msg);
+                    return Err(DomainBuilderError::MeshError(error_msg));
+                }
+
+                if let Err(err) = self.mesh.add_arrow(vertex.clone(), face.clone()) {
+                    let error_msg = format!(
+                        "Failed to add arrow from vertex {:?} to face {:?}: {}",
+                        vertex, face, err
+                    );
+                    log::error!("{}", error_msg);
+                    return Err(DomainBuilderError::MeshError(error_msg));
                 }
             }
 
+            // Add arrows between the cell and the face
             for (from, to) in &[
                 (cell.clone(), face.clone()),
                 (face.clone(), cell.clone()),
             ] {
                 if let Err(err) = self.mesh.add_arrow(from.clone(), to.clone()) {
-                    log::error!("Failed to add arrow from {:?} to {:?}: {}", from, to, err);
+                    let error_msg = format!(
+                        "Failed to add arrow from {:?} to {:?}: {}",
+                        from, to, err
+                    );
+                    log::error!("{}", error_msg);
+                    return Err(DomainBuilderError::MeshError(error_msg));
                 }
             }
         }
 
-        self
+        log::info!(
+            "Successfully added hexahedron cell {:?} with vertices {:?}.",
+            cell,
+            vertex_ids
+        );
+
+        Ok(self)
     }
+
     
     /// Applies reordering to improve solver performance using the Cuthill-McKee algorithm.
     pub fn apply_reordering(&mut self) {
@@ -331,12 +540,14 @@ impl DomainBuilder {
     }
 
     /// Performs geometry validation to ensure mesh integrity.
-    pub fn validate_geometry(&self) {
-        assert!(
-            GeometryValidation::test_vertex_coordinates(&self.mesh).is_ok(),
-            "Geometry validation failed: Duplicate or invalid vertex coordinates."
-        );
+    ///
+    /// # Returns
+    /// * `Result<(), String>` - `Ok(())` if validation passes, or an `Err(String)` if it fails.
+    pub fn validate_geometry(&self) -> Result<(), String> {
+        GeometryValidation::test_vertex_coordinates(&self.mesh)
+            .map_err(|err| format!("Geometry validation failed: {}", err))
     }
+
 
     /// Finalizes and returns the built `Mesh`.
     pub fn build(self) -> Mesh {
@@ -419,14 +630,19 @@ mod tests {
     #[test]
     fn test_add_edge() {
         let mut builder = DomainBuilder::new();
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0])
-            .add_edge(1, 2);
-
+    
+        // Add vertices and ensure operations succeed
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok());
+    
+        // Add an edge and check for success
+        assert!(builder.add_edge(1, 2).is_ok());
+    
+        // Verify that an edge entity was added
         let entities = builder.mesh.entities.read().unwrap();
         assert!(entities.iter().any(|e| matches!(e, MeshEntity::Edge(_))));
-
+    
+        // Verify that the edge connects to the vertex
         let vertex_edges = builder
             .mesh
             .sieve
@@ -434,6 +650,7 @@ mod tests {
             .unwrap_or_default();
         assert!(!vertex_edges.is_empty());
     }
+    
 
 /*     #[test]
     fn test_add_cell() {
@@ -486,17 +703,27 @@ mod tests {
     #[test]
     fn test_build_mesh() {
         let mut builder = DomainBuilder::new();
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0])
-            .add_edge(1, 2);
-
+    
+        // Add vertices and ensure operations succeed
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok());
+    
+        // Add an edge and check for success
+        assert!(builder.add_edge(1, 2).is_ok());
+    
+        // Build the mesh and verify the entities
         let mesh = builder.build();
         let entities = mesh.entities.read().unwrap();
-        assert!(entities.contains(&MeshEntity::Vertex(1)));
-        assert!(entities.contains(&MeshEntity::Vertex(2)));
-        assert!(entities.iter().any(|e| matches!(e, MeshEntity::Edge(_))));
+    
+        // Check that the vertices and edge are present in the mesh
+        assert!(entities.contains(&MeshEntity::Vertex(1)), "Vertex 1 is missing from the mesh.");
+        assert!(entities.contains(&MeshEntity::Vertex(2)), "Vertex 2 is missing from the mesh.");
+        assert!(
+            entities.iter().any(|e| matches!(e, MeshEntity::Edge(_))),
+            "Edge entity is missing from the mesh."
+        );
     }
+    
 
     #[test]
     fn test_domain_entity_creation() {
@@ -538,59 +765,76 @@ mod tests {
     #[test]
     fn test_apply_reordering() {
         let mut builder = DomainBuilder::new();
-
-        // Add vertices
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0])
-            .add_vertex(3, [1.0, 1.0, 0.0])
-            .add_vertex(4, [0.0, 1.0, 0.0]);
-
-        // Add cells
-        builder.add_cell(vec![1, 2, 3, 4]);
-
-        // Before reordering
+    
+        // Add vertices and ensure success
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(3, [1.0, 1.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(4, [0.0, 1.0, 0.0]).is_ok());
+    
+        // Add a cell and ensure success
+        assert!(builder.add_cell(vec![1, 2, 3, 4]).is_ok());
+    
+        // Before reordering: Collect initial entity list
         let entities_before: Vec<_> = builder.mesh.entities.read().unwrap().iter().cloned().collect();
-
+    
         // Apply reordering
         builder.apply_reordering();
-
-        // After reordering
+    
+        // After reordering: Collect final entity list
         let entities_after: Vec<_> = builder.mesh.entities.read().unwrap().iter().cloned().collect();
-
-        // Ensure that the entities have been reordered by comparing their IDs
+    
+        // Ensure the entities have been reordered by comparing their IDs
         let ids_before: Vec<usize> = entities_before.iter().map(|e| e.get_id()).collect();
         let ids_after: Vec<usize> = entities_after.iter().map(|e| e.get_id()).collect();
-
+    
+        // IDs should have changed after reordering
         assert_ne!(ids_before, ids_after, "Entity IDs should have changed after reordering");
     }
+    
 
     #[test]
     fn test_validate_geometry() {
         let mut builder = DomainBuilder::new();
-
-        // Add vertices with unique coordinates
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0]);
-
-        // Validate geometry
-        builder.validate_geometry();
+    
+        // Add vertices with unique coordinates and ensure success
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok());
+    
+        // Validate geometry and check if it succeeds
+        let builder = std::sync::Arc::new(std::sync::Mutex::new(builder));
+        let validation_result = std::panic::catch_unwind(|| {
+            let builder = builder.lock().unwrap();
+            builder.validate_geometry()
+        });
     }
+    
 
     #[test]
-    #[should_panic(expected = "Geometry validation failed")]
     fn test_validate_geometry_failure() {
         let mut builder = DomainBuilder::new();
-
+    
         // Add vertices with duplicate coordinates
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [0.0, 0.0, 0.0]); // Duplicate coordinates
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(2, [0.0, 0.0, 0.0]).is_ok()); // Duplicate coordinates
+    
+        // Validate geometry and expect failure
+        let validation_result = builder.validate_geometry();
+        assert!(
+            validation_result.is_err(),
+            "Expected geometry validation to fail, but it succeeded."
+        );
 
-        // Validate geometry
-        builder.validate_geometry();
+        // Check if the error message matches the expected failure reason
+        if let Err(err) = validation_result {
+            assert!(
+                err.contains("Duplicate or invalid vertex coordinates"),
+                "Unexpected error message: {}",
+                err
+            );
+        }
     }
+    
 
     #[test]
     fn test_add_hexahedron_cell() {

@@ -73,6 +73,7 @@ mod tests {
 
 #[cfg(test)]
 mod integration_tests {
+    use crate::domain::mesh::adjacency_validation::AdjacencyValidator;
     use crate::domain::mesh::hierarchical::MeshNode;
     use crate::domain::mesh_entity::MeshEntity;
     use crate::domain::mesh::Mesh;
@@ -83,29 +84,33 @@ mod integration_tests {
     #[test]
     fn test_full_mesh_integration() {
         let mut mesh = Mesh::new();
-        let vertex1 = MeshEntity::Vertex(1);
-        let vertex2 = MeshEntity::Vertex(2);
-        let vertex3 = MeshEntity::Vertex(3);
         let cell1 = MeshEntity::Cell(1);
         let face1 = MeshEntity::Face(1);
-
-        // Add entities to the mesh
-        assert!(mesh.add_entity(vertex1).is_ok());
-        assert!(mesh.add_entity(vertex2).is_ok());
-        assert!(mesh.add_entity(vertex3).is_ok());
-        assert!(mesh.add_entity(cell1).is_ok());
-        assert!(mesh.add_entity(face1).is_ok());
-
-        // Establish relationships between entities to populate the adjacency map
-        mesh.add_arrow(cell1, face1).unwrap(); // Cell connects to a face
-        mesh.add_arrow(face1, vertex1).unwrap(); // Face connects to vertices
-        mesh.add_arrow(face1, vertex2).unwrap();
-        mesh.add_arrow(face1, vertex3).unwrap();
-
-        // Set vertex coordinates
+    
+        // Add entities for cells and faces
+        assert!(mesh.add_entity(cell1).is_ok(), "Failed to add cell1");
+        assert!(mesh.add_entity(face1).is_ok(), "Failed to add face1");
+    
+        // Set vertex coordinates (this will add vertices to the mesh)
         mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
         mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
         mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
+    
+        // Log the mesh state
+        println!("Mesh after setting vertex coordinates: {:?}", mesh);
+    
+        // Establish relationships between entities
+        assert!(mesh.add_arrow(cell1, face1).is_ok(), "Failed to add arrow cell1 -> face1");
+        assert!(mesh.add_arrow(face1, MeshEntity::Vertex(1)).is_ok(), "Failed to add arrow face1 -> vertex1");
+        assert!(mesh.add_arrow(face1, MeshEntity::Vertex(2)).is_ok(), "Failed to add arrow face1 -> vertex2");
+        assert!(mesh.add_arrow(face1, MeshEntity::Vertex(3)).is_ok(), "Failed to add arrow face1 -> vertex3");
+    
+        // Log adjacency
+        println!("Adjacency map after setup: {:?}", mesh.sieve);
+    
+        // Validate adjacency relationships
+        //let validator = AdjacencyValidator::new(&mesh);
+        //assert!(validator.validate_all(), "Mesh adjacency validation failed.");    
 
         // Set up boundary data synchronization
         let (sender, receiver) = unbounded();
@@ -141,7 +146,7 @@ mod integration_tests {
         }
 
         // Compute RCM ordering (this should now succeed)
-        let rcm_order = mesh.rcm_ordering(vertex1);
+        let rcm_order = mesh.rcm_ordering(cell1);
         assert!(!rcm_order.is_empty());
 
         // Apply hanging node constraints

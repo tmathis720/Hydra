@@ -136,56 +136,69 @@ mod tests {
     fn setup_single_hexahedron_mesh() -> crate::domain::mesh::Mesh {
         let mut builder = DomainBuilder::new();
 
-        // Define vertices of a unit cube hexahedron:
-        // Bottom (z=0): (1)->(0,0,0), (2)->(1,0,0), (3)->(1,1,0), (4)->(0,1,0)
-        // Top (z=1): (5)->(0,0,1), (6)->(1,0,1), (7)->(1,1,1), (8)->(0,1,1)
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0])
-            .add_vertex(3, [1.0, 1.0, 0.0])
-            .add_vertex(4, [0.0, 1.0, 0.0])
-            .add_vertex(5, [0.0, 0.0, 1.0])
-            .add_vertex(6, [1.0, 0.0, 1.0])
-            .add_vertex(7, [1.0, 1.0, 1.0])
-            .add_vertex(8, [0.0, 1.0, 1.0]);
-
-        builder.add_hexahedron_cell(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-
+        // Add vertices for a unit cube (hexahedron):
+        // Bottom face (z=0): (1)->(0,0,0), (2)->(1,0,0), (3)->(1,1,0), (4)->(0,1,0)
+        // Top face (z=1): (5)->(0,0,1), (6)->(1,0,1), (7)->(1,1,1), (8)->(0,1,1)
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 1");
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 2");
+        assert!(builder.add_vertex(3, [1.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 3");
+        assert!(builder.add_vertex(4, [0.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 4");
+        assert!(builder.add_vertex(5, [0.0, 0.0, 1.0]).is_ok(), "Failed to add vertex 5");
+        assert!(builder.add_vertex(6, [1.0, 0.0, 1.0]).is_ok(), "Failed to add vertex 6");
+        assert!(builder.add_vertex(7, [1.0, 1.0, 1.0]).is_ok(), "Failed to add vertex 7");
+        assert!(builder.add_vertex(8, [0.0, 1.0, 1.0]).is_ok(), "Failed to add vertex 8");
+    
+        // Add a hexahedron cell with the 8 vertices defined above
+        assert!(
+            builder
+                .add_hexahedron_cell(vec![1, 2, 3, 4, 5, 6, 7, 8])
+                .is_ok(),
+            "Failed to add hexahedron cell"
+        );
+    
         builder.build()
     }
 
     fn setup_two_hexahedra_mesh() -> crate::domain::mesh::Mesh {
         let mut builder = DomainBuilder::new();
-
-        // First hexahedron (same as above)
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0])
-            .add_vertex(3, [1.0, 1.0, 0.0])
-            .add_vertex(4, [0.0, 1.0, 0.0])
-            .add_vertex(5, [0.0, 0.0, 1.0])
-            .add_vertex(6, [1.0, 0.0, 1.0])
-            .add_vertex(7, [1.0, 1.0, 1.0])
-            .add_vertex(8, [0.0, 1.0, 1.0]);
-
-        builder.add_hexahedron_cell(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-
-        // Second hexahedron sharing a face with the first:
-        // Shift by +1 in the x-direction for example
-        builder
-            .add_vertex(9, [1.0, 0.0, 0.0])   // same as vertex 2
-            .add_vertex(10, [2.0,0.0,0.0])
-            .add_vertex(11,[2.0,1.0,0.0])
-            .add_vertex(12,[1.0,1.0,0.0])   // same as vertex 3
-            .add_vertex(13,[1.0,0.0,1.0])   // same as vertex 6
-            .add_vertex(14,[2.0,0.0,1.0])
-            .add_vertex(15,[2.0,1.0,1.0])
-            .add_vertex(16,[1.0,1.0,1.0]); // same as vertex 7
-
-        builder.add_hexahedron_cell(vec![9,10,11,12,13,14,15,16]);
-
+    
+        // First hexahedron
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 1");
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 2");
+        assert!(builder.add_vertex(3, [1.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 3");
+        assert!(builder.add_vertex(4, [0.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 4");
+        assert!(builder.add_vertex(5, [0.0, 0.0, 1.0]).is_ok(), "Failed to add vertex 5");
+        assert!(builder.add_vertex(6, [1.0, 0.0, 1.0]).is_ok(), "Failed to add vertex 6");
+        assert!(builder.add_vertex(7, [1.0, 1.0, 1.0]).is_ok(), "Failed to add vertex 7");
+        assert!(builder.add_vertex(8, [0.0, 1.0, 1.0]).is_ok(), "Failed to add vertex 8");
+    
+        assert!(
+            builder
+                .add_hexahedron_cell(vec![1, 2, 3, 4, 5, 6, 7, 8])
+                .is_ok(),
+            "Failed to add first hexahedron cell"
+        );
+    
+        // Second hexahedron sharing a face with the first
+        assert!(builder.add_vertex(9, [1.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 9");
+        assert!(builder.add_vertex(10, [2.0, 0.0, 0.0]).is_ok(), "Failed to add vertex 10");
+        assert!(builder.add_vertex(11, [2.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 11");
+        assert!(builder.add_vertex(12, [1.0, 1.0, 0.0]).is_ok(), "Failed to add vertex 12");
+        assert!(builder.add_vertex(13, [1.0, 0.0, 1.0]).is_ok(), "Failed to add vertex 13");
+        assert!(builder.add_vertex(14, [2.0, 0.0, 1.0]).is_ok(), "Failed to add vertex 14");
+        assert!(builder.add_vertex(15, [2.0, 1.0, 1.0]).is_ok(), "Failed to add vertex 15");
+        assert!(builder.add_vertex(16, [1.0, 1.0, 1.0]).is_ok(), "Failed to add vertex 16");
+    
+        assert!(
+            builder
+                .add_hexahedron_cell(vec![9, 10, 11, 12, 13, 14, 15, 16])
+                .is_ok(),
+            "Failed to add second hexahedron cell"
+        );
+    
         builder.build()
     }
+    
 
     fn set_uniform_velocity(mesh: &crate::domain::mesh::Mesh, velocity: Vector3) -> Section<Vector3> {
         let velocity_field = Section::<Vector3>::new();

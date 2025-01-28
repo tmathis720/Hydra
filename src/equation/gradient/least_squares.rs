@@ -248,12 +248,11 @@ mod tests {
         let mut builder = DomainBuilder::new();
     
         // Add vertices and a tetrahedron cell (4 vertices for simplicity)
-        builder
-            .add_vertex(1, [0.0, 0.0, 0.0])
-            .add_vertex(2, [1.0, 0.0, 0.0])
-            .add_vertex(3, [0.0, 1.0, 0.0])
-            .add_vertex(4, [0.0, 0.0, 1.0])
-            .add_tetrahedron_cell(vec![1, 2, 3, 4]);
+        assert!(builder.add_vertex(1, [0.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(2, [1.0, 0.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(3, [0.0, 1.0, 0.0]).is_ok());
+        assert!(builder.add_vertex(4, [0.0, 0.0, 1.0]).is_ok());
+        assert!(builder.add_tetrahedron_cell(vec![1, 2, 3, 4]).is_ok());
     
         let mesh = builder.build();
     
