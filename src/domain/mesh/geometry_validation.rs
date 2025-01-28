@@ -41,7 +41,12 @@ pub enum GeometryValidationError {
     ShapeError(String),
     #[error("Failed to compute area for face {0}")]
     ComputationError(String),
+    #[error("Failed to compute distance between cells {0}")]
+    DistanceError(String),
+    #[error("Failed to compute centroid for face {0}")]
+    CentroidComputationError(String),
 }
+
 
 impl GeometryValidation {
     /// Validates that all vertices in the mesh have unique, valid coordinates.
@@ -90,30 +95,46 @@ impl GeometryValidation {
     ///
     /// # Returns
     /// - `Ok(())` if all centroids are consistent.
-    /// - `Err(String)` if inconsistencies are found.
+    /// - `Err(GeometryValidationError)` if inconsistencies are found.
     pub fn test_centroid_calculation(
         mesh: &Mesh,
         geometry: &mut Geometry,
     ) -> Result<(), GeometryValidationError> {
         for face in mesh.get_faces().iter() {
-            let face_vertices = mesh
-                .get_face_vertices(face)
-                .map_err(|err| {
-                    log::error!("Failed to retrieve vertices for face {:?}: {}", face, err);
-                    GeometryValidationError::FaceVertexRetrievalError(*face, err.to_string())
-                })?;
+            // Retrieve face vertices
+            let face_vertices = mesh.get_face_vertices(face).map_err(|err| {
+                log::error!("Failed to retrieve vertices for face {:?}: {}", face, err);
+                GeometryValidationError::FaceVertexRetrievalError(*face, err.to_string())
+            })?;
 
+            // Determine face shape
             let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
                 4 => FaceShape::Quadrilateral,
                 _ => {
-                    log::error!("Unsupported face shape with {} vertices", face_vertices.len());
-                    return Err(GeometryValidationError::UnsupportedFaceShape(face_vertices.len()));
+                    let error_message = format!(
+                        "Unsupported face shape with {} vertices for face {:?}",
+                        face_vertices.len(),
+                        face
+                    );
+                    log::error!("{}", error_message);
+                    return Err(GeometryValidationError::UnsupportedFaceShape(face.get_id()));
                 }
             };
 
-            let calculated_centroid = geometry.compute_face_centroid(face_shape, &face_vertices);
+            // Compute face centroid
+            let calculated_centroid = geometry
+                .compute_face_centroid(face_shape, &face_vertices)
+                .map_err(|err| {
+                    log::error!(
+                        "Failed to compute centroid for face {:?}: {}",
+                        face,
+                        err
+                    );
+                    GeometryValidationError::CentroidComputationError(*face, err.to_string())
+                })?;
 
+            // Validate face centroid
             if !Self::is_centroid_valid(face, &calculated_centroid, mesh) {
                 log::error!(
                     "Centroid validation failed for face {:?}. Calculated: {:?}",
@@ -128,15 +149,19 @@ impl GeometryValidation {
         }
 
         for cell in mesh.get_cells().iter() {
-            let calculated_centroid = mesh.get_cell_centroid(cell).map_err(|err| {
-                log::error!(
-                    "Failed to compute centroid for cell {:?}: {}",
-                    cell,
-                    err
-                );
-                GeometryValidationError::InconsistentCentroid(*cell, [0.0, 0.0, 0.0])
-            })?;
+            // Compute cell centroid
+            let calculated_centroid = geometry
+                .compute_cell_centroid(mesh, cell)
+                .map_err(|err| {
+                    log::error!(
+                        "Failed to compute centroid for cell {:?}: {}",
+                        cell,
+                        err
+                    );
+                    GeometryValidationError::CentroidComputationError(*cell, err.to_string())
+                })?;
 
+            // Validate cell centroid
             if !Self::is_centroid_valid(cell, &calculated_centroid, mesh) {
                 log::error!(
                     "Centroid validation failed for cell {:?}. Calculated: {:?}",
@@ -152,6 +177,7 @@ impl GeometryValidation {
 
         Ok(())
     }
+
 
 
     /// Validates the distances between each pair of cells in the mesh.

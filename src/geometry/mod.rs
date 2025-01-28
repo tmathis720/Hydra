@@ -102,8 +102,13 @@ pub enum GeometryError {
     DegenerateTriangle,
 
     #[error("Normal vector computation failed with zero magnitude.")]
-    ZeroMagnitudeNormal
+    ZeroMagnitudeNormal,
+
+    #[error("Failed to retrieve centroid for cell {0}")]
+    CentroidError(String),
     
+    #[error("Failed to compute normal vector for face {0}")]
+    NormalComputationError(String)
 }
 
 impl Geometry {
@@ -180,12 +185,12 @@ impl Geometry {
 
         // Compute the centroid based on the cell shape
         let centroid = match cell_shape {
-            CellShape::Triangle => self.compute_triangle_centroid(&cell_vertices),
-            CellShape::Quadrilateral => self.compute_quadrilateral_centroid(&cell_vertices),
-            CellShape::Tetrahedron => self.compute_tetrahedron_centroid(&cell_vertices),
-            CellShape::Hexahedron => self.compute_hexahedron_centroid(&cell_vertices),
-            CellShape::Prism => self.compute_prism_centroid(&cell_vertices),
-            CellShape::Pyramid => self.compute_pyramid_centroid(&cell_vertices),
+            CellShape::Triangle => self.compute_triangle_centroid(&cell_vertices)?,
+            CellShape::Quadrilateral => self.compute_quadrilateral_centroid(&cell_vertices)?,
+            CellShape::Tetrahedron => self.compute_tetrahedron_centroid(&cell_vertices)?,
+            CellShape::Hexahedron => self.compute_hexahedron_centroid(&cell_vertices)?,
+            CellShape::Prism => self.compute_prism_centroid(&cell_vertices)?,
+            CellShape::Pyramid => self.compute_pyramid_centroid(&cell_vertices)?,
         };
 
         // Cache the computed centroid for future use
@@ -199,6 +204,7 @@ impl Geometry {
         log::info!("Computed centroid for cell {:?}: {:?}", cell_id, centroid);
         Ok(centroid)
     }
+
 
 
     /// Computes the volume of a given cell using its shape and vertex coordinates.
@@ -238,13 +244,25 @@ impl Geometry {
 
         // Compute the volume based on the cell shape
         let volume = match cell_shape {
-            CellShape::Triangle => self.compute_triangle_area(&cell_vertices),
-            CellShape::Quadrilateral => self.compute_quadrilateral_area(&cell_vertices),
-            CellShape::Tetrahedron => self.compute_tetrahedron_volume(&cell_vertices),
-            CellShape::Hexahedron => self.compute_hexahedron_volume(&cell_vertices),
-            CellShape::Prism => self.compute_prism_volume(&cell_vertices),
-            CellShape::Pyramid => self.compute_pyramid_volume(&cell_vertices),
-        };
+            CellShape::Triangle => self.compute_triangle_area(&cell_vertices).map_err(|err| {
+                GeometryError::ComputationError(format!("Failed to compute triangle area: {:?}", err))
+            }),
+            CellShape::Quadrilateral => self.compute_quadrilateral_area(&cell_vertices).map_err(|err| {
+                GeometryError::ComputationError(format!("Failed to compute quadrilateral area: {:?}", err))
+            }),
+            CellShape::Tetrahedron => self.compute_tetrahedron_volume(&cell_vertices).map_err(|err| {
+                GeometryError::ComputationError(format!("Failed to compute tetrahedron volume: {:?}", err))
+            }),
+            CellShape::Hexahedron => self.compute_hexahedron_volume(&cell_vertices).map_err(|err| {
+                GeometryError::ComputationError(format!("Failed to compute hexahedron volume: {:?}", err))
+            }),
+            CellShape::Prism => self.compute_prism_volume(&cell_vertices).map_err(|err| {
+                GeometryError::ComputationError(format!("Failed to compute prism volume: {:?}", err))
+            }),
+            CellShape::Pyramid => self.compute_pyramid_volume(&cell_vertices).map_err(|err| {
+                GeometryError::ComputationError(format!("Failed to compute pyramid volume: {:?}", err))
+            }),
+        }?;
 
         // Cache the computed volume for future use
         self.cache
@@ -259,6 +277,7 @@ impl Geometry {
     }
 
 
+
     /// Calculates Euclidean distance between two points in 3D space.
     ///
     /// # Arguments
@@ -266,18 +285,8 @@ impl Geometry {
     /// * `p2` - The second point as a reference to a `[f64; 3]` array.
     ///
     /// # Returns
-    /// * `Result<f64, GeometryError>` - The computed distance or an error if validation fails.
+    /// * `Result<f64, GeometryError>` - The computed distance or an error if computation fails.
     pub fn compute_distance(p1: &[f64; 3], p2: &[f64; 3]) -> Result<f64, GeometryError> {
-        if p1.len() != 3 || p2.len() != 3 {
-            let error_msg = format!(
-                "Invalid point dimensions: p1 has {} dimensions, p2 has {} dimensions.",
-                p1.len(),
-                p2.len()
-            );
-            error!("{}", error_msg);
-            return Err(GeometryError::InvalidPointDimension(error_msg));
-        }
-
         // Calculate the differences in each dimension
         let dx = p1[0] - p2[0];
         let dy = p1[1] - p2[1];
@@ -286,14 +295,19 @@ impl Geometry {
         // Compute the Euclidean distance
         let distance = (dx.powi(2) + dy.powi(2) + dz.powi(2)).sqrt();
 
+        // Check for NaN result
         if distance.is_nan() {
-            let warning_msg = format!("Distance computation resulted in NaN for points {:?} and {:?}", p1, p2);
-            warn!("{}", warning_msg);
+            let warning_msg = format!(
+                "Distance computation resulted in NaN for points {:?} and {:?}",
+                p1, p2
+            );
+            log::warn!("{}", warning_msg);
             return Err(GeometryError::ComputationError(warning_msg));
         }
 
         Ok(distance)
     }
+
 
     /// Computes the area of a 2D face based on its shape, caching the result.
     ///
@@ -312,44 +326,40 @@ impl Geometry {
     ) -> Result<f64, GeometryError> {
         // Check if the area is already cached
         if let Some(cached) = self.cache.lock().unwrap().get(&face_id).and_then(|c| c.area) {
+            log::debug!("Using cached area for face {:?}", face_id);
             return Ok(cached);
         }
 
         // Validate the number of vertices based on the face shape
-        match face_shape {
-            FaceShape::Edge if face_vertices.len() != 2 => {
-                let error_msg = format!(
-                    "Edge face must have exactly 2 vertices, but got {}.",
-                    face_vertices.len()
-                );
-                error!("{}", error_msg);
-                return Err(GeometryError::InvalidFaceVertices(error_msg));
-            }
-            FaceShape::Triangle if face_vertices.len() != 3 => {
-                let error_msg = format!(
-                    "Triangle face must have exactly 3 vertices, but got {}.",
-                    face_vertices.len()
-                );
-                error!("{}", error_msg);
-                return Err(GeometryError::InvalidFaceVertices(error_msg));
-            }
-            FaceShape::Quadrilateral if face_vertices.len() != 4 => {
-                let error_msg = format!(
-                    "Quadrilateral face must have exactly 4 vertices, but got {}.",
-                    face_vertices.len()
-                );
-                error!("{}", error_msg);
-                return Err(GeometryError::InvalidFaceVertices(error_msg));
-            }
-            _ => {}
+        let expected_vertices = match face_shape {
+            FaceShape::Edge => 2,
+            FaceShape::Triangle => 3,
+            FaceShape::Quadrilateral => 4,
+        };
+
+        if face_vertices.len() != expected_vertices {
+            let error_msg = format!(
+                "{:?} face must have exactly {} vertices, but got {}.",
+                face_shape,
+                expected_vertices,
+                face_vertices.len()
+            );
+            log::error!("{}", error_msg);
+            return Err(GeometryError::InvalidFaceVertices(error_msg));
         }
 
         // Compute the area based on the face shape
         let area = match face_shape {
-            FaceShape::Edge => self.compute_edge_length(face_vertices),
-            FaceShape::Triangle => Ok(self.compute_triangle_area(face_vertices)),
-            FaceShape::Quadrilateral => Ok(self.compute_quadrilateral_area(face_vertices)),
-        }?;
+            FaceShape::Edge => self.compute_edge_length(face_vertices).map_err(|err| {
+                GeometryError::ComputationError(format!("Failed to compute edge length: {:?}", err))
+            })?,
+            FaceShape::Triangle => self.compute_triangle_area(face_vertices).map_err(|err| {
+                GeometryError::ComputationError(format!("Failed to compute triangle area: {:?}", err))
+            })?,
+            FaceShape::Quadrilateral => self.compute_quadrilateral_area(face_vertices).map_err(|err| {
+                GeometryError::ComputationError(format!("Failed to compute quadrilateral area: {:?}", err))
+            })?,
+        };
 
         // Check for invalid area (e.g., NaN or negative)
         if area.is_nan() || area < 0.0 {
@@ -357,7 +367,7 @@ impl Geometry {
                 "Computed area is invalid (NaN or negative) for face {} with vertices {:?}.",
                 face_id, face_vertices
             );
-            warn!("{}", warning_msg);
+            log::warn!("{}", warning_msg);
             return Err(GeometryError::ComputationError(warning_msg));
         }
 
@@ -369,6 +379,7 @@ impl Geometry {
             .or_default()
             .area = Some(area);
 
+        log::info!("Computed area for face {:?}: {:?}", face_id, area);
         Ok(area)
     }
 
@@ -416,10 +427,10 @@ impl Geometry {
 
         // Compute the centroid based on the face shape
         let centroid = match face_shape {
-            FaceShape::Edge => self.compute_edge_midpoint(face_vertices),
-            FaceShape::Triangle => self.compute_triangle_centroid(face_vertices),
-            FaceShape::Quadrilateral => self.compute_quadrilateral_centroid(face_vertices),
-        };
+            FaceShape::Edge => Ok(self.compute_edge_midpoint(face_vertices)?),
+            FaceShape::Triangle => Ok(self.compute_triangle_centroid(face_vertices)?),
+            FaceShape::Quadrilateral => Ok(self.compute_quadrilateral_centroid(face_vertices)?),
+        }?;
 
         // Check for invalid centroid coordinates
         if centroid.iter().any(|&c| c.is_nan()) {
@@ -504,10 +515,10 @@ impl Geometry {
 
         // Compute the normal vector based on the face shape
         let normal = match face_shape {
-            FaceShape::Edge => Ok(self.compute_edge_normal(&face_vertices)),
-            FaceShape::Triangle => Ok(self.compute_triangle_normal(&face_vertices)),
-            FaceShape::Quadrilateral => Ok(self.compute_quadrilateral_normal(&face_vertices)),
-        }?;
+            FaceShape::Edge => self.compute_edge_normal(&face_vertices),
+            FaceShape::Triangle => self.compute_triangle_normal(&face_vertices)?,
+            FaceShape::Quadrilateral => self.compute_quadrilateral_normal(&face_vertices)?,
+        };
 
         // Cache the normal vector for future use
         self.cache
@@ -519,6 +530,7 @@ impl Geometry {
 
         Ok(domain::section::Vector3(normal))
     }
+
 
 
     /// Computes the normal vector of an edge (2D face).
@@ -927,7 +939,7 @@ mod tests {
         
         // Check if the computed normal is correct
         for i in 0..3 {
-            assert!((normal[i] - expected_normal[i]).abs() < 1e-6);
+            assert!((normal.as_ref().unwrap()[i] - expected_normal[i]).abs() < 1e-6);
         }
     }
 
@@ -955,7 +967,7 @@ mod tests {
         
         // Check if the computed normal is correct
         for i in 0..3 {
-            assert!((normal[i] - expected_normal[i]).abs() < 1e-6);
+            assert!((normal.as_ref().unwrap()[i] - expected_normal[i]).abs() < 1e-6);
         }
     }
 
@@ -975,20 +987,21 @@ mod tests {
         let _cell = MeshEntity::Cell(1);
 
         // First computation to populate the cache
-        let normal_first = geometry.compute_triangle_normal(&vertices);
+        let normal_first = geometry.compute_triangle_normal(&vertices).unwrap();
 
         // Manually retrieve from cache to verify caching behavior
         geometry.cache.lock().unwrap().entry(face_id).or_default().normal = Some(normal_first);
-        let cached_normal = geometry.cache.lock().unwrap().get(&face_id).and_then(|c| c.normal);
+        let cache = geometry.cache.lock().unwrap();
+        let cached_normal = cache.get(&face_id).and_then(|c| c.normal.as_ref());
 
         // Verify that the cached value matches the first computed value
-        assert_eq!(Some(normal_first), cached_normal);
+        assert_eq!(Some(&normal_first), cached_normal);
     }
 
     #[test]
     fn test_compute_face_normal_unsupported_shape() {
-        let geometry = Geometry::new();
-
+        let mut geometry = Geometry::new();
+    
         // Define vertices for a pentagon (unsupported)
         let vertices = vec![
             [0.0, 0.0, 0.0], // vertex 1
@@ -997,25 +1010,33 @@ mod tests {
             [0.0, 1.0, 0.0], // vertex 4
             [0.5, 0.5, 0.0], // vertex 5
         ];
-
-        let _face = MeshEntity::Face(4);
-        let _cell = MeshEntity::Cell(1);
-
-        // Since compute_face_normal expects only triangles or quadrilaterals, it should return None
-        let face_shape = match vertices.len() {
-            3 => FaceShape::Triangle,
-            4 => FaceShape::Quadrilateral,
-            _ => return, // Unsupported shape, skip test
-        };
-
+    
+        let face = MeshEntity::Face(4);
+        let cell = MeshEntity::Cell(1);
+    
         // Attempt to compute the normal for an unsupported shape
-        let normal = match face_shape {
-            FaceShape::Edge => Some(geometry.compute_edge_normal(&vertices)),
-            FaceShape::Triangle => Some(geometry.compute_triangle_normal(&vertices)),
-            FaceShape::Quadrilateral => Some(geometry.compute_quadrilateral_normal(&vertices)),
+        let result = match vertices.len() {
+            2 => Ok(geometry.compute_edge_normal(&vertices)),
+            3 => Ok(geometry.compute_triangle_normal(&vertices).unwrap()),
+            4 => Ok(geometry.compute_quadrilateral_normal(&vertices).unwrap()),
+            _ => Err("Unsupported face shape: expected 2, 3, or 4 vertices".to_string()),
         };
-
-        // Assert that the function correctly handles unsupported shapes by skipping normal computation
-        assert!(normal.is_none());
+    
+        // Assert that the function correctly identifies unsupported shapes
+        assert!(
+            result.is_err(),
+            "Expected error for unsupported face shape, but got a normal vector: {:?}",
+            result
+        );
+    
+        // Validate the error message
+        if let Err(err_msg) = result {
+            assert!(
+                err_msg.contains("Unsupported face shape"),
+                "Unexpected error message: {}",
+                err_msg
+            );
+        }
     }
+    
 }

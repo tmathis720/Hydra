@@ -3,7 +3,7 @@ use super::Mesh;
 use crate::domain;
 use crate::domain::mesh::MeshError;
 use crate::domain::mesh_entity::MeshEntity;
-use crate::geometry::{Geometry, CellShape, FaceShape};
+use crate::geometry::{CellShape, FaceShape, Geometry, GeometryError};
 use dashmap::DashMap;
 use crate::domain::section::Vector3;
 
@@ -132,12 +132,12 @@ impl Mesh {
         // Compute the centroid for the first cell.
         let centroid_i = self.get_cell_centroid(cell_i).map_err(|err| {
             log::error!(
-                "Failed to compute centroid for cell {:?}: {}",
+                "Failed to compute centroid for cell {:?}: {:?}",
                 cell_i,
                 err
             );
             GeometryValidationError::CentroidError(format!(
-                "Failed to compute centroid for cell {:?}: {}",
+                "Failed to compute centroid for cell {:?}: {:?}",
                 cell_i, err
             ))
         })?;
@@ -145,18 +145,30 @@ impl Mesh {
         // Compute the centroid for the second cell.
         let centroid_j = self.get_cell_centroid(cell_j).map_err(|err| {
             log::error!(
-                "Failed to compute centroid for cell {:?}: {}",
+                "Failed to compute centroid for cell {:?}: {:?}",
                 cell_j,
                 err
             );
             GeometryValidationError::CentroidError(format!(
-                "Failed to compute centroid for cell {:?}: {}",
+                "Failed to compute centroid for cell {:?}: {:?}",
                 cell_j, err
             ))
         })?;
 
         // Compute the Euclidean distance using the `Geometry` module.
-        let distance = Geometry::compute_distance(&centroid_i, &centroid_j);
+        let distance = Geometry::compute_distance(&centroid_i, &centroid_j).map_err(|err| {
+            log::error!(
+                "Failed to compute distance between centroids {:?} and {:?}: {:?}",
+                centroid_i,
+                centroid_j,
+                err
+            );
+            GeometryValidationError::DistanceError(format!(
+                "Failed to compute distance between centroids {:?} and {:?}",
+                centroid_i, err
+            ))
+        })?;
+
         log::info!(
             "Computed distance between cells {:?} and {:?}: {:.6}",
             cell_i,
@@ -166,6 +178,7 @@ impl Mesh {
 
         Ok(distance)
     }
+
 
 
     /// Computes the area of a face based on its geometric shape and vertices.
@@ -180,12 +193,12 @@ impl Mesh {
         // Retrieve the vertices of the face
         let face_vertices = self.get_face_vertices(face).map_err(|err| {
             log::error!(
-                "Failed to retrieve vertices for face {:?}: {}",
+                "Failed to retrieve vertices for face {:?}: {:?}",
                 face,
                 err
             );
             GeometryValidationError::VertexError(format!(
-                "Failed to retrieve vertices for face {:?}: {}",
+                "Failed to retrieve vertices for face {:?}: {:?}",
                 face, err
             ))
         })?;
@@ -200,7 +213,7 @@ impl Mesh {
                     "Unsupported face shape with {} vertices. Expected 2, 3, or 4 vertices.",
                     face_vertices.len()
                 );
-                log::error!("Unsupported face shape: {:?}", error_message);
+                log::error!("Unsupported face shape: {}", error_message);
                 return Err(GeometryValidationError::ShapeError(error_message));
             }
         };
@@ -209,11 +222,24 @@ impl Mesh {
         let mut geometry = Geometry::new();
         let face_id = face.get_id();
         let area = geometry
-            .compute_face_area(face_id, face_shape, &face_vertices);
+            .compute_face_area(face_id, face_shape, &face_vertices)
+            .map_err(|err| {
+                log::error!(
+                    "Error computing area for face {:?} with shape {:?}: {:?}",
+                    face,
+                    face_shape,
+                    err
+                );
+                GeometryValidationError::ComputationError(format!(
+                    "Failed to compute area for face {:?}: {:?}",
+                    face, err
+                ))
+            })?;
 
+        // Check for invalid area (NaN)
         if area.is_nan() {
             let err_msg = format!(
-                "Failed to compute area for face {:?} with shape {:?}: Computation resulted in NaN",
+                "Computed area is NaN for face {:?} with shape {:?}",
                 face, face_shape
             );
             log::error!("{}", err_msg);
@@ -229,6 +255,7 @@ impl Mesh {
 
         Ok(area)
     }
+
 
     /// Computes the centroid of a cell based on its vertices.
     ///
@@ -260,7 +287,17 @@ impl Mesh {
 
         // Compute the centroid using the Geometry module
         let mut geometry = Geometry::new();
-        let centroid = geometry.compute_cell_centroid(self, cell); // Directly retrieve the centroid
+        let centroid = geometry.compute_cell_centroid(self, cell).map_err(|err| {
+            log::error!(
+                "Failed to compute centroid for cell {:?}: {:?}",
+                cell,
+                err
+            );
+            GeometryValidationError::ComputationError(format!(
+                "Failed to compute centroid for cell {:?}: {:?}",
+                cell, err
+            ))
+        })?;
 
         log::info!(
             "Computed centroid for cell {:?}: {:?}",
@@ -268,8 +305,9 @@ impl Mesh {
             centroid
         );
 
-        Ok(centroid) // Return the centroid directly
+        Ok(centroid) // Return the centroid
     }
+
 
     /// Retrieves all vertices connected to a given vertex via shared cells.
     ///
@@ -466,17 +504,17 @@ impl Mesh {
     /// * `reference_cell` - An optional reference cell entity to adjust the orientation.
     ///
     /// # Returns
-    /// * `Result<Vector3, String>` - The computed normal vector or an error message.
+    /// * `Result<Vector3, GeometryError>` - The computed normal vector or an error message.
     pub fn get_face_normal(
         &self,
         face: &MeshEntity,
         reference_cell: Option<&MeshEntity>,
-    ) -> Result<Vector3, String> {
+    ) -> Result<Vector3, GeometryError> {
         // Retrieve vertices of the face
         let face_vertices = self.get_face_vertices(face).map_err(|err| {
-            format!(
-                "Failed to retrieve vertices for face {:?}: {}",
-                face, err
+            GeometryError::VertexRetrievalError(
+                *face,
+                format!("Failed to retrieve vertices for face {:?}: {}", face, err),
             )
         })?;
 
@@ -486,32 +524,40 @@ impl Mesh {
             3 => FaceShape::Triangle,
             4 => FaceShape::Quadrilateral,
             _ => {
-                return Err(format!(
+                return Err(GeometryError::UnsupportedFaceShape(format!(
                     "Unsupported face shape with {} vertices for face {:?}",
                     face_vertices.len(),
                     face
-                ));
+                )));
             }
         };
 
         // Compute the normal vector based on the face shape
         let geometry = Geometry::new();
         let normal = match face_shape {
-            FaceShape::Edge => geometry.compute_edge_normal(&face_vertices),
-            FaceShape::Triangle => geometry.compute_triangle_normal(&face_vertices),
-            FaceShape::Quadrilateral => geometry.compute_quadrilateral_normal(&face_vertices),
-        };
+            FaceShape::Edge => Ok(geometry.compute_edge_normal(&face_vertices)),
+            FaceShape::Triangle => geometry.compute_triangle_normal(&face_vertices)
+                .map_err(|err| GeometryError::NormalComputationError(format!(
+                    "Failed to compute normal for triangular face {:?}: {}",
+                    face, err
+                ))),
+            FaceShape::Quadrilateral => geometry.compute_quadrilateral_normal(&face_vertices)
+                .map_err(|err| GeometryError::NormalComputationError(format!(
+                    "Failed to compute normal for quadrilateral face {:?}: {}",
+                    face, err
+                ))),
+        }?;
 
         // Adjust the normal orientation if a reference cell is provided
         if let Some(cell) = reference_cell {
             let cell_centroid = self.get_cell_centroid(cell).map_err(|err| {
-                format!(
+                GeometryError::CentroidError(format!(
                     "Failed to retrieve centroid for reference cell {:?}: {}",
                     cell, err
-                )
+                ))
             })?;
 
-            let face_centroid = geometry.compute_face_centroid(face_shape, &face_vertices);
+            let face_centroid = geometry.compute_face_centroid(face_shape, &face_vertices)?;
 
             let to_cell_vector = [
                 cell_centroid[0] - face_centroid[0],
@@ -531,4 +577,5 @@ impl Mesh {
 
         Ok(domain::section::Vector3(normal))
     }
+
 }
