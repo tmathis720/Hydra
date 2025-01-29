@@ -88,40 +88,89 @@ impl MomentumEquation {
 
         // Iterate over each face in the mesh to compute fluxes.
         for face in domain.get_faces() {
-            // Determine face geometry and properties.
-            let face_vertices = domain.get_face_vertices(&face);
-            let face_shape = match face_vertices.as_ref().unwrap().len() {
+            // Retrieve face vertices safely
+            let face_vertices = match domain.get_face_vertices(&face) {
+                Ok(vertices) => vertices,
+                Err(err) => {
+                    log::error!("Failed to get face vertices for {:?}: {}", face, err);
+                    continue;
+                }
+            };
+
+            // Determine face shape
+            let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
                 4 => FaceShape::Quadrilateral,
-                _ => continue, // Skip unsupported face shapes
+                _ => {
+                    log::warn!(
+                        "Skipping face {:?} with unsupported shape ({} vertices)",
+                        face,
+                        face_vertices.len()
+                    );
+                    continue;
+                }
             };
 
+            // Retrieve face normal
             let normal = match domain.get_face_normal(&face, None) {
-                Ok(n) => n, // Use the face normal if available.
-                Err(_) => continue, // Skip if normal vector is missing.
+                Ok(n) => n,
+                Err(err) => {
+                    log::error!("Failed to get face normal for {:?}: {}", face, err);
+                    continue;
+                }
             };
 
+            // Retrieve face area
             let area = match domain.get_face_area(&face) {
-                Ok(a) => a, // Use the face area if available.
-                Err(_) => continue, // Skip if area is missing.
+                Ok(a) => a,
+                Err(err) => {
+                    log::error!("Failed to get face area for {:?}: {}", face, err);
+                    continue;
+                }
             };
 
-            let face_center = geometry.compute_face_centroid(face_shape, &face_vertices.unwrap());
-            let cells = domain.get_cells_sharing_face(&face).unwrap();
+            // Compute face centroid
+            let face_center = match geometry.compute_face_centroid(face_shape, &face_vertices) {
+                Ok(center) => center,
+                Err(err) => {
+                    log::error!(
+                        "Failed to compute centroid for face {:?}: {}",
+                        face,
+                        err
+                    );
+                    continue;
+                }
+            };
 
-            // Extract data from the cells adjacent to the face.
+            // Retrieve cells adjacent to the face
+            let cells = match domain.get_cells_sharing_face(&face) {
+                Ok(cells) if !cells.is_empty() => cells,
+                Ok(_) => {
+                    log::warn!("Skipping face {:?} with no adjacent cells", face);
+                    continue;
+                }
+                Err(err) => {
+                    log::error!("Failed to get cells sharing face {:?}: {}", face, err);
+                    continue;
+                }
+            };
+
+            // Extract data from the first cell
             let (_cell_a, velocity_a, pressure_a, center_a, grads_a) =
                 self.extract_cell_data(domain, fields, &gradient_u, &gradient_v, &gradient_w, &cells, 0);
-            let (has_cell_b, velocity_b, pressure_b, center_b, grads_b) =
-                if cells.len() > 1 {
-                    let (_cell_b, vb, pb, cb, gb) =
-                        self.extract_cell_data(domain, fields, &gradient_u, &gradient_v, &gradient_w, &cells, 1);
-                    (true, vb, pb, cb, gb)
-                } else {
-                    (false, velocity_a, pressure_a, center_a, grads_a)
-                };
 
-            // Reconstruct field values at the face from the adjacent cells.
+            let has_cell_b = cells.len() > 1;
+
+            // Extract data from the second cell (if available)
+            let (velocity_b, pressure_b, center_b, grads_b) = if has_cell_b {
+                let (_cell_b, vb, pb, cb, gb) =
+                    self.extract_cell_data(domain, fields, &gradient_u, &gradient_v, &gradient_w, &cells, 1);
+                (vb, pb, cb, gb)
+            } else {
+                (velocity_a, pressure_a, center_a, grads_a)
+            };
+
+            // Reconstruct velocity at the face
             let velocity_face_a = self.reconstruct_face_velocity(velocity_a, &grads_a, center_a, face_center);
             let velocity_face_b = if has_cell_b {
                 self.reconstruct_face_velocity(velocity_b, &grads_b, center_b, face_center)
@@ -129,6 +178,7 @@ impl MomentumEquation {
                 velocity_face_a
             };
 
+            // Reconstruct pressure at the face
             let pressure_face_a = self.reconstruct_face_pressure(pressure_a, grads_a[0], center_a, face_center);
             let pressure_face_b = if has_cell_b {
                 self.reconstruct_face_pressure(pressure_b, grads_b[0], center_b, face_center)
@@ -136,7 +186,7 @@ impl MomentumEquation {
                 pressure_face_a
             };
 
-            // Compute the individual flux components.
+            // Compute fluxes
             let convective_flux = self.compute_convective_flux(velocity_face_a, velocity_face_b, &normal, area);
             let pressure_flux = self.compute_pressure_flux(pressure_face_a, pressure_face_b, &normal, area);
             let diffusive_flux = self.compute_diffusive_flux(
@@ -150,12 +200,13 @@ impl MomentumEquation {
             let total_flux = convective_flux - pressure_flux + diffusive_flux;
             fluxes.add_momentum_flux(face.clone(), total_flux);
 
-            // Apply boundary conditions for the current face.
+            // Apply boundary conditions if necessary
             if let Some(bc) = boundary_handler.get_bc(&face) {
                 self.apply_boundary_conditions(bc, fluxes, &face, &normal.0, area);
             }
         }
     }
+
 
     /// Computes velocity gradients using a specified gradient method.
     fn compute_velocity_gradients(

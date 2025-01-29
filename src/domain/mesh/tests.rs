@@ -73,7 +73,6 @@ mod tests {
 
 #[cfg(test)]
 mod integration_tests {
-    use crate::domain::mesh::adjacency_validation::AdjacencyValidator;
     use crate::domain::mesh::hierarchical::MeshNode;
     use crate::domain::mesh_entity::MeshEntity;
     use crate::domain::mesh::Mesh;

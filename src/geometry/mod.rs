@@ -787,15 +787,15 @@ mod tests {
         let mut geometry = Geometry::new();
 
         // Set vertex at index 0
-        geometry.set_vertex(0, [1.0, 2.0, 3.0]);
+        let _ = geometry.set_vertex(0, [1.0, 2.0, 3.0]);
         assert_eq!(geometry.vertices[0], [1.0, 2.0, 3.0]);
 
         // Update vertex at index 0
-        geometry.set_vertex(0, [4.0, 5.0, 6.0]);
+        let _ = geometry.set_vertex(0, [4.0, 5.0, 6.0]);
         assert_eq!(geometry.vertices[0], [4.0, 5.0, 6.0]);
 
         // Set vertex at a higher index
-        geometry.set_vertex(3, [7.0, 8.0, 9.0]);
+        let _ = geometry.set_vertex(3, [7.0, 8.0, 9.0]);
         assert_eq!(geometry.vertices[3], [7.0, 8.0, 9.0]);
 
         // Ensure the intermediate vertices are initialized to [0.0, 0.0, 0.0]
@@ -1000,7 +1000,7 @@ mod tests {
 
     #[test]
     fn test_compute_face_normal_unsupported_shape() {
-        let mut geometry = Geometry::new();
+        let geometry = Geometry::new();
     
         // Define vertices for a pentagon (unsupported)
         let vertices = vec![
@@ -1011,8 +1011,8 @@ mod tests {
             [0.5, 0.5, 0.0], // vertex 5
         ];
     
-        let face = MeshEntity::Face(4);
-        let cell = MeshEntity::Cell(1);
+        let _face = MeshEntity::Face(4);
+        let _cell = MeshEntity::Cell(1);
     
         // Attempt to compute the normal for an unsupported shape
         let result = match vertices.len() {

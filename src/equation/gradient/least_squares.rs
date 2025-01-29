@@ -22,12 +22,13 @@ impl GradientMethod for LeastSquaresGradient {
         _time: f64,
     ) -> Result<[f64; 3], GradientError> {
         // Compute the centroid of the current cell
-        let cell_center = geometry.compute_cell_centroid(mesh, cell);
-        
+        let cell_center = geometry.compute_cell_centroid(mesh, cell)
+            .map_err(|err| GradientError::CalculationError(cell.clone(), format!("Failed to compute centroid: {}", err)))?;
+    
         // Retrieve the field value for the current cell
         let phi_c = field
             .restrict(cell)
-            .and_then(|scalar| Ok(Some(scalar.0)))
+            .map(|scalar| scalar.0)
             .map_err(|_| GradientError::CalculationError(cell.clone(), "Field value not found for cell".to_string()))?;
     
         let mut a = [[0.0; 3]; 3];
@@ -37,7 +38,7 @@ impl GradientMethod for LeastSquaresGradient {
         let neighbors = mesh
             .get_ordered_neighbors(cell)
             .map_err(|e| GradientError::CalculationError(cell.clone(), format!("Failed to retrieve neighbors: {}", e)))?;
-        
+    
         if neighbors.is_empty() {
             return Err(GradientError::CalculationError(
                 cell.clone(),
@@ -48,7 +49,8 @@ impl GradientMethod for LeastSquaresGradient {
         // Compute contributions from neighbors
         for neighbor in neighbors.iter() {
             // Compute centroid for the neighbor
-            let neighbor_center = geometry.compute_cell_centroid(mesh, neighbor);
+            let neighbor_center = geometry.compute_cell_centroid(mesh, neighbor)
+                .map_err(|err| GradientError::CalculationError(neighbor.clone(), format!("Failed to compute centroid: {}", err)))?;
     
             // Retrieve the field value for the neighbor
             let phi_nb = field
@@ -70,7 +72,7 @@ impl GradientMethod for LeastSquaresGradient {
                 for j in 0..3 {
                     a[i][j] += delta[i] * delta[j];
                 }
-                b[i] += delta[i] * (phi_nb - phi_c.unwrap());
+                b[i] += delta[i] * (phi_nb - phi_c);
             }
         }
     
@@ -81,6 +83,7 @@ impl GradientMethod for LeastSquaresGradient {
     
         Ok(grad_phi)
     }
+    
 }
 
 

@@ -116,106 +116,134 @@ impl GOTMModel {
 }
 
 impl TurbulenceModel for GOTMModel {
-    fn compute_turbulence_fluxes(
-        &self,
-        domain: &Mesh,
-        fields: &Fields,
-        fluxes: &mut Fluxes,
-        boundary_handler: &BoundaryConditionHandler,
-        current_time: f64,
-    ) {
-        let (grad_1, grad_2) = self.compute_required_gradients(domain, boundary_handler, fields, current_time);
-        let geometry = Geometry::new();
+// Updated section of `compute_turbulence_fluxes`
+fn compute_turbulence_fluxes(
+    &self,
+    domain: &Mesh,
+    fields: &Fields,
+    fluxes: &mut Fluxes,
+    boundary_handler: &BoundaryConditionHandler,
+    current_time: f64,
+) {
+    let (grad_1, grad_2) = self.compute_required_gradients(domain, boundary_handler, fields, current_time);
+    let geometry = Geometry::new();
 
-        // Loop over faces and compute fluxes
-        for face in domain.get_faces() {
-            let face_vertices = domain.get_face_vertices(&face);
-            let face_vertices = face_vertices.unwrap();
-            let face_shape = match face_vertices.len() {
-                3 => FaceShape::Triangle,
-                4 => FaceShape::Quadrilateral,
-                _ => continue,
-            };
-
-            let normal = match domain.get_face_normal(&face, None) {
-                Ok(n) => n,
-                Err(_) => continue,
-            };
-
-            let area = match domain.get_face_area(&face) {
-                Ok(a) => a,
-                Err(_) => continue,
-            };
-
-            let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
-            let cells = domain.get_cells_sharing_face(&face).unwrap();
-
-            if cells.is_empty() {
+    for face in domain.get_faces() {
+        let face_vertices = match domain.get_face_vertices(&face) {
+            Ok(vertices) => vertices,
+            Err(err) => {
+                log::error!("Failed to get face vertices for face {:?}: {:?}", face, err);
                 continue;
             }
+        };
 
-            // For demonstration, assume we have a scalar "turb_scalar_1" and "turb_scalar_2"
-            // from each cell. We'll reconstruct them at the face and compute their fluxes.
-            let cell_entries: Vec<_> = cells.iter().map(|e| (*e.key(), *e.value())).collect();
-            let mut sorted_cells = cell_entries.clone();
-            sorted_cells.sort_by_key(|(ent, _)| ent.get_id());
-
-            let (scalar_1_a, scalar_2_a, grad_1_a, grad_2_a, center_a) =
-                self.extract_cell_scalars(domain, fields, &grad_1, &grad_2, &sorted_cells, 0);
-
-            let has_cell_b = sorted_cells.len() > 1;
-            let (scalar_1_b, scalar_2_b, grad_1_b, grad_2_b, center_b) = if has_cell_b {
-                let (s1_b, s2_b, g1_b, g2_b, c_b) =
-                    self.extract_cell_scalars(domain, fields, &grad_1, &grad_2, &sorted_cells, 1);
-                (s1_b, s2_b, g1_b, g2_b, c_b)
-            } else {
-                (scalar_1_a, scalar_2_a, grad_1_a, grad_2_a, center_a)
-            };
-
-            // Reconstruct scalars at face
-            let reconstruction: Box<dyn ReconstructionMethod> = Box::new(LinearReconstruction);
-            let scalar_1_face_a = reconstruction.reconstruct(scalar_1_a, grad_1_a.0, center_a, face_center);
-            let scalar_2_face_a = reconstruction.reconstruct(scalar_2_a, grad_2_a.0, center_a, face_center);
-
-            let scalar_1_face_b = if has_cell_b {
-                reconstruction.reconstruct(scalar_1_b, grad_1_b.0, center_b, face_center)
-            } else {
-                scalar_1_face_a
-            };
-            let scalar_2_face_b = if has_cell_b {
-                reconstruction.reconstruct(scalar_2_b, grad_2_b.0, center_b, face_center)
-            } else {
-                scalar_2_face_a
-            };
-
-            // Average the scalars at the face
-            let _scalar_1_face = 0.5 * (scalar_1_face_a + scalar_1_face_b);
-            let _scalar_2_face = 0.5 * (scalar_2_face_a + scalar_2_face_b);
-
-            // Average gradients
-            let avg_grad_1 = self.average_gradient(grad_1_a, grad_1_b, has_cell_b);
-            let avg_grad_2 = self.average_gradient(grad_2_a, grad_2_b, has_cell_b);
-
-            // Compute diffusive fluxes for these scalars using eddy_diffusivity (just a placeholder)
-            let flux_scalar_1 = self.compute_diffusive_flux(&normal, area, avg_grad_1, self.eddy_diffusivity);
-            let flux_scalar_2 = self.compute_diffusive_flux(&normal, area, avg_grad_2, self.eddy_diffusivity);
-
-            let mut turb_flux = vector::Vector2([flux_scalar_1, flux_scalar_2]);
-
-            // Apply BC if present
-            if let Some(bc) = boundary_handler.get_bc(&face) {
-                self.apply_turbulence_bc(&bc, &mut turb_flux, &normal, area);
+        let face_shape = match face_vertices.len() {
+            3 => FaceShape::Triangle,
+            4 => FaceShape::Quadrilateral,
+            _ => {
+                log::warn!("Unsupported face shape with {} vertices", face_vertices.len());
+                continue;
             }
+        };
 
-            // Add the computed flux to turbulence_fluxes
-            if let Some(mut current) = fluxes.turbulence_fluxes.data.get_mut(&face) {
-                current.value_mut().0[0] += turb_flux.0[0];
-                current.value_mut().0[1] += turb_flux.0[1];
-            } else {
-                fluxes.turbulence_fluxes.set_data(face, turb_flux);
+        let normal = match domain.get_face_normal(&face, None) {
+            Ok(n) => n,
+            Err(err) => {
+                log::error!("Failed to get normal for face {:?}: {:?}", face, err);
+                continue;
             }
+        };
+
+        let area = match domain.get_face_area(&face) {
+            Ok(a) => a,
+            Err(err) => {
+                log::error!("Failed to get area for face {:?}: {:?}", face, err);
+                continue;
+            }
+        };
+
+        let face_center = match geometry.compute_face_centroid(face_shape, &face_vertices) {
+            Ok(center) => center,
+            Err(err) => {
+                log::error!(
+                    "Failed to compute centroid for face {:?}: {:?}",
+                    face,
+                    err
+                );
+                continue;
+            }
+        };
+
+        let cells = match domain.get_cells_sharing_face(&face) {
+            Ok(cells) if !cells.is_empty() => cells,
+            Ok(_) => {
+                log::warn!("No cells share face {:?}", face);
+                continue;
+            }
+            Err(err) => {
+                log::error!("Failed to get cells sharing face {:?}: {:?}", face, err);
+                continue;
+            }
+        };
+
+        let cell_entries: Vec<_> = cells.iter().map(|e| (*e.key(), *e.value())).collect();
+        let mut sorted_cells = cell_entries.clone();
+        sorted_cells.sort_by_key(|(ent, _)| ent.get_id());
+
+        let (scalar_1_a, scalar_2_a, grad_1_a, grad_2_a, center_a) =
+            self.extract_cell_scalars(domain, fields, &grad_1, &grad_2, &sorted_cells, 0);
+
+        let has_cell_b = sorted_cells.len() > 1;
+        let (scalar_1_b, scalar_2_b, grad_1_b, grad_2_b, center_b) = if has_cell_b {
+            self.extract_cell_scalars(domain, fields, &grad_1, &grad_2, &sorted_cells, 1)
+        } else {
+            (scalar_1_a, scalar_2_a, grad_1_a, grad_2_a, center_a)
+        };
+
+        let reconstruction: Box<dyn ReconstructionMethod> = Box::new(LinearReconstruction);
+
+        // Reconstruct scalars at face
+        let scalar_1_face_a = reconstruction.reconstruct(scalar_1_a, grad_1_a.0, center_a, face_center);
+        let scalar_2_face_a = reconstruction.reconstruct(scalar_2_a, grad_2_a.0, center_a, face_center);
+
+        let scalar_1_face_b = if has_cell_b {
+            reconstruction.reconstruct(scalar_1_b, grad_1_b.0, center_b, face_center)
+        } else {
+            scalar_1_face_a
+        };
+
+        let scalar_2_face_b = if has_cell_b {
+            reconstruction.reconstruct(scalar_2_b, grad_2_b.0, center_b, face_center)
+        } else {
+            scalar_2_face_a
+        };
+
+        let _scalar_1_face = 0.5 * (scalar_1_face_a + scalar_1_face_b);
+        let _scalar_2_face = 0.5 * (scalar_2_face_a + scalar_2_face_b);
+
+        // Average gradients and compute fluxes
+        let avg_grad_1 = self.average_gradient(grad_1_a, grad_1_b, has_cell_b);
+        let avg_grad_2 = self.average_gradient(grad_2_a, grad_2_b, has_cell_b);
+
+        let flux_scalar_1 = self.compute_diffusive_flux(&normal, area, avg_grad_1, self.eddy_diffusivity);
+        let flux_scalar_2 = self.compute_diffusive_flux(&normal, area, avg_grad_2, self.eddy_diffusivity);
+
+        let mut turb_flux = vector::Vector2([flux_scalar_1, flux_scalar_2]);
+
+        if let Some(bc) = boundary_handler.get_bc(&face) {
+            self.apply_turbulence_bc(&bc, &mut turb_flux, &normal, area);
+        }
+
+        if let Some(mut current) = fluxes.turbulence_fluxes.data.get_mut(&face) {
+            current.value_mut().0[0] += turb_flux.0[0];
+            current.value_mut().0[1] += turb_flux.0[1];
+        } else {
+            fluxes.turbulence_fluxes.set_data(face, turb_flux);
         }
     }
+}
+
+
 
     fn extract_cell_scalars(
         &self,

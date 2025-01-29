@@ -124,12 +124,12 @@ fn assemble_pressure_poisson(
 
         // Assemble coefficients for neighbors
         if let Ok(neighbor) = mesh.get_ordered_neighbors(&cell) {
-            let mut coefficient = 0.0;
+            //let mut coefficient = 0.0;
             for neighbor in neighbor.iter() {
                 let neighbor_index = *entity_to_index_map
                     .get(neighbor)
                     .ok_or_else(|| format!("Neighbor {:?} not found in entity_to_index_map", neighbor))?;
-                coefficient = compute_pressure_coefficient(mesh, fields, &cell, neighbor)?;
+                let coefficient = compute_pressure_coefficient(mesh, fields, &cell, neighbor)?;
                 matrix[(cell_index, neighbor_index)] = coefficient;
             }
         }

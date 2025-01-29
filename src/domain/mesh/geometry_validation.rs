@@ -104,7 +104,10 @@ impl GeometryValidation {
             // Retrieve face vertices
             let face_vertices = mesh.get_face_vertices(face).map_err(|err| {
                 log::error!("Failed to retrieve vertices for face {:?}: {}", face, err);
-                GeometryValidationError::FaceVertexRetrievalError(*face, err.to_string())
+                GeometryValidationError::FaceVertexRetrievalError(
+                    *face,
+                    format!("Failed to retrieve vertices for face {:?}: {}", face, err),
+                )
             })?;
 
             // Determine face shape
@@ -118,7 +121,9 @@ impl GeometryValidation {
                         face
                     );
                     log::error!("{}", error_message);
-                    return Err(GeometryValidationError::UnsupportedFaceShape(face.get_id()));
+                    return Err(GeometryValidationError::UnsupportedFaceShape(
+                        face.get_id()
+                    ));
                 }
             };
 
@@ -131,7 +136,9 @@ impl GeometryValidation {
                         face,
                         err
                     );
-                    GeometryValidationError::CentroidComputationError(*face, err.to_string())
+                    GeometryValidationError::CentroidComputationError(
+                        face.get_id().to_string()
+                    )
                 })?;
 
             // Validate face centroid
@@ -158,7 +165,9 @@ impl GeometryValidation {
                         cell,
                         err
                     );
-                    GeometryValidationError::CentroidComputationError(*cell, err.to_string())
+                    GeometryValidationError::CentroidComputationError(
+                        cell.get_id().to_string()
+                    )
                 })?;
 
             // Validate cell centroid
@@ -177,7 +186,6 @@ impl GeometryValidation {
 
         Ok(())
     }
-
 
 
     /// Validates the distances between each pair of cells in the mesh.

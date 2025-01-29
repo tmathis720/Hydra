@@ -613,7 +613,7 @@ mod tests {
     #[test]
     fn test_add_vertex() {
         let mut builder = DomainBuilder::new();
-        builder.add_vertex(1, [0.0, 0.0, 0.0]);
+        let _ = builder.add_vertex(1, [0.0, 0.0, 0.0]);
 
         assert_eq!(
             builder.mesh.get_vertex_coordinates(1),
@@ -803,7 +803,7 @@ mod tests {
     
         // Validate geometry and check if it succeeds
         let builder = std::sync::Arc::new(std::sync::Mutex::new(builder));
-        let validation_result = std::panic::catch_unwind(|| {
+        let _validation_result = std::panic::catch_unwind(|| {
             let builder = builder.lock().unwrap();
             builder.validate_geometry()
         });
@@ -855,11 +855,11 @@ mod tests {
         ];
 
         for (id, coords) in vertices {
-            builder.add_vertex(id, coords);
+            let _ = builder.add_vertex(id, coords);
         }
 
         // Now add a hexahedron cell with these 8 vertices
-        builder.add_hexahedron_cell(vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        let _ = builder.add_hexahedron_cell(vec![1, 2, 3, 4, 5, 6, 7, 8]);
 
         let mesh = builder.build();
 

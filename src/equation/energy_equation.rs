@@ -67,39 +67,136 @@ impl EnergyEquation {
         let mut geometry = Geometry::new();
 
         for face in domain.get_faces() {
-            let _face_vertices = domain.get_face_vertices(&face);
-            let face_vertices = domain.get_face_vertices(&face).unwrap();
+            // Retrieve face vertices safely
+            let face_vertices = match domain.get_face_vertices(&face) {
+                Ok(vertices) => vertices,
+                Err(err) => {
+                    log::error!("Failed to get face vertices for {:?}: {}", face, err);
+                    continue;
+                }
+            };
+
+            // Determine face shape
             let face_shape = match face_vertices.len() {
                 3 => FaceShape::Triangle,
                 4 => FaceShape::Quadrilateral,
-                _ => continue, // Unsupported face shape
+                _ => {
+                    log::warn!(
+                        "Skipping face {:?} with unsupported shape ({} vertices)",
+                        face,
+                        face_vertices.len()
+                    );
+                    continue;
+                }
             };
-            let face_center = geometry.compute_face_centroid(face_shape, &face_vertices);
 
-            let cells = domain.get_cells_sharing_face(&face).unwrap();
-            let cell_a = cells
-                .iter()
-                .next()
-                .map(|entry| entry.key().clone())
-                .expect("Face should have at least one associated cell.");
-            let temp_a = fields.get_scalar_field_value("temperature", &cell_a)
-                .expect("Temperature not found for cell");
-            let grad_temp_a = fields.get_vector_field_value("temperature_gradient", &cell_a)
-                .expect("Temperature gradient not found for cell");
+            // Compute face centroid
+            let face_center = match geometry.compute_face_centroid(face_shape, &face_vertices) {
+                Ok(center) => center,
+                Err(err) => {
+                    log::error!(
+                        "Failed to compute centroid for face {:?}: {}",
+                        face,
+                        err
+                    );
+                    continue;
+                }
+            };
 
+            // Retrieve cells adjacent to the face
+            let cells = match domain.get_cells_sharing_face(&face) {
+                Ok(cells) if !cells.is_empty() => cells,
+                Ok(_) => {
+                    log::warn!("Skipping face {:?} with no adjacent cells", face);
+                    continue;
+                }
+                Err(err) => {
+                    log::error!("Failed to get cells sharing face {:?}: {}", face, err);
+                    continue;
+                }
+            };
+
+            // Extract first cell data
+            let cell_a = match cells.iter().next() {
+                Some(entry) => entry.key().clone(),
+                None => {
+                    log::warn!("Skipping face {:?} with missing associated cell", face);
+                    continue;
+                }
+            };
+
+            // Retrieve temperature and gradient at the cell
+            let temp_a = match fields.get_scalar_field_value("temperature", &cell_a) {
+                Some(temp) => temp,
+                None => {
+                    log::error!("Temperature field missing for cell {:?}", cell_a);
+                    continue;
+                }
+            };
+
+            let grad_temp_a = match fields.get_vector_field_value("temperature_gradient", &cell_a) {
+                Some(grad) => grad,
+                None => {
+                    log::error!("Temperature gradient missing for cell {:?}", cell_a);
+                    continue;
+                }
+            };
+
+            // Compute cell centroid
+            let cell_centroid = match geometry.compute_cell_centroid(domain, &cell_a) {
+                Ok(centroid) => centroid,
+                Err(err) => {
+                    log::error!(
+                        "Failed to compute centroid for cell {:?}: {}",
+                        cell_a,
+                        err
+                    );
+                    continue;
+                }
+            };
+
+
+            // Reconstruct temperature at the face
             let reconstruction: Box<dyn ReconstructionMethod> = Box::new(LinearReconstruction);
-            let face_temperature = reconstruction.reconstruct(
-                temp_a.0,
-                grad_temp_a.0,
-                geometry.compute_cell_centroid(domain, &cell_a),
-                face_center,
-            );
 
-            let velocity = fields.get_vector_field_value("velocity", &face)
-                .expect("Velocity not found at face");
-            let face_normal = geometry.compute_face_normal(domain, &face, &cell_a)
-                .expect("Normal not found for face");
-            let face_area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
+            let face_temperature = reconstruction.reconstruct(temp_a.0, grad_temp_a.0, cell_centroid, face_center);
+
+
+
+            // Retrieve velocity field at face
+            let velocity = match fields.get_vector_field_value("velocity", &face) {
+                Some(v) => v,
+                None => {
+                    log::error!("Velocity field missing for face {:?}", face);
+                    continue;
+                }
+            };
+
+            // Compute face normal
+            let face_normal = match geometry.compute_face_normal(domain, &face, &cell_a) {
+                Ok(normal) => normal,
+                Err(err) => {
+                    log::error!(
+                        "Failed to compute normal for face {:?}: {}",
+                        face,
+                        err
+                    );
+                    continue;
+                }
+            };
+
+            // Compute face area
+            let face_area = match geometry.compute_face_area(face.get_id(), face_shape, &face_vertices) {
+                Ok(area) => area,
+                Err(err) => {
+                    log::error!(
+                        "Failed to compute area for face {:?}: {}",
+                        face,
+                        err
+                    );
+                    continue;
+                }
+            };
 
             // Compute total flux considering boundary conditions or cell-cell interactions
             let total_flux;
@@ -111,12 +208,22 @@ impl EnergyEquation {
                         BoundaryCondition::Dirichlet(value) => {
                             let adjusted_face_temp = Scalar(value);
                             let temp_gradient_normal =
-                                (adjusted_face_temp.0 - temp_a.0) /
-                                Geometry::compute_distance(
-                                    &geometry.compute_cell_centroid(domain, &cell_a),
-                                    &face_center,
-                                );
-                            let conductive_flux = -self.thermal_conductivity * temp_gradient_normal * face_normal.magnitude();
+                                (adjusted_face_temp.0 - temp_a.0)
+                                    / match Geometry::compute_distance(&cell_centroid, &face_center) {
+                                        Ok(distance) => distance,
+                                        Err(err) => {
+                                            log::error!(
+                                                "Failed to compute distance between cell {:?} and face {:?}: {}",
+                                                cell_a,
+                                                face,
+                                                err
+                                            );
+                                            continue;
+                                        }
+                                    };
+
+                            let conductive_flux =
+                                -self.thermal_conductivity * temp_gradient_normal * face_normal.magnitude();
                             let convective_flux = face_temperature * velocity.dot(&face_normal);
                             total_flux = Scalar((conductive_flux + convective_flux) * face_area);
                         }
@@ -125,25 +232,43 @@ impl EnergyEquation {
                         }
                         _ => {
                             total_flux = self.compute_flux_combined(
-                                temp_a, Scalar(face_temperature), &grad_temp_a, &face_normal, &velocity, face_area,
+                                temp_a,
+                                Scalar(face_temperature),
+                                &grad_temp_a,
+                                &face_normal,
+                                &velocity,
+                                face_area,
                             );
                         }
                     }
                 } else {
                     total_flux = self.compute_flux_combined(
-                        temp_a, Scalar(face_temperature), &grad_temp_a, &face_normal, &velocity, face_area,
+                        temp_a,
+                        Scalar(face_temperature),
+                        &grad_temp_a,
+                        &face_normal,
+                        &velocity,
+                        face_area,
                     );
                 }
             } else {
                 // Interface face handling
                 total_flux = self.compute_flux_combined(
-                    temp_a, Scalar(face_temperature), &grad_temp_a, &face_normal, &velocity, face_area,
+                    temp_a,
+                    Scalar(face_temperature),
+                    &grad_temp_a,
+                    &face_normal,
+                    &velocity,
+                    face_area,
                 );
             }
 
             fluxes.add_energy_flux(face, total_flux);
         }
     }
+
+
+
 
     /// Computes the combined flux from conduction and convection mechanisms.
     ///

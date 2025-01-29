@@ -43,7 +43,7 @@ impl GradientMethod for FiniteVolumeGradient {
         }
     
         // Compute cell volume
-        let volume = geometry.compute_cell_volume(mesh, cell);
+        let volume = geometry.compute_cell_volume(mesh, cell).unwrap();
         if volume == 0.0 {
             return Err(GradientError::CalculationError(
                 cell.clone(),
@@ -68,7 +68,7 @@ impl GradientMethod for FiniteVolumeGradient {
                 .map_err(|e| GradientError::CalculationError(face.clone(), e.to_string()))?;
     
             // Compute face area and normal
-            let area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices);
+            let area = geometry.compute_face_area(face.get_id(), face_shape, &face_vertices).unwrap();
             if area == 0.0 {
                 return Err(GradientError::CalculationError(
                     face.clone(),
@@ -169,12 +169,12 @@ impl FiniteVolumeGradient {
                 }
                 BoundaryCondition::DirichletFn(wrapper) => {
                     let coords = geometry.compute_face_centroid(FaceShape::Triangle, &mesh.get_face_vertices(face).unwrap());
-                    let phi_nb = (wrapper.function)(time, &coords);
+                    let phi_nb = (wrapper.function)(time, &coords.unwrap());
                     self.apply_dirichlet_boundary(phi_nb, phi_c, flux_vector, grad_phi);
                 }
                 BoundaryCondition::NeumannFn(wrapper) => {
                     let coords = geometry.compute_face_centroid(FaceShape::Triangle, &mesh.get_face_vertices(face).unwrap());
-                    let flux = (wrapper.function)(time, &coords);
+                    let flux = (wrapper.function)(time, &coords.unwrap());
                     self.apply_neumann_boundary(flux, flux_vector, grad_phi);
                 }
                 BoundaryCondition::Mixed { gamma, delta } => {

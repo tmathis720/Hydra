@@ -368,7 +368,7 @@ mod tests {
         let mesh = setup_mesh();
 
         // Introduce multiple issues
-        mesh.add_arrow(MeshEntity::Vertex(4), MeshEntity::Vertex(5)); // Orphaned relationship
+        let _ = mesh.add_arrow(MeshEntity::Vertex(4), MeshEntity::Vertex(5)); // Orphaned relationship
         mesh.add_arrow(MeshEntity::Vertex(4), MeshEntity::Vertex(1)).unwrap(); // Cycle
 
         let validator = AdjacencyValidator::new(&mesh);
