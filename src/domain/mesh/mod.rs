@@ -57,7 +57,7 @@ pub enum MeshError {
 }
 
 /// A trait for structured logging in the `Mesh` module.
-pub trait MeshLogger: std::fmt::Debug {
+pub trait MeshLogger: std::fmt::Debug + Send + Sync {
     fn log_info(&self, message: &str);
     fn log_warn(&self, message: &str);
     fn log_error(&self, error: &MeshError);
@@ -66,6 +66,13 @@ pub trait MeshLogger: std::fmt::Debug {
 /// Default implementation of `MeshLogger` using the `log` crate.
 #[derive(Debug)]
 pub struct DefaultMeshLogger;
+
+impl DefaultMeshLogger {
+    /// Constructor for DefaultMeshLogger
+    pub fn new() -> Self {
+        DefaultMeshLogger
+    }
+}
 
 impl MeshLogger for DefaultMeshLogger {
     fn log_info(&self, message: &str) {
@@ -97,7 +104,7 @@ pub struct Mesh {
     /// An optional channel receiver for receiving boundary data related to mesh entities.  
     pub boundary_data_receiver: Option<Receiver<FxHashMap<MeshEntity, [f64; 3]>>>,  
     /// The logger used for logging events and errors in the mesh.
-    pub logger: Arc<dyn MeshLogger + Sync + Send>,
+    pub logger: Arc<dyn MeshLogger>,
 }
 
 lazy_static! {
@@ -120,7 +127,7 @@ impl Mesh {
             vertex_coordinates: FxHashMap::default(),
             boundary_data_sender: Some(sender),
             boundary_data_receiver: Some(receiver),
-            logger: Arc::new(DefaultMeshLogger),
+            logger: Arc::new(DefaultMeshLogger::new()), // Corrected instantiation
         }
     }
 

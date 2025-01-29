@@ -1,10 +1,11 @@
 //! Periodic Boundary Conditions
 //! Implements periodic boundary conditions for mesh entities.
 
-use crate::boundary::bc_handler::BoundaryConditionApply;
+use crate::boundary::{bc_handler::BoundaryConditionApply, BoundaryError};
 use faer::MatMut;
 use dashmap::DashMap;
 use crate::domain::mesh_entity::MeshEntity;
+use log::{info, error};
 
 /// Struct for managing periodic boundary conditions.
 /// Maps entities to their periodic counterparts.
@@ -26,8 +27,13 @@ impl PeriodicBC {
     /// - `entity`: The mesh entity.
     /// - `counterpart`: The corresponding periodic counterpart.
     pub fn set_pair(&self, entity: MeshEntity, counterpart: MeshEntity) {
-        self.pairs.insert(entity, counterpart);
+        self.pairs.insert(entity.clone(), counterpart.clone());
         self.pairs.insert(counterpart, entity); // Ensure bidirectional mapping.
+
+        info!(
+            "Periodic pair set: {:?} <-> {:?}",
+            entity, counterpart
+        );
     }
 
     /// Applies periodic boundary conditions to the system matrix and RHS vector.
@@ -43,26 +49,56 @@ impl PeriodicBC {
         matrix: &mut MatMut<f64>,
         rhs: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
-    ) {
+    ) -> Result<(), BoundaryError> {
         for entry in self.pairs.iter() {
             let (entity, counterpart) = entry.pair();
-            if let (Some(idx1), Some(idx2)) = (
-                entity_to_index.get(entity),
-                entity_to_index.get(counterpart),
-            ) {
-                // Enforce periodic constraints by modifying the system matrix.
-                for col in 0..matrix.ncols() {
-                    let avg = (matrix[(*idx1, col)] + matrix[(*idx2, col)]) / 2.0;
-                    matrix[(*idx1, col)] = avg;
-                    matrix[(*idx2, col)] = avg;
-                }
+            match (entity_to_index.get(entity), entity_to_index.get(counterpart)) {
+                (Some(idx1), Some(idx2)) => {
+                    let idx1 = *idx1;
+                    let idx2 = *idx2;
 
-                // Adjust the RHS vector to match periodic conditions.
-                let rhs_avg = (rhs[(*idx1, 0)] + rhs[(*idx2, 0)]) / 2.0;
-                rhs[(*idx1, 0)] = rhs_avg;
-                rhs[(*idx2, 0)] = rhs_avg;
+                    if idx1 >= matrix.nrows() || idx2 >= matrix.nrows() {
+                        let err = BoundaryError::InvalidIndex(format!(
+                            "Invalid matrix indices: {} or {} out of bounds.",
+                            idx1, idx2
+                        ));
+                        error!("{}", err);
+                        return Err(err);
+                    }
+
+                    info!(
+                        "Applying periodic BC between indices {} and {}",
+                        idx1, idx2
+                    );
+
+                    // Enforce periodic constraints by modifying the system matrix.
+                    for col in 0..matrix.ncols() {
+                        let avg = (matrix[(idx1, col)] + matrix[(idx2, col)]) / 2.0;
+                        matrix[(idx1, col)] = avg;
+                        matrix[(idx2, col)] = avg;
+                    }
+
+                    // Adjust the RHS vector to match periodic conditions.
+                    let rhs_avg = (rhs[(idx1, 0)] + rhs[(idx2, 0)]) / 2.0;
+                    rhs[(idx1, 0)] = rhs_avg;
+                    rhs[(idx2, 0)] = rhs_avg;
+
+                    info!(
+                        "Periodic BC applied: matrix and rhs averaged for {} <-> {}",
+                        idx1, idx2
+                    );
+                }
+                _ => {
+                    let err = BoundaryError::EntityNotFound(format!(
+                        "Periodic counterpart not found for {:?} or {:?}",
+                        entity, counterpart
+                    ));
+                    error!("{}", err);
+                    return Err(err);
+                }
             }
         }
+        Ok(())
     }
 }
 
@@ -82,26 +118,66 @@ impl BoundaryConditionApply for PeriodicBC {
         matrix: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
         _time: f64,
-    ) {
+    ) -> Result<(), BoundaryError> {
         if let Some(counterpart) = self.pairs.get(entity) {
-            if let (Some(idx1), Some(idx2)) = (
-                entity_to_index.get(entity),
-                entity_to_index.get(counterpart.key()),
-            ) {
-                // Enforce periodic constraint for this specific pair.
-                for col in 0..matrix.ncols() {
-                    let avg = (matrix[(*idx1, col)] + matrix[(*idx2, col)]) / 2.0;
-                    matrix[(*idx1, col)] = avg;
-                    matrix[(*idx2, col)] = avg;
-                }
+            match (entity_to_index.get(entity), entity_to_index.get(counterpart.key())) {
+                (Some(idx1), Some(idx2)) => {
+                    let idx1 = *idx1;
+                    let idx2 = *idx2;
 
-                let rhs_avg = (rhs[(*idx1, 0)] + rhs[(*idx2, 0)]) / 2.0;
-                rhs[(*idx1, 0)] = rhs_avg;
-                rhs[(*idx2, 0)] = rhs_avg;
+                    if idx1 >= matrix.nrows() || idx2 >= matrix.nrows() {
+                        let err = BoundaryError::InvalidIndex(format!(
+                            "Invalid matrix indices: {} or {} out of bounds.",
+                            idx1, idx2
+                        ));
+                        error!("{}", err);
+                        return Err(err);
+                    }
+
+                    info!(
+                        "Applying periodic BC between entity indices {} and {}",
+                        idx1, idx2
+                    );
+
+                    // Enforce periodic constraints by modifying the system matrix.
+                    for col in 0..matrix.ncols() {
+                        let avg = (matrix[(idx1, col)] + matrix[(idx2, col)]) / 2.0;
+                        matrix[(idx1, col)] = avg;
+                        matrix[(idx2, col)] = avg;
+                    }
+
+                    // Adjust the RHS vector to match periodic conditions.
+                    let rhs_avg = (rhs[(idx1, 0)] + rhs[(idx2, 0)]) / 2.0;
+                    rhs[(idx1, 0)] = rhs_avg;
+                    rhs[(idx2, 0)] = rhs_avg;
+
+                    info!(
+                        "Periodic BC applied for entity {:?}: matrix and rhs averaged",
+                        entity
+                    );
+
+                    Ok(())
+                }
+                _ => {
+                    let err = BoundaryError::EntityNotFound(format!(
+                        "Periodic counterpart not found for {:?}",
+                        entity
+                    ));
+                    error!("{}", err);
+                    Err(err)
+                }
             }
+        } else {
+            let err = BoundaryError::EntityNotFound(format!(
+                "No periodic counterpart found for {:?}",
+                entity
+            ));
+            error!("{}", err);
+            Err(err)
         }
     }
 }
+
 
 
 #[cfg(test)]
@@ -143,7 +219,7 @@ mod tests {
         entity_to_index.insert(entity1.clone(), 1);
         entity_to_index.insert(entity2.clone(), 2);
 
-        periodic_bc.apply_bc(&mut matrix_mut, &mut rhs_mut, &entity_to_index);
+        let _ = periodic_bc.apply_bc(&mut matrix_mut, &mut rhs_mut, &entity_to_index);
 
         // Verify that matrix and RHS values at indices 1 and 2 are averaged.
         for col in 0..matrix_mut.ncols() {

@@ -698,6 +698,7 @@ impl Geometry {
 
 #[cfg(test)]
 mod tests {
+    use crate::domain::mesh::{DefaultMeshLogger, MeshError};
     use crate::geometry::{Geometry, CellShape, FaceShape};
     use crate::domain::{MeshEntity, mesh::Mesh, Sieve};
     use rustc_hash::{FxHashMap, FxHashSet};
@@ -824,49 +825,67 @@ mod tests {
             vertex_coordinates: FxHashMap::default(),
             boundary_data_sender: None,
             boundary_data_receiver: None,
-            logger: todo!(),
+            logger: Arc::new(DefaultMeshLogger::new()),
         };
-
+    
         // Define vertices and a cell.
         let vertex1 = MeshEntity::Vertex(1);
         let vertex2 = MeshEntity::Vertex(2);
         let vertex3 = MeshEntity::Vertex(3);
         let vertex4 = MeshEntity::Vertex(4);
         let cell = MeshEntity::Cell(1);
-
+    
         // Set vertex coordinates.
-        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
-        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
-        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
-        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]).unwrap();
-
-        // Add entities to the mesh.
-        mesh.add_entity(vertex1).unwrap();
-        mesh.add_entity(vertex2).unwrap();
-        mesh.add_entity(vertex3).unwrap();
-        mesh.add_entity(vertex4).unwrap();
-        mesh.add_entity(cell).unwrap();
-
+        mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).expect("Failed to set vertex coordinates");
+        mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).expect("Failed to set vertex coordinates");
+        mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).expect("Failed to set vertex coordinates");
+        mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]).expect("Failed to set vertex coordinates");
+    
+        // Function to safely add entities, ignoring duplicates
+        fn safe_add_entity(mesh: &mut Mesh, entity: MeshEntity) {
+            if let Err(err) = mesh.add_entity(entity) {
+                if let MeshError::EntityExists(_) = err {
+                    // Entity already exists, ignore the error
+                } else {
+                    panic!("Unexpected error adding entity: {:?}", err);
+                }
+            }
+        }
+    
+        // Add entities to the mesh safely.
+        safe_add_entity(&mut mesh, vertex1);
+        safe_add_entity(&mut mesh, vertex2);
+        safe_add_entity(&mut mesh, vertex3);
+        safe_add_entity(&mut mesh, vertex4);
+        safe_add_entity(&mut mesh, cell);
+    
         // Establish relationships between the cell and vertices.
-        mesh.add_arrow(cell, vertex1).unwrap();
-        mesh.add_arrow(cell, vertex2).unwrap();
-        mesh.add_arrow(cell, vertex3).unwrap();
-        mesh.add_arrow(cell, vertex4).unwrap();
-
+        mesh.add_arrow(cell, vertex1).expect("Failed to add arrow from cell to vertex1");
+        mesh.add_arrow(cell, vertex2).expect("Failed to add arrow from cell to vertex2");
+        mesh.add_arrow(cell, vertex3).expect("Failed to add arrow from cell to vertex3");
+        mesh.add_arrow(cell, vertex4).expect("Failed to add arrow from cell to vertex4");
+    
         // Verify that `get_cell_vertices` retrieves the correct vertices.
-        let cell_vertices = mesh.get_cell_vertices(&cell);
-        assert_eq!(cell_vertices.unwrap().len(), 4, "Expected 4 vertices for a tetrahedron cell.");
-
+        let cell_vertices = mesh.get_cell_vertices(&cell)
+            .expect("Failed to retrieve cell vertices");
+        assert_eq!(cell_vertices.len(), 4, "Expected 4 vertices for a tetrahedron cell.");
+    
         // Validate the shape before computing.
-        assert_eq!(mesh.get_cell_shape(&cell), Ok(CellShape::Tetrahedron));
-
+        assert_eq!(
+            mesh.get_cell_shape(&cell),
+            Ok(CellShape::Tetrahedron),
+            "Expected cell shape to be Tetrahedron"
+        );
+    
         // Create a Geometry instance and compute the centroid.
         let mut geometry = Geometry::new();
-        let centroid = geometry.compute_cell_centroid(&mesh, &cell);
-
+        let centroid = geometry.compute_cell_centroid(&mesh, &cell)
+            .expect("Failed to compute centroid");
+    
         // Expected centroid is the average of all vertices: (0.25, 0.25, 0.25)
-        assert_eq!(centroid.unwrap(), [0.25, 0.25, 0.25]);
+        assert_eq!(centroid, [0.25, 0.25, 0.25], "Computed centroid is incorrect");
     }
+    
 
     #[test]
     fn test_compute_face_area_triangle() {

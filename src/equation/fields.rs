@@ -1,3 +1,4 @@
+use log::error;
 use rustc_hash::FxHashMap;
 use crate::{domain::Section, MeshEntity};
 use super::super::domain::section::{vector::Vector3, 
@@ -42,7 +43,10 @@ impl Fields {
     pub fn get_scalar_field_value(&self, name: &str, entity: &MeshEntity) -> Option<Scalar> {
         match self.scalar_fields.get(name)?.restrict(entity) {
             Ok(value) => Some(value),
-            Err(_) => None,
+            Err(e) => {
+                error!("Error retrieving scalar field '{}' for {:?}: {}", name, entity, e);
+                None
+            }
         }
     }
 
@@ -61,7 +65,10 @@ impl Fields {
     pub fn get_vector_field_value(&self, name: &str, entity: &MeshEntity) -> Option<Vector3> {
         match self.vector_fields.get(name)?.restrict(entity) {
             Ok(value) => Some(value),
-            Err(_) => None,
+            Err(e) => {
+                error!("Error retrieving vector field '{}' for {:?}: {}", name, entity, e);
+                None
+            }
         }
     }
 
@@ -106,6 +113,7 @@ impl Fields {
         }
     }
 
+    /// Validates that required fields are present.
     pub fn validate(&self) -> Result<(), String> {
         for field in &["velocity_x", "velocity_y", "velocity_z", "pressure"] {
             if !self.scalar_fields.contains_key(*field) {
@@ -128,33 +136,21 @@ impl UpdateState for Fields {
     /// * `derivative` - A `Fields` instance representing the rate of change for each field.
     /// * `dt` - The time step, used to scale the derivative before updating.
     fn update_state(&mut self, derivative: &Fields, dt: f64) {
-        // Update scalar fields
         for (key, section) in &derivative.scalar_fields {
-            if let Some(state_section) = self.scalar_fields.get_mut(key) {
-                // Update existing scalar field with the derivative
-                state_section.update_with_derivative(section, dt).unwrap();
-            } else {
-                // Create a new scalar field if it does not exist
-                let new_section = Section::new();
-                new_section.update_with_derivative(section, dt).unwrap();
-                self.scalar_fields.insert(key.clone(), new_section);
-            }
+            self.scalar_fields
+                .entry(key.clone())
+                .or_insert_with(Section::new)
+                .update_with_derivative(section, dt)
+                .unwrap_or_else(|e| error!("Error updating scalar field '{}': {}", key, e));
         }
 
-        // Update vector fields
         for (key, section) in &derivative.vector_fields {
-            if let Some(state_section) = self.vector_fields.get_mut(key) {
-                // Update existing vector field with the derivative
-                state_section.update_with_derivative(section, dt).unwrap();
-            } else {
-                // Create a new vector field if it does not exist
-                let new_section = Section::new();
-                new_section.update_with_derivative(section, dt).unwrap();
-                self.vector_fields.insert(key.clone(), new_section);
-            }
+            self.vector_fields
+                .entry(key.clone())
+                .or_insert_with(Section::new)
+                .update_with_derivative(section, dt)
+                .unwrap_or_else(|e| error!("Error updating vector field '{}': {}", key, e));
         }
-
-        
     }
 
     fn compute_residual(&self, rhs: &Self) -> f64 {

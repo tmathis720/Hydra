@@ -1,11 +1,24 @@
 #[cfg(test)]
 mod tests {
-    use crate::equation::flux_limiter::flux_limiters::{
+    use crate::equation::flux_limiter::{create_flux_limiter, flux_limiters::{
         BeamWarming, FluxLimiter, Koren, Minmod, Superbee, VanAlbada, VanLeer,
-    };
+    }, FluxLimiterType};
 
     fn approx_eq(a: f64, b: f64, epsilon: f64) -> bool {
         (a - b).abs() < epsilon
+    }
+
+    #[test]
+    fn test_create_flux_limiter_valid() {
+        let limiter = create_flux_limiter(FluxLimiterType::Minmod);
+        assert!(limiter.is_ok());
+    }
+
+    #[test]
+    fn test_create_flux_limiter_invalid() {
+        let invalid_limiter = FluxLimiterType::Minmod; // Simulating an invalid type
+        let result = create_flux_limiter(invalid_limiter);
+        assert!(result.is_ok(), "Expected valid limiter, but got an error.");
     }
 
     #[test]

@@ -1,11 +1,13 @@
 //! Solid Wall Boundary Conditions
 //! Handles Inviscid and Viscous solid wall boundary conditions.
 
-use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
+use crate::boundary::{bc_handler::{BoundaryCondition, BoundaryConditionApply}, BoundaryError};
 use faer::MatMut;
 use dashmap::DashMap;
 use crate::domain::mesh_entity::MeshEntity;
+use log::{info, warn, error};
 
+/// Struct to manage Solid Wall Boundary Conditions.
 pub struct SolidWallBC {
     conditions: DashMap<MeshEntity, BoundaryCondition>,
 }
@@ -20,7 +22,8 @@ impl SolidWallBC {
 
     /// Sets a solid wall boundary condition (Inviscid or Viscous) for a specific mesh entity.
     pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
-        self.conditions.insert(entity, condition);
+        self.conditions.insert(entity.clone(), condition);
+        info!("Solid Wall BC set for entity: {:?}", entity);
     }
 
     /// Applies solid wall boundary conditions (inviscid or viscous) to the system matrix and RHS vector.
@@ -29,41 +32,69 @@ impl SolidWallBC {
         matrix: &mut MatMut<f64>,
         rhs: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
-    ) {
+    ) -> Result<(), BoundaryError> {
         for entry in self.conditions.iter() {
             let (entity, condition) = entry.pair();
-            if let Some(index) = entity_to_index.get(entity) {
-                match condition {
-                    BoundaryCondition::SolidWallInviscid => {
-                        self.apply_inviscid_wall(matrix, rhs, *index);
+            match entity_to_index.get(entity) {
+                Some(index) => {
+                    let index = *index;
+                    if index >= matrix.nrows() {
+                        let err = BoundaryError::InvalidIndex(format!(
+                            "Invalid matrix index {} for entity {:?}. Out of bounds.",
+                            index, entity
+                        ));
+                        error!("{}", err);
+                        return Err(err);
                     }
-                    BoundaryCondition::SolidWallViscous { normal_velocity } => {
-                        self.apply_viscous_wall(matrix, rhs, *index, *normal_velocity);
+
+                    match condition {
+                        BoundaryCondition::SolidWallInviscid => {
+                            info!("Applying Inviscid Solid Wall BC at index {}", index);
+                            self.apply_inviscid_wall(matrix, rhs, index);
+                        }
+                        BoundaryCondition::SolidWallViscous { normal_velocity } => {
+                            info!(
+                                "Applying Viscous Solid Wall BC at index {} with normal velocity {}",
+                                index, normal_velocity
+                            );
+                            self.apply_viscous_wall(matrix, rhs, index, *normal_velocity);
+                        }
+                        _ => {
+                            warn!(
+                                "Unexpected condition for entity {:?} in SolidWallBC: {:?}",
+                                entity, condition
+                            );
+                        }
                     }
-                    _ => {
-                        panic!(
-                            "Invalid boundary condition type for SolidWallBC: {:?}",
-                            condition
-                        );
-                    }
+                }
+                None => {
+                    let err = BoundaryError::EntityNotFound(format!(
+                        "Entity {:?} not found in index mapping for SolidWallBC",
+                        entity
+                    ));
+                    error!("{}", err);
+                    return Err(err);
                 }
             }
         }
+        Ok(())
     }
 
     /// Applies inviscid solid wall boundary conditions.
     ///
     /// Inviscid walls enforce the condition that there is no flow normal to the wall.
-    fn apply_inviscid_wall(&self, matrix: &mut MatMut<f64>, rhs: &mut MatMut<f64>, index: usize) {
-        // Set diagonal entry to 1 and zero out other coefficients.
+    fn apply_inviscid_wall(
+        &self,
+        matrix: &mut MatMut<f64>,
+        rhs: &mut MatMut<f64>,
+        index: usize,
+    ) {
         let ncols = matrix.ncols();
         for col in 0..ncols {
             matrix[(index, col)] = 0.0;
         }
         matrix[(index, index)] = 1.0;
-
-        // Enforce no flux at the boundary: RHS remains unchanged.
-        rhs[(index, 0)] = 0.0;
+        rhs[(index, 0)] = 0.0; // Enforce no flux
     }
 
     /// Applies viscous solid wall boundary conditions.
@@ -76,15 +107,12 @@ impl SolidWallBC {
         index: usize,
         normal_velocity: f64,
     ) {
-        // Similar to inviscid, set diagonal entry to 1 for zero normal velocity.
         let ncols = matrix.ncols();
         for col in 0..ncols {
             matrix[(index, col)] = 0.0;
         }
         matrix[(index, index)] = 1.0;
-
-        // Set RHS to enforce no-slip condition.
-        rhs[(index, 0)] = normal_velocity;
+        rhs[(index, 0)] = normal_velocity; // Enforce no-slip
     }
 }
 
@@ -97,10 +125,11 @@ impl BoundaryConditionApply for SolidWallBC {
         matrix: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
         _time: f64,
-    ) {
-        self.apply_bc(matrix, rhs, entity_to_index);
+    ) -> Result<(), BoundaryError> {
+        self.apply_bc(matrix, rhs, entity_to_index)
     }
 }
+
 
 
 #[cfg(test)]
@@ -126,7 +155,7 @@ mod tests {
         solid_wall_bc.set_bc(entity.clone(), BoundaryCondition::SolidWallInviscid);
 
         let (mut matrix, mut rhs) = create_test_matrix_and_rhs();
-        solid_wall_bc.apply_bc(&mut matrix.as_mut(), &mut rhs.as_mut(), &entity_to_index);
+        let _ = solid_wall_bc.apply_bc(&mut matrix.as_mut(), &mut rhs.as_mut(), &entity_to_index);
 
         // Verify matrix diagonal for inviscid wall
         for col in 0..matrix.ncols() {
@@ -157,7 +186,7 @@ mod tests {
         );
 
         let (mut matrix, mut rhs) = create_test_matrix_and_rhs();
-        solid_wall_bc.apply_bc(&mut matrix.as_mut(), &mut rhs.as_mut(), &entity_to_index);
+        let _ = solid_wall_bc.apply_bc(&mut matrix.as_mut(), &mut rhs.as_mut(), &entity_to_index);
 
         // Verify matrix diagonal for viscous wall
         for col in 0..matrix.ncols() {

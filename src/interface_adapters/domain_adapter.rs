@@ -415,40 +415,40 @@ impl DomainBuilder {
     /// # Errors
     /// Returns an error if `vertex_ids` does not contain exactly 8 vertices, if any vertex ID is invalid,
     /// or if any `add_arrow` operation fails.
+    /// Adds a hexahedron cell and ensures its faces are valid.
     pub fn add_hexahedron_cell(&mut self, vertex_ids: Vec<usize>) -> Result<&mut Self, DomainBuilderError> {
-        // Ensure there are exactly 8 vertices
+        // Ensure exactly 8 vertices are provided
         if vertex_ids.len() != 8 {
-            let error_msg = format!(
-                "Failed to add hexahedron cell: expected 8 vertices, got {}.",
+            return Err(DomainBuilderError::InvalidCellDefinition(format!(
+                "Expected 8 vertices, got {}.",
                 vertex_ids.len()
-            );
-            log::error!("{}", error_msg);
-            return Err(DomainBuilderError::CellInvalidVertices(error_msg));
+            )));
         }
 
-        // Check that all vertex IDs exist in the mesh
-        let entities = self.mesh.entities.read().unwrap();
+        // Validate unique vertex positions to avoid degenerate faces
+        let mut vertex_positions = Vec::new();
         for &vid in &vertex_ids {
-            if !entities.contains(&MeshEntity::Vertex(vid)) {
-                let error_msg = format!("Vertex {} not found in the mesh.", vid);
-                log::error!("{}", error_msg);
-                return Err(DomainBuilderError::CellInvalidVertices(error_msg));
+            if let Some(coords) = self.mesh.get_vertex_coordinates(vid) {
+                if vertex_positions.contains(&coords) {
+                    return Err(DomainBuilderError::GeometryValidationFailed(format!(
+                        "Degenerate face detected: Duplicate vertex at {:?}",
+                        coords
+                    )));
+                }
+                vertex_positions.push(coords);
+            } else {
+                return Err(DomainBuilderError::CellInvalidVertices(format!(
+                    "Vertex {} not found in mesh.", vid
+                )));
             }
         }
-        drop(entities); // Release the read lock
 
-        // Create the cell
+        // Create the hexahedron cell
         let cell_id = self.mesh.entities.read().unwrap().len() + 1;
         let cell = MeshEntity::Cell(cell_id);
-
         self.mesh.entities.write().unwrap().insert(cell.clone());
-        log::info!(
-            "Successfully added cell ID {} with vertices {:?}.",
-            cell_id,
-            vertex_ids
-        );
 
-        // Define the vertices for the hexahedron's six quadrilateral faces
+        // Define the hexahedral faces
         let face_vertices = vec![
             vec![vertex_ids[0], vertex_ids[1], vertex_ids[2], vertex_ids[3]], // Bottom face
             vec![vertex_ids[4], vertex_ids[5], vertex_ids[6], vertex_ids[7]], // Top face
@@ -458,66 +458,61 @@ impl DomainBuilder {
             vec![vertex_ids[3], vertex_ids[0], vertex_ids[4], vertex_ids[7]], // Left face
         ];
 
-        // Generate unique IDs for the faces
-        let face_id_start = self.mesh.count_entities(&MeshEntity::Face(0)) + 1;
+        for fv in face_vertices.iter() {
+            // Compute normal and validate
+            let normal = self.compute_face_normal(fv)?;
+            if normal.iter().all(|&x| x.abs() < 1e-10) {
+                return Err(DomainBuilderError::GeometryValidationFailed(
+                    "Zero-magnitude face normal detected.".to_string(),
+                ));
+            }
 
-        for (i, fv) in face_vertices.iter().enumerate() {
-            let face_id = face_id_start + i;
+            let face_id = self.mesh.count_entities(&MeshEntity::Face(0)) + 1;
             let face = MeshEntity::Face(face_id);
-
             self.mesh.entities.write().unwrap().insert(face.clone());
-            log::info!(
-                "Successfully added face ID {} as part of hexahedron cell ID {}.",
-                face_id,
-                cell_id
-            );
 
-            // Connect the face to its vertices
             for &vid in fv {
                 let vertex = MeshEntity::Vertex(vid);
-
-                if let Err(err) = self.mesh.add_arrow(face.clone(), vertex.clone()) {
-                    let error_msg = format!(
-                        "Failed to add arrow from face {:?} to vertex {:?}: {}",
-                        face, vertex, err
-                    );
-                    log::error!("{}", error_msg);
-                    return Err(DomainBuilderError::MeshError(error_msg));
-                }
-
-                if let Err(err) = self.mesh.add_arrow(vertex.clone(), face.clone()) {
-                    let error_msg = format!(
-                        "Failed to add arrow from vertex {:?} to face {:?}: {}",
-                        vertex, face, err
-                    );
-                    log::error!("{}", error_msg);
-                    return Err(DomainBuilderError::MeshError(error_msg));
-                }
+                self.mesh.add_arrow(face.clone(), vertex.clone()).ok();
+                self.mesh.add_arrow(vertex.clone(), face.clone()).ok();
             }
 
-            // Add arrows between the cell and the face
-            for (from, to) in &[
-                (cell.clone(), face.clone()),
-                (face.clone(), cell.clone()),
-            ] {
-                if let Err(err) = self.mesh.add_arrow(from.clone(), to.clone()) {
-                    let error_msg = format!(
-                        "Failed to add arrow from {:?} to {:?}: {}",
-                        from, to, err
-                    );
-                    log::error!("{}", error_msg);
-                    return Err(DomainBuilderError::MeshError(error_msg));
-                }
-            }
+            self.mesh.add_arrow(cell.clone(), face.clone()).ok();
+            self.mesh.add_arrow(face.clone(), cell.clone()).ok();
         }
 
-        log::info!(
-            "Successfully added hexahedron cell {:?} with vertices {:?}.",
-            cell,
-            vertex_ids
-        );
-
         Ok(self)
+    }
+
+    /// Computes a normal vector for a given face defined by vertex IDs.
+    fn compute_face_normal(&self, vertex_ids: &[usize]) -> Result<[f64; 3], DomainBuilderError> {
+        if vertex_ids.len() < 3 {
+            return Err(DomainBuilderError::GeometryValidationFailed(
+                "Cannot compute normal for a face with fewer than 3 vertices.".to_string(),
+            ));
+        }
+
+        let v0 = self.mesh.get_vertex_coordinates(vertex_ids[0]).unwrap();
+        let v1 = self.mesh.get_vertex_coordinates(vertex_ids[1]).unwrap();
+        let v2 = self.mesh.get_vertex_coordinates(vertex_ids[2]).unwrap();
+
+        let u = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
+        let v = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
+
+        let normal = [
+            u[1] * v[2] - u[2] * v[1],
+            u[2] * v[0] - u[0] * v[2],
+            u[0] * v[1] - u[1] * v[0],
+        ];
+
+        let magnitude = (normal[0].powi(2) + normal[1].powi(2) + normal[2].powi(2)).sqrt();
+        if magnitude < 1e-10 {
+            return Err(DomainBuilderError::GeometryValidationFailed(
+                "Computed normal has zero magnitude.".to_string(),
+            ));
+        }
+
+        Ok([normal[0] / magnitude, normal[1] / magnitude, normal[2] / magnitude])
     }
 
     

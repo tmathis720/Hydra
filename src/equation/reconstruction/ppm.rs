@@ -1,4 +1,6 @@
+use log::{debug, error};
 use super::base::ReconstructionMethod;
+use thiserror::Error;
 
 /// PPM (Piecewise Parabolic Method) reconstruction.
 ///
@@ -6,6 +8,13 @@ use super::base::ReconstructionMethod;
 /// reconstruct values at the cell faces. PPM provides higher-order accuracy and is designed
 /// to resolve sharp features while minimizing numerical oscillations.
 pub struct PPMReconstruction;
+
+/// Error type for invalid reconstruction parameters.
+#[derive(Error, Debug)]
+pub enum PPMReconstructionError {
+    #[error("Invalid input: NaN or Infinite value encountered.")]
+    InvalidInput,
+}
 
 impl PPMReconstruction {
     /// Limits the parabolic coefficients to avoid overshooting at discontinuities.
@@ -20,9 +29,15 @@ impl PPMReconstruction {
     fn limit(left: f64, center: f64, right: f64) -> f64 {
         let min_val = left.min(right);
         let max_val = left.max(right);
-        center.clamp(min_val, max_val)
+        let limited_center = center.clamp(min_val, max_val);
+
+        debug!(
+            "PPM Limiting: left = {}, center = {}, right = {}, limited_center = {}",
+            left, center, right, limited_center
+        );
+
+        limited_center
     }
-    
 
     /// Computes the parabolic coefficients for a given cell.
     ///
@@ -38,6 +53,12 @@ impl PPMReconstruction {
         let a = 0.5 * (left - 2.0 * center + right);
         let b = 0.5 * (right - left);
         let c = center;
+
+        debug!(
+            "PPM Parabolic Coefficients: left = {}, center = {}, right = {}, a = {}, b = {}, c = {}",
+            left, center, right, a, b, c
+        );
+
         (a, b, c)
     }
 
@@ -52,7 +73,14 @@ impl PPMReconstruction {
     /// # Returns
     /// Value of the parabolic function at `x`.
     fn evaluate_parabola(a: f64, b: f64, c: f64, x: f64) -> f64 {
-        a * x.powi(2) + b * x + c
+        let result = a * x.powi(2) + b * x + c;
+
+        debug!(
+            "PPM Evaluate Parabola: a = {}, b = {}, c = {}, x = {}, result = {}",
+            a, b, c, x, result
+        );
+
+        result
     }
 }
 
@@ -64,6 +92,15 @@ impl ReconstructionMethod for PPMReconstruction {
         cell_center: [f64; 3],
         face_center: [f64; 3],
     ) -> f64 {
+        // Validate input to ensure it doesn't contain NaN or Inf
+        if !cell_value.is_finite()
+            || !cell_center.iter().all(|&c| c.is_finite())
+            || !face_center.iter().all(|&f| f.is_finite())
+        {
+            error!("PPM Reconstruction: Invalid input detected (NaN or Inf).");
+            return f64::NAN;
+        }
+
         // Simulated neighboring values (in a real setup, this data comes from adjacent cells)
         let left = cell_value - 1.0;
         let right = cell_value + 1.0;
@@ -87,6 +124,10 @@ impl ReconstructionMethod for PPMReconstruction {
 mod tests {
     use super::*;
 
+    fn approx_eq(a: f64, b: f64, epsilon: f64) -> bool {
+        (a - b).abs() < epsilon
+    }
+
     #[test]
     fn test_ppm_reconstruction_smooth() {
         let ppm = PPMReconstruction;
@@ -99,7 +140,11 @@ mod tests {
         let reconstructed_value = ppm.reconstruct(cell_value, gradient, cell_center, face_center);
 
         // Smooth data should reconstruct correctly within the parabolic profile
-        assert!((reconstructed_value - 1.5).abs() < 1e-6);
+        assert!(
+            approx_eq(reconstructed_value, 1.5, 1e-6),
+            "Expected ~1.5, got {}",
+            reconstructed_value
+        );
     }
 
     #[test]
@@ -114,7 +159,11 @@ mod tests {
         let reconstructed_value = ppm.reconstruct(cell_value, gradient, cell_center, face_center);
 
         // Ensure reconstruction is finite and stable
-        assert!(reconstructed_value.is_finite());
+        assert!(
+            reconstructed_value.is_finite(),
+            "Reconstructed value should be finite, got {}",
+            reconstructed_value
+        );
     }
 
     #[test]
@@ -125,6 +174,24 @@ mod tests {
         let limited = PPMReconstruction::limit(2.0, 10.0, 4.0);
 
         // Limited value should be within the range [2.0, 4.0]
-        assert_eq!(limited, 4.0);
+        assert_eq!(limited, 4.0, "Expected 4.0, got {}", limited);
+    }
+
+    #[test]
+    fn test_ppm_reconstruction_nan_input() {
+        let ppm = PPMReconstruction;
+
+        let reconstructed_value = ppm.reconstruct(f64::NAN, [1.0, 1.0, 1.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]);
+
+        assert!(reconstructed_value.is_nan(), "Expected NaN, got {}", reconstructed_value);
+    }
+
+    #[test]
+    fn test_ppm_reconstruction_inf_input() {
+        let ppm = PPMReconstruction;
+
+        let reconstructed_value = ppm.reconstruct(f64::INFINITY, [1.0, 1.0, 1.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]);
+
+        assert!(reconstructed_value.is_nan(), "Expected NaN, got {}", reconstructed_value);
     }
 }

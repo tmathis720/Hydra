@@ -1,18 +1,17 @@
 use dashmap::DashMap;
+use crate::boundary::BoundaryError;
 use crate::domain::mesh_entity::MeshEntity;
 use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
 use faer::MatMut;
+use log::{info, error};
 
-/// The `MixedBC` struct represents a handler for applying Mixed boundary conditions
-/// to a set of mesh entities. Mixed boundary conditions typically involve a combination
-/// of Dirichlet and Neumann-type parameters that modify both the system matrix 
-/// and the right-hand side (RHS) vector.
+/// The `MixedBC` struct manages Mixed boundary conditions.
 pub struct MixedBC {
     conditions: DashMap<MeshEntity, BoundaryCondition>,
 }
 
 impl MixedBC {
-    /// Creates a new instance of `MixedBC` with an empty `DashMap` to store boundary conditions.
+    /// Creates a new instance of `MixedBC`.
     pub fn new() -> Self {
         Self {
             conditions: DashMap::new(),
@@ -20,24 +19,48 @@ impl MixedBC {
     }
 
     /// Sets a Mixed boundary condition for a specific mesh entity.
-    /// 
-    /// # Parameters
-    /// - `entity`: The mesh entity to which the boundary condition applies.
-    /// - `condition`: The boundary condition to apply, specified as a `BoundaryCondition`.
     pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
         self.conditions.insert(entity, condition);
+        info!("Set mixed boundary condition for entity {:?}", entity);
     }
 
-    /// Applies the stored Mixed boundary conditions to the system matrix and RHS vector.
-    /// This method iterates over all stored conditions, updating both the matrix and RHS
-    /// based on the specified gamma and delta values for each entity.
-    /// 
-    /// # Parameters
-    /// - `matrix`: The system matrix to be modified by the boundary condition.
-    /// - `rhs`: The right-hand side vector to be modified by the boundary condition.
-    /// - `index`: The index within the matrix and RHS corresponding to the mesh entity.
-    /// - `gamma`: Coefficient applied to the system matrix for this boundary.
-    /// - `delta`: Value added to the RHS vector for this boundary.
+    /// Applies all Mixed boundary conditions within the handler to the system.
+    pub fn apply_bc(
+        &self,
+        matrix: &mut MatMut<f64>,
+        rhs: &mut MatMut<f64>,
+        entity_to_index: &DashMap<MeshEntity, usize>,
+    ) -> Result<(), BoundaryError> {
+        for entry in self.conditions.iter() {
+            let (entity, condition) = entry.pair();
+            match entity_to_index.get(entity) {
+                Some(index) => match condition {
+                    BoundaryCondition::Mixed { gamma, delta } => {
+                        self.apply_mixed(matrix, rhs, *index, *gamma, *delta)?;
+                    }
+                    _ => {
+                        let err = BoundaryError::InvalidBoundaryType(format!(
+                            "Unsupported condition for MixedBC: {:?}",
+                            condition
+                        ));
+                        error!("{}", err);
+                        return Err(err);
+                    }
+                },
+                None => {
+                    let err = BoundaryError::EntityNotFound(format!(
+                        "Entity {:?} not found in entity_to_index mapping.",
+                        entity
+                    ));
+                    error!("{}", err);
+                    return Err(err);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Applies a Mixed boundary condition to the system matrix and RHS vector.
     pub fn apply_mixed(
         &self,
         matrix: &mut MatMut<f64>,
@@ -45,58 +68,72 @@ impl MixedBC {
         index: usize,
         gamma: f64,
         delta: f64,
-    ) {
-        // Apply the gamma factor to the matrix at the diagonal index
-        matrix[(index, index)] += gamma;
-        // Modify the RHS with the delta value at the specific index
-        rhs[(index, 0)] += delta;
-    }
+    ) -> Result<(), BoundaryError> {
+        info!(
+            "Applying Mixed boundary condition at index {} with gamma {}, delta {}",
+            index, gamma, delta
+        );
 
-    /// Applies all Mixed boundary conditions within the handler to the system.
-    /// It fetches the index of each entity and applies the corresponding mixed boundary 
-    /// condition values (gamma and delta) to the matrix and RHS.
-    /// 
-    /// # Parameters
-    /// - `matrix`: Mutable reference to the system matrix.
-    /// - `rhs`: Mutable reference to the RHS vector.
-    /// - `entity_to_index`: Mapping from `MeshEntity` to matrix indices.
-    /// - `time`: Current time, if time-dependent boundary values are desired.
-    pub fn apply_bc(
-        &self,
-        matrix: &mut MatMut<f64>,
-        rhs: &mut MatMut<f64>,
-        entity_to_index: &DashMap<MeshEntity, usize>,
-        _time: f64,
-    ) {
-        for entry in self.conditions.iter() {
-            let (entity, condition) = entry.pair();
-            if let Some(index) = entity_to_index.get(entity).map(|i| *i) {
-                if let BoundaryCondition::Mixed { gamma, delta } = condition {
-                    self.apply_mixed(matrix, rhs, index, *gamma, *delta);
-                }
-            }
+        if index >= matrix.nrows() || index >= rhs.nrows() {
+            let err = BoundaryError::InvalidIndex(format!(
+                "Index {} is out of bounds for matrix/rhs dimensions.",
+                index
+            ));
+            error!("{}", err);
+            return Err(err);
         }
+
+        matrix[(index, index)] += gamma;
+        rhs[(index, 0)] += delta;
+
+        info!(
+            "Mixed condition applied: matrix[{},{}] += {}, rhs[{},0] += {}",
+            index, index, gamma, index, delta
+        );
+
+        Ok(())
     }
 }
 
 impl BoundaryConditionApply for MixedBC {
-    /// Applies the stored Mixed boundary conditions for a specific mesh entity.
-    /// 
-    /// # Parameters
-    /// - `entity`: Reference to the mesh entity for which the boundary condition is applied.
-    /// - `rhs`: Mutable reference to the RHS vector.
-    /// - `matrix`: Mutable reference to the system matrix.
-    /// - `entity_to_index`: Reference to the mapping of entities to matrix indices.
-    /// - `time`: Current time, allowing for time-dependent boundary conditions.
     fn apply(
         &self,
-        _entity: &MeshEntity,
+        entity: &MeshEntity,
         rhs: &mut MatMut<f64>,
         matrix: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
-        time: f64,
-    ) {
-        self.apply_bc(matrix, rhs, entity_to_index, time);
+        _time: f64,
+    ) -> Result<(), BoundaryError> {
+        if let Some(index) = entity_to_index.get(entity) {
+            if let Some(condition) = self.conditions.get(entity) {
+                match *condition {
+                    BoundaryCondition::Mixed { gamma, delta } => {
+                        return self.apply_mixed(matrix, rhs, *index, gamma, delta);
+                    }
+                    _ => {
+                        let err = BoundaryError::InvalidBoundaryType(format!(
+                            "Invalid boundary condition type for entity {:?}",
+                            entity
+                        ));
+                        error!("{}", err);
+                        return Err(err);
+                    }
+                }
+            }
+            let err = BoundaryError::EntityNotFound(format!(
+                "Boundary condition not found for entity {:?}",
+                entity
+            ));
+            error!("{}", err);
+            Err(err)
+        } else {
+            let err = BoundaryError::EntityNotFound(format!(
+                "Entity {:?} not found in entity_to_index mapping.",
+                entity
+            ));
+            error!("{}", err);
+            Err(err)
+        }
     }
 }
 
@@ -137,7 +174,7 @@ mod tests {
         let mut matrix_mut = matrix.as_mut();
         let mut rhs_mut = rhs.as_mut();
 
-        mixed_bc.apply_bc(&mut matrix_mut, &mut rhs_mut, &entity_to_index, 0.0);
+        let _ = mixed_bc.apply_bc(&mut matrix_mut, &mut rhs_mut, &entity_to_index);
 
         // Assert the matrix diagonal at index 1 has been incremented by gamma
         assert_eq!(matrix_mut[(1, 1)], 3.0);  // 1.0 initial + 2.0 gamma

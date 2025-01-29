@@ -1,18 +1,17 @@
 use dashmap::DashMap;
+use crate::boundary::BoundaryError;
 use crate::domain::mesh_entity::MeshEntity;
 use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
 use faer::MatMut;
+use log::{info, error};
 
-/// The `NeumannBC` struct represents a handler for applying Neumann boundary conditions 
-/// to a set of mesh entities. Neumann boundary conditions involve specifying the flux across 
-/// a boundary, and they modify only the right-hand side (RHS) of the system without modifying 
-/// the system matrix.
+/// The `NeumannBC` struct manages Neumann boundary conditions.
 pub struct NeumannBC {
     conditions: DashMap<MeshEntity, BoundaryCondition>,
 }
 
 impl NeumannBC {
-    /// Creates a new instance of `NeumannBC` with an empty `DashMap` to store boundary conditions.
+    /// Creates a new instance of `NeumannBC`.
     pub fn new() -> Self {
         Self {
             conditions: DashMap::new(),
@@ -22,36 +21,74 @@ impl NeumannBC {
     /// Sets a Neumann boundary condition for a specific mesh entity.
     pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
         self.conditions.insert(entity, condition);
+        info!("Set Neumann boundary condition for entity {:?}", entity);
     }
 
-    /// Applies the stored Neumann boundary conditions to the right-hand side (RHS) of the system.
+    /// Applies all Neumann boundary conditions to the right-hand side (RHS) of the system.
     pub fn apply_bc(
         &self,
         rhs: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
         time: f64,
-    ) {
-        self.conditions.iter().for_each(|entry| {
+    ) -> Result<(), BoundaryError> {
+        for entry in self.conditions.iter() {
             let (entity, condition) = entry.pair();
-            if let Some(index) = entity_to_index.get(entity).map(|i| *i) {
-                match condition {
+            match entity_to_index.get(entity) {
+                Some(index) => match condition {
                     BoundaryCondition::Neumann(value) => {
-                        self.apply_constant_neumann(rhs, index, *value);
+                        self.apply_constant_neumann(rhs, *index, *value)?;
                     }
                     BoundaryCondition::NeumannFn(wrapper) => {
                         let coords = self.get_coordinates(entity);
-                        let value = (wrapper.function)(time, &coords);
-                        self.apply_constant_neumann(rhs, index, value);
+                        let computed_value = (wrapper.function)(time, &coords);
+                        self.apply_constant_neumann(rhs, *index, computed_value)?;
                     }
-                    _ => {}
+                    _ => {
+                        let err = BoundaryError::InvalidBoundaryType(format!(
+                            "Unsupported condition for NeumannBC: {:?}",
+                            condition
+                        ));
+                        error!("{}", err);
+                        return Err(err);
+                    }
+                },
+                None => {
+                    let err = BoundaryError::EntityNotFound(format!(
+                        "Entity {:?} not found in entity_to_index mapping.",
+                        entity
+                    ));
+                    error!("{}", err);
+                    return Err(err);
                 }
             }
-        });
+        }
+        Ok(())
     }
 
     /// Applies a constant Neumann boundary condition to the right-hand side (RHS) for a specific index.
-    pub fn apply_constant_neumann(&self, rhs: &mut MatMut<f64>, index: usize, value: f64) {
-        rhs[(index, 0)] = rhs[(index, 0)] + value;
+    pub fn apply_constant_neumann(&self, rhs: &mut MatMut<f64>, index: usize, value: f64) -> Result<(), BoundaryError> {
+        info!(
+            "Applying Neumann boundary condition at index {} with flux {}",
+            index, value
+        );
+
+        if index >= rhs.nrows() {
+            let err = BoundaryError::InvalidIndex(format!(
+                "Index {} is out of bounds for RHS vector.",
+                index
+            ));
+            error!("{}", err);
+            return Err(err);
+        }
+
+        rhs[(index, 0)] += value;
+
+        info!(
+            "Neumann condition applied: rhs[{},0] += {}",
+            index, value
+        );
+
+        Ok(())
     }
 
     /// Retrieves the coordinates of the mesh entity (placeholder for real coordinates).
@@ -61,18 +98,52 @@ impl NeumannBC {
 }
 
 impl BoundaryConditionApply for NeumannBC {
-    /// Applies the stored Neumann boundary conditions for a specific mesh entity.
     fn apply(
         &self,
-        _entity: &MeshEntity,
+        entity: &MeshEntity,
         rhs: &mut MatMut<f64>,
         _matrix: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
         time: f64,
-    ) {
-        self.apply_bc(rhs, entity_to_index, time);
+    ) -> Result<(), BoundaryError> {
+        if let Some(index) = entity_to_index.get(entity) {
+            if let Some(condition) = self.conditions.get(entity) {
+                match *condition {
+                    BoundaryCondition::Neumann(value) => {
+                        return self.apply_constant_neumann(rhs, *index, value);
+                    }
+                    BoundaryCondition::NeumannFn(ref wrapper) => {
+                        let coords = self.get_coordinates(entity);
+                        let computed_value = (wrapper.function)(time, &coords);
+                        return self.apply_constant_neumann(rhs, *index, computed_value);
+                    }
+                    _ => {
+                        let err = BoundaryError::InvalidBoundaryType(format!(
+                            "Invalid boundary condition type for entity {:?}",
+                            entity
+                        ));
+                        error!("{}", err);
+                        return Err(err);
+                    }
+                }
+            }
+            let err = BoundaryError::EntityNotFound(format!(
+                "Boundary condition not found for entity {:?}",
+                entity
+            ));
+            error!("{}", err);
+            Err(err)
+        } else {
+            let err = BoundaryError::EntityNotFound(format!(
+                "Entity {:?} not found in entity_to_index mapping.",
+                entity
+            ));
+            error!("{}", err);
+            Err(err)
+        }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -112,7 +183,7 @@ mod tests {
         let mut rhs_mut = rhs.as_mut();
 
         // Apply the Neumann boundary condition
-        neumann_bc.apply_bc(&mut rhs_mut, &entity_to_index, 0.0);
+        let _ = neumann_bc.apply_bc(&mut rhs_mut, &entity_to_index, 0.0);
 
         // Verify that the RHS was updated correctly
         assert_eq!(rhs_mut[(1, 0)], 5.0);
@@ -133,7 +204,7 @@ mod tests {
         neumann_bc.set_bc(entity, BoundaryCondition::NeumannFn(wrapper));
 
         let mut rhs = Mat::zeros(3, 1);
-        neumann_bc.apply_bc(&mut rhs.as_mut(), &entity_to_index, 1.0);
+        let _ = neumann_bc.apply_bc(&mut rhs.as_mut(), &entity_to_index, 1.0);
 
         assert_eq!(rhs[(2, 0)], 7.0);
     }

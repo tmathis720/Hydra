@@ -5,54 +5,85 @@ use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
 use faer::MatMut;
 use dashmap::DashMap;
 use crate::domain::mesh_entity::MeshEntity;
+use log::{info, warn, error};
 
+use super::BoundaryError;
+
+/// Symmetry Plane Boundary Condition Handler
 pub struct SymmetryBC {
     conditions: DashMap<MeshEntity, BoundaryCondition>,
 }
 
 impl SymmetryBC {
+    /// Creates a new instance of `SymmetryBC`.
     pub fn new() -> Self {
         Self {
             conditions: DashMap::new(),
         }
     }
 
-    /// Sets a symmetry boundary condition for a specific entity
+    /// Sets a symmetry boundary condition for a specific entity.
     pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
-        self.conditions.insert(entity, condition);
+        self.conditions.insert(entity.clone(), condition);
+        info!("Symmetry BC set for entity: {:?}", entity);
     }
 
-    /// Applies symmetry boundary conditions to the matrix and RHS
+    /// Applies symmetry boundary conditions to the matrix and RHS.
     pub fn apply_bc(
         &self,
         matrix: &mut MatMut<f64>,
         rhs: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
-    ) {
+    ) -> Result<(), BoundaryError> {
         for entry in self.conditions.iter() {
             let (entity, condition) = entry.pair();
-            if let Some(index) = entity_to_index.get(entity) {
-                match condition {
-                    BoundaryCondition::SolidWallInviscid => {
-                        self.apply_symmetry_plane(matrix, rhs, *index);
+            match entity_to_index.get(entity) {
+                Some(index) => {
+                    let index = *index;
+                    if index >= matrix.nrows() {
+                        let err = BoundaryError::InvalidIndex(format!(
+                            "Invalid matrix index {} for entity {:?}. Out of bounds.",
+                            index, entity
+                        ));
+                        error!("{}", err);
+                        return Err(err);
                     }
-                    _ => {
-                        panic!("Unsupported condition for Symmetry Plane");
+
+                    match condition {
+                        BoundaryCondition::SolidWallInviscid => {
+                            info!("Applying Symmetry Plane BC at index {}", index);
+                            self.apply_symmetry_plane(matrix, rhs, index);
+                        }
+                        _ => {
+                            warn!(
+                                "Unexpected condition for entity {:?} in SymmetryBC: {:?}",
+                                entity, condition
+                            );
+                        }
                     }
+                }
+                None => {
+                    let err = BoundaryError::EntityNotFound(format!(
+                        "Entity {:?} not found in index mapping for SymmetryBC",
+                        entity
+                    ));
+                    error!("{}", err);
+                    return Err(err);
                 }
             }
         }
+        Ok(())
     }
 
-    /// Applies symmetry condition by zeroing normal velocity components and flux
+    /// Applies symmetry condition by zeroing normal velocity components and flux.
     pub fn apply_symmetry_plane(
         &self,
         matrix: &mut MatMut<f64>,
         rhs: &mut MatMut<f64>,
         index: usize,
     ) {
-        // Zero all entries in the matrix row related to normal velocity
-        for col in 0..matrix.ncols() {
+        let ncols = matrix.ncols();
+        for col in 0..ncols {
             matrix[(index, col)] = 0.0;
         }
 
@@ -65,6 +96,7 @@ impl SymmetryBC {
 }
 
 impl BoundaryConditionApply for SymmetryBC {
+    /// Applies symmetry boundary conditions for a specific mesh entity.
     fn apply(
         &self,
         _entity: &MeshEntity,
@@ -72,10 +104,11 @@ impl BoundaryConditionApply for SymmetryBC {
         matrix: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
         _time: f64,
-    ) {
-        self.apply_bc(matrix, rhs, entity_to_index);
+    ) -> Result<(), BoundaryError> {
+        self.apply_bc(matrix, rhs, entity_to_index)
     }
 }
+
 
 
 #[cfg(test)]
@@ -107,7 +140,7 @@ mod tests {
         let mut rhs_mut = rhs.as_mut();
 
         // Apply the boundary condition
-        symmetry_bc.apply_bc(&mut matrix_mut, &mut rhs_mut, &entity_to_index);
+        let _ = symmetry_bc.apply_bc(&mut matrix_mut, &mut rhs_mut, &entity_to_index);
 
         // Verify the matrix row and RHS
         for col in 0..matrix_mut.ncols() {

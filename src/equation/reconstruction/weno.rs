@@ -1,10 +1,19 @@
+use log::{debug, error};
 use super::base::ReconstructionMethod;
+use thiserror::Error;
 
 /// WENO reconstruction method for higher-order accuracy.
 ///
 /// This implementation uses a 5th-order WENO scheme for reconstruction.
 /// WENO blends multiple candidate stencils to achieve smoothness near discontinuities.
 pub struct WENOReconstruction;
+
+/// Error type for invalid WENO parameters.
+#[derive(Error, Debug)]
+pub enum WENOReconstructionError {
+    #[error("Invalid input: NaN or Infinite value encountered.")]
+    InvalidInput,
+}
 
 impl WENOReconstruction {
     /// Computes the smoothness indicators for a set of stencils.
@@ -17,8 +26,15 @@ impl WENOReconstruction {
     fn compute_smoothness_indicators(stencils: [[f64; 3]; 3]) -> [f64; 3] {
         let mut beta = [0.0; 3];
         for (i, stencil) in stencils.iter().enumerate() {
-            beta[i] = stencil[0].powi(2) + stencil[1].powi(2) + stencil[2].powi(2);
+            beta[i] = 13.0 / 12.0 * (stencil[0] - 2.0 * stencil[1] + stencil[2]).powi(2)
+                + 0.25 * (stencil[0] - stencil[2]).powi(2);
         }
+
+        debug!(
+            "WENO Smoothness Indicators: beta[0] = {}, beta[1] = {}, beta[2] = {}",
+            beta[0], beta[1], beta[2]
+        );
+
         beta
     }
 
@@ -33,7 +49,15 @@ impl WENOReconstruction {
         const EPSILON: f64 = 1e-6; // Small constant to avoid division by zero
         let alpha: Vec<f64> = beta.iter().map(|b| 1.0 / (EPSILON + b.powi(2))).collect();
         let alpha_sum: f64 = alpha.iter().sum();
-        alpha.iter().map(|&a| a / alpha_sum).collect::<Vec<f64>>().try_into().unwrap()
+
+        let weights: Vec<f64> = alpha.iter().map(|&a| a / alpha_sum).collect();
+
+        debug!(
+            "WENO Weights: w[0] = {}, w[1] = {}, w[2] = {}",
+            weights[0], weights[1], weights[2]
+        );
+
+        weights.try_into().unwrap()
     }
 
     /// Computes the candidate stencil reconstructions.
@@ -60,16 +84,16 @@ impl ReconstructionMethod for WENOReconstruction {
         cell_center: [f64; 3],
         face_center: [f64; 3],
     ) -> f64 {
-        // Delta positions for reconstruction
-        let _delta = [
-            face_center[0] - cell_center[0],
-            face_center[1] - cell_center[1],
-            face_center[2] - cell_center[2],
-        ];
+        // Validate input to prevent `NaN` or `Inf`
+        if !cell_value.is_finite()
+            || !cell_center.iter().all(|&c| c.is_finite())
+            || !face_center.iter().all(|&f| f.is_finite())
+        {
+            error!("WENO Reconstruction: Invalid input detected (NaN or Inf).");
+            return f64::NAN;
+        }
 
-        // Calculate the candidate stencils based on neighboring values
-        // NOTE: In a real implementation, these values would come from adjacent cells.
-        // Here, we simulate them for simplicity.
+        // Simulated neighboring values (real implementations would get these from adjacent cells)
         let neighbors = [
             cell_value - 2.0, // Two cells away
             cell_value - 1.0, // One cell away
@@ -93,6 +117,11 @@ impl ReconstructionMethod for WENOReconstruction {
             .map(|(candidate, weight)| candidate * weight)
             .sum();
 
+        debug!(
+            "WENO Reconstruction: cell_value = {}, reconstructed_value = {}",
+            cell_value, reconstructed_value
+        );
+
         reconstructed_value
     }
 }
@@ -101,11 +130,14 @@ impl ReconstructionMethod for WENOReconstruction {
 mod tests {
     use super::*;
 
+    fn approx_eq(a: f64, b: f64, epsilon: f64) -> bool {
+        (a - b).abs() < epsilon
+    }
+
     #[test]
     fn test_weno_reconstruction_smooth() {
         let weno = WENOReconstruction;
 
-        // Simulate smooth data around the cell
         let cell_value = 1.0;
         let gradient = [1.0, 0.0, 0.0];
         let cell_center = [0.0, 0.0, 0.0];
@@ -113,15 +145,18 @@ mod tests {
 
         let reconstructed_value = weno.reconstruct(cell_value, gradient, cell_center, face_center);
 
-        // For smooth data, the reconstruction should be close to the interpolated value
-        assert!((reconstructed_value - 1.5).abs() < 1e-6);
+        // For smooth data, reconstruction should approximate linear interpolation
+        assert!(
+            approx_eq(reconstructed_value, 1.5, 1e-6),
+            "Expected ~1.5, got {}",
+            reconstructed_value
+        );
     }
 
     #[test]
     fn test_weno_reconstruction_discontinuity() {
         let weno = WENOReconstruction;
 
-        // Simulate discontinuous data around the cell
         let cell_value = 1.0;
         let gradient = [1.0, 0.0, 0.0];
         let cell_center = [0.0, 0.0, 0.0];
@@ -129,7 +164,29 @@ mod tests {
 
         let reconstructed_value = weno.reconstruct(cell_value, gradient, cell_center, face_center);
 
-        // For discontinuous data, the reconstruction should be stable and non-oscillatory
-        assert!(reconstructed_value.is_finite());
+        // Ensure reconstruction is finite and stable
+        assert!(
+            reconstructed_value.is_finite(),
+            "Reconstructed value should be finite, got {}",
+            reconstructed_value
+        );
+    }
+
+    #[test]
+    fn test_weno_reconstruction_nan_input() {
+        let weno = WENOReconstruction;
+
+        let reconstructed_value = weno.reconstruct(f64::NAN, [1.0, 1.0, 1.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]);
+
+        assert!(reconstructed_value.is_nan(), "Expected NaN, got {}", reconstructed_value);
+    }
+
+    #[test]
+    fn test_weno_reconstruction_inf_input() {
+        let weno = WENOReconstruction;
+
+        let reconstructed_value = weno.reconstruct(f64::INFINITY, [1.0, 1.0, 1.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]);
+
+        assert!(reconstructed_value.is_nan(), "Expected NaN, got {}", reconstructed_value);
     }
 }

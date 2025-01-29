@@ -2,6 +2,9 @@ use dashmap::DashMap;
 use crate::domain::mesh_entity::MeshEntity;
 use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionApply};
 use faer::MatMut;
+use log::{info, error};
+
+use super::BoundaryError;
 
 /// The `CauchyBC` struct represents a handler for applying Cauchy boundary conditions
 /// to a set of mesh entities. Cauchy boundary conditions typically involve both the
@@ -26,6 +29,7 @@ impl CauchyBC {
     /// - `condition`: The boundary condition to apply, specified as a `BoundaryCondition`.
     pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
         self.conditions.insert(entity, condition);
+        info!("Set Cauchy boundary condition for entity {:?}", entity);
     }
 
     /// Applies the stored Cauchy boundary conditions to the system matrix and RHS vector.
@@ -47,13 +51,18 @@ impl CauchyBC {
         mu: f64,
     ) {
         // Apply the lambda factor to the matrix at the diagonal index
-        matrix[(index, index)] = matrix[(index, index)] + lambda;
+        matrix[(index, index)] += lambda;
         // Modify the RHS with the mu value at the specific index
-        rhs[(index, 0)] = rhs[(index, 0)] + mu;
+        rhs[(index, 0)] += mu;
+
+        info!(
+            "Applied Cauchy condition at index {}: lambda={}, mu={}",
+            index, lambda, mu
+        );
     }
 
     /// Applies all Cauchy boundary conditions within the handler to the system.
-    /// It fetches the index of each entity and applies the corresponding Cauchy boundary 
+    /// It fetches the index of each entity and applies the corresponding Cauchy boundary
     /// condition values (lambda and mu) to the matrix and RHS.
     ///
     /// # Parameters
@@ -67,15 +76,26 @@ impl CauchyBC {
         rhs: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
         _time: f64,
-    ) {
+    ) -> Result<(), BoundaryError> {
         for entry in self.conditions.iter() {
             let (entity, condition) = entry.pair();
-            if let Some(index) = entity_to_index.get(entity).map(|i| *i) {
-                if let BoundaryCondition::Cauchy { lambda, mu } = condition {
-                    self.apply_cauchy(matrix, rhs, index, *lambda, *mu);
+            match entity_to_index.get(entity) {
+                Some(index) => {
+                    if let BoundaryCondition::Cauchy { lambda, mu } = condition {
+                        self.apply_cauchy(matrix, rhs, *index, *lambda, *mu);
+                    }
+                }
+                None => {
+                    let err = BoundaryError::EntityNotFound(format!(
+                        "Entity {:?} not found in entity_to_index mapping.",
+                        entity
+                    ));
+                    error!("{}", err);
+                    return Err(err);
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -90,15 +110,35 @@ impl BoundaryConditionApply for CauchyBC {
     /// - `time`: Current time, allowing for time-dependent boundary conditions.
     fn apply(
         &self,
-        _entity: &MeshEntity,
+        entity: &MeshEntity,
         rhs: &mut MatMut<f64>,
         matrix: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
-        time: f64,
-    ) {
-        self.apply_bc(matrix, rhs, entity_to_index, time);
+        _time: f64,
+    ) -> Result<(), BoundaryError> {
+        if let Some(index) = entity_to_index.get(entity) {
+            if let Some(condition) = self.conditions.get(entity) {
+                if let BoundaryCondition::Cauchy { lambda, mu } = *condition {
+                    self.apply_cauchy(matrix, rhs, *index, lambda, mu);
+                    return Ok(());
+                }
+            }
+            let err = BoundaryError::InvalidBoundaryType(format!(
+                "Cauchy boundary condition not found for entity {:?}",
+                entity
+            ));
+            error!("{}", err);
+            return Err(err);
+        }
+        let err = BoundaryError::EntityNotFound(format!(
+            "Entity {:?} not found in entity_to_index mapping.",
+            entity
+        ));
+        error!("{}", err);
+        Err(err)
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -136,7 +176,7 @@ mod tests {
         let mut matrix_mut = matrix.as_mut();
         let mut rhs_mut = rhs.as_mut();
 
-        cauchy_bc.apply_bc(&mut matrix_mut, &mut rhs_mut, &entity_to_index, 0.0);
+        let _ = cauchy_bc.apply_bc(&mut matrix_mut, &mut rhs_mut, &entity_to_index, 0.0);
 
         // Assert the matrix diagonal at index 1 has been incremented by lambda
         assert_eq!(matrix_mut[(1, 1)], 2.5);  // Initial value 1.0 + lambda 1.5

@@ -15,6 +15,7 @@
 //! framework.
 
 use dashmap::DashMap;
+use log::{error, info};
 use std::sync::{Arc, RwLock};
 use lazy_static::lazy_static;
 use crate::domain::mesh_entity::MeshEntity;
@@ -30,6 +31,8 @@ use crate::boundary::inlet_outlet::InletOutletBC;
 use crate::boundary::periodic::PeriodicBC;
 use crate::boundary::symmetry::SymmetryBC;
 use faer::MatMut;
+
+use super::{log_boundary_error, log_boundary_info, log_boundary_warning, BoundaryError};
 
 pub type BoundaryConditionFn = Arc<dyn Fn(f64, &[f64]) -> f64 + Send + Sync>;
 
@@ -104,6 +107,11 @@ lazy_static! {
 }
 
 impl BoundaryConditionHandler {
+    /// Retrieves the coordinates of a mesh entity.
+    fn get_coordinates(&self, entity: &MeshEntity) -> Result<Vec<f64>, BoundaryError> {
+        // Placeholder implementation, replace with actual logic to get coordinates
+        Ok(vec![0.0, 0.0, 0.0])
+    }
     /// Creates a new BoundaryConditionHandler with an empty map to store boundary conditions.
     pub fn new() -> Self {
         Self {
@@ -115,9 +123,17 @@ impl BoundaryConditionHandler {
         GLOBAL_BC_HANDLER.clone()
     }
 
-    /// Sets a boundary condition for a specific mesh entity.
-    pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) {
-        self.conditions.insert(entity, condition);
+    /// Sets a boundary condition for a mesh entity.
+    pub fn set_bc(&self, entity: MeshEntity, condition: BoundaryCondition) -> Result<(), BoundaryError> {
+        if self.conditions.contains_key(&entity) {
+            log_boundary_warning(&format!(
+                "Overwriting existing boundary condition for entity {:?}.",
+                entity
+            ));
+        }
+        self.conditions.insert(entity.clone(), condition);
+        log_boundary_info(&format!("Boundary condition set for {:?}", entity));
+        Ok(())
     }
 
     /// Retrieves the boundary condition applied to a specific mesh entity, if it exists.
@@ -144,6 +160,10 @@ impl BoundaryConditionHandler {
     /// # Computational Notes
     /// Modifies matrix coefficients and RHS values based on the type of boundary condition.
     /// Ensures consistency with finite volume and finite element methods as per Hydra's framework.
+    ///
+    /// # Returns
+    /// Returns `Ok(())` if all boundary conditions are successfully applied,
+    /// otherwise returns a `BoundaryError`.
     pub fn apply_bc(
         &self,
         matrix: &mut MatMut<f64>,
@@ -151,80 +171,124 @@ impl BoundaryConditionHandler {
         boundary_entities: &[MeshEntity],
         entity_to_index: &DashMap<MeshEntity, usize>,
         time: f64,
-    ) {
+    ) -> Result<(), BoundaryError> {
         for entity in boundary_entities {
-            if let Some(bc) = self.get_bc(entity) {
-                let index = *entity_to_index.get(entity).unwrap();
-                match bc {
-                    BoundaryCondition::Dirichlet(value) => {
-                        let dirichlet_bc = DirichletBC::new();
-                        dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
+            let bc = self.get_bc(entity).ok_or_else(|| {
+                let err = BoundaryError::EntityNotFound(format!(
+                    "Entity {:?} not found in boundary conditions.",
+                    entity
+                ));
+                error!("{}", err);
+                err
+            })?;
+
+            let index = entity_to_index.get(entity).map(|idx| *idx).ok_or_else(|| {
+                let err = BoundaryError::EntityNotFound(format!(
+                    "Entity {:?} missing from entity_to_index mapping.",
+                    entity
+                ));
+                error!("{}", err);
+                err
+            })?;
+
+            match bc {
+                BoundaryCondition::Dirichlet(value) => {
+                    DirichletBC::new().apply_constant_dirichlet(matrix, rhs, index, value);
+                    info!("Applied Dirichlet condition ({}) to entity {:?}", value, entity);
+                }
+                BoundaryCondition::Neumann(flux) => {
+                    NeumannBC::new().apply_constant_neumann(rhs, index, flux);
+                    info!("Applied Neumann condition ({}) to entity {:?}", flux, entity);
+                }
+                BoundaryCondition::Robin { alpha, beta } => {
+                    RobinBC::new().apply_robin(matrix, rhs, index, alpha, beta);
+                    info!(
+                        "Applied Robin condition (alpha: {}, beta: {}) to entity {:?}",
+                        alpha, beta, entity
+                    );
+                }
+                BoundaryCondition::SolidWallInviscid | BoundaryCondition::SolidWallViscous { .. } => {
+                    SolidWallBC::new().apply_bc(matrix, rhs, entity_to_index)?;
+                    info!("Applied SolidWall condition to entity {:?}", entity);
+                }
+                BoundaryCondition::DirichletFn(wrapper) => {
+                    let coords = self.get_coordinates(entity)?;
+                    let value = (wrapper.function)(time, &coords);
+                    DirichletBC::new().apply_constant_dirichlet(matrix, rhs, index, value);
+                    info!(
+                        "Applied functional Dirichlet condition (computed value: {}) to entity {:?}",
+                        value, entity
+                    );
+                }
+                BoundaryCondition::NeumannFn(wrapper) => {
+                    let coords = self.get_coordinates(entity)?;
+                    let value = (wrapper.function)(time, &coords);
+                    NeumannBC::new().apply_constant_neumann(rhs, index, value);
+                    info!(
+                        "Applied functional Neumann condition (computed value: {}) to entity {:?}",
+                        value, entity
+                    );
+                }
+                BoundaryCondition::Mixed { gamma, delta } => {
+                    MixedBC::new().apply_mixed(matrix, rhs, index, gamma, delta);
+                    info!(
+                        "Applied Mixed condition (gamma: {}, delta: {}) to entity {:?}",
+                        gamma, delta, entity
+                    );
+                }
+                BoundaryCondition::Cauchy { lambda, mu } => {
+                    CauchyBC::new().apply_cauchy(matrix, rhs, index, lambda, mu);
+                    info!(
+                        "Applied Cauchy condition (lambda: {}, mu: {}) to entity {:?}",
+                        lambda, mu, entity
+                    );
+                }
+                BoundaryCondition::FarField(value) => {
+                    FarFieldBC::new().apply_far_field(matrix, rhs, index, value);
+                    info!("Applied FarField condition ({}) to entity {:?}", value, entity);
+                }
+                BoundaryCondition::Injection(value) => {
+                    InjectionBC::new().apply_injection(matrix, rhs, index, value);
+                    info!("Applied Injection condition ({}) to entity {:?}", value, entity);
+                }
+                BoundaryCondition::InletOutlet => {
+                    InletOutletBC::new().apply_bc(matrix, rhs, entity_to_index)?;
+                    info!("Applied InletOutlet condition to entity {:?}", entity);
+                }
+                BoundaryCondition::Symmetry => {
+                    SymmetryBC::new().apply_symmetry_plane(matrix, rhs, index);
+                    info!("Applied Symmetry condition to entity {:?}", entity);
+                }
+                BoundaryCondition::Periodic { pairs } => {
+                    let periodic_bc = PeriodicBC::new();
+                    for (entity1, entity2) in pairs.clone() {
+                        periodic_bc.set_pair(entity1.clone(), entity2.clone());
                     }
-                    BoundaryCondition::Neumann(flux) => {
-                        let neumann_bc = NeumannBC::new();
-                        neumann_bc.apply_constant_neumann(rhs, index, flux);
-                    }
-                    BoundaryCondition::Robin { alpha, beta } => {
-                        let robin_bc = RobinBC::new();
-                        robin_bc.apply_robin(matrix, rhs, index, alpha, beta);
-                    }
-                    BoundaryCondition::SolidWallInviscid | BoundaryCondition::SolidWallViscous { .. } => {
-                        let solid_wall_bc = SolidWallBC::new();
-                        solid_wall_bc.apply_bc(matrix, rhs, entity_to_index);
-                    }
-                    BoundaryCondition::DirichletFn(wrapper) => {
-                        let coords = [0.0, 0.0, 0.0];
-                        let value = (wrapper.function)(time, &coords);
-                        let dirichlet_bc = DirichletBC::new();
-                        dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
-                    }
-                    BoundaryCondition::NeumannFn(wrapper) => {
-                        let coords = [0.0, 0.0, 0.0];
-                        let value = (wrapper.function)(time, &coords);
-                        let neumann_bc = NeumannBC::new();
-                        neumann_bc.apply_constant_neumann(rhs, index, value);
-                    }
-                    BoundaryCondition::Mixed { gamma, delta } => {
-                        let mixed_bc = MixedBC::new();
-                        mixed_bc.apply_mixed(matrix, rhs, index, gamma, delta);
-                    }
-                    BoundaryCondition::Cauchy { lambda, mu } => {
-                        let cauchy_bc = CauchyBC::new();
-                        cauchy_bc.apply_cauchy(matrix, rhs, index, lambda, mu);
-                    }
-                    BoundaryCondition::FarField(value) => {
-                        let far_field_bc = FarFieldBC::new();
-                        far_field_bc.apply_far_field(matrix, rhs, index, value);
-                    }
-                    BoundaryCondition::Injection(value) => {
-                        let injection_bc = InjectionBC::new();
-                        injection_bc.apply_injection(matrix, rhs, index, value);
-                    }
-                    BoundaryCondition::InletOutlet => {
-                        let inlet_outlet_bc = InletOutletBC::new();
-                        inlet_outlet_bc.apply_bc(matrix, rhs, entity_to_index);
-                    }
-                    BoundaryCondition::Symmetry => {
-                        let symmetry_bc = SymmetryBC::new();
-                        symmetry_bc.apply_symmetry_plane(matrix, rhs, index);
-                    }
-                    BoundaryCondition::Periodic { pairs } => {
-                        let periodic_bc = PeriodicBC::new();
-                        for (entity1, entity2) in pairs {
-                            periodic_bc.set_pair(entity1.clone(), entity2.clone());
-                        }
-                        periodic_bc.apply_bc(matrix, rhs, entity_to_index);
-                    }
+                    periodic_bc.apply_bc(matrix, rhs, entity_to_index)?;
+                    info!(
+                        "Applied Periodic condition to entity {:?} with pairs {:?}",
+                        entity, pairs
+                    );
+                }
+                _ => {
+                    let err = BoundaryError::InvalidBoundaryType(format!(
+                        "Unsupported boundary condition {:?} for entity {:?}",
+                        bc, entity
+                    ));
+                    error!("{}", err);
+                    return Err(err);
                 }
             }
         }
+        Ok(())
     }
+
+
 
 }
 
 
-
-/// The BoundaryConditionApply trait defines the `apply` method, which is used to apply 
+/// The BoundaryConditionApply trait defines the `apply` method, which applies 
 /// a boundary condition to a given mesh entity.
 pub trait BoundaryConditionApply {
     fn apply(
@@ -234,8 +298,9 @@ pub trait BoundaryConditionApply {
         matrix: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
         time: f64,
-    );
+    ) -> Result<(), BoundaryError>;
 }
+
 impl BoundaryConditionApply for BoundaryCondition {
     fn apply(
         &self,
@@ -244,60 +309,119 @@ impl BoundaryConditionApply for BoundaryCondition {
         matrix: &mut MatMut<f64>,
         entity_to_index: &DashMap<MeshEntity, usize>,
         time: f64,
-    ) {
-        let index = *entity_to_index.get(entity).unwrap();
+    ) -> Result<(), BoundaryError> {
+        let index = match entity_to_index.get(entity) {
+            Some(idx) => *idx,
+            None => {
+                let err = BoundaryError::EntityNotFound(format!(
+                    "Entity {:?} not found in entity_to_index mapping.",
+                    entity
+                ));
+                log_boundary_error(&err);
+                return Err(err);
+            }
+        };
+
         match self {
             BoundaryCondition::Dirichlet(value) => {
                 let dirichlet_bc = DirichletBC::new();
                 dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, *value);
+                log_boundary_info(&format!(
+                    "Applied Dirichlet condition ({}) to entity {:?}",
+                    value, entity
+                ));
             }
             BoundaryCondition::Neumann(flux) => {
                 let neumann_bc = NeumannBC::new();
                 neumann_bc.apply_constant_neumann(rhs, index, *flux);
+                log_boundary_info(&format!(
+                    "Applied Neumann condition ({}) to entity {:?}",
+                    flux, entity
+                ));
             }
             BoundaryCondition::Robin { alpha, beta } => {
                 let robin_bc = RobinBC::new();
                 robin_bc.apply_robin(matrix, rhs, index, *alpha, *beta);
+                log_boundary_info(&format!(
+                    "Applied Robin condition (alpha: {}, beta: {}) to entity {:?}",
+                    alpha, beta, entity
+                ));
             }
             BoundaryCondition::SolidWallInviscid | BoundaryCondition::SolidWallViscous { .. } => {
                 let solid_wall_bc = SolidWallBC::new();
                 solid_wall_bc.apply_bc(matrix, rhs, entity_to_index);
+                log_boundary_info(&format!(
+                    "Applied SolidWall condition to entity {:?}",
+                    entity
+                ));
             }
             BoundaryCondition::DirichletFn(wrapper) => {
-                let coords = [0.0, 0.0, 0.0];
+                let coords = [0.0, 0.0, 0.0]; // Replace with actual entity coordinates if available
                 let value = (wrapper.function)(time, &coords);
                 let dirichlet_bc = DirichletBC::new();
                 dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
+                log_boundary_info(&format!(
+                    "Applied functional Dirichlet condition (computed value: {}) to entity {:?}",
+                    value, entity
+                ));
             }
             BoundaryCondition::NeumannFn(wrapper) => {
                 let coords = [0.0, 0.0, 0.0];
                 let value = (wrapper.function)(time, &coords);
                 let neumann_bc = NeumannBC::new();
                 neumann_bc.apply_constant_neumann(rhs, index, value);
+                log_boundary_info(&format!(
+                    "Applied functional Neumann condition (computed value: {}) to entity {:?}",
+                    value, entity
+                ));
             }
             BoundaryCondition::Mixed { gamma, delta } => {
                 let mixed_bc = MixedBC::new();
                 mixed_bc.apply_mixed(matrix, rhs, index, *gamma, *delta);
+                log_boundary_info(&format!(
+                    "Applied Mixed condition (gamma: {}, delta: {}) to entity {:?}",
+                    gamma, delta, entity
+                ));
             }
             BoundaryCondition::Cauchy { lambda, mu } => {
                 let cauchy_bc = CauchyBC::new();
                 cauchy_bc.apply_cauchy(matrix, rhs, index, *lambda, *mu);
+                log_boundary_info(&format!(
+                    "Applied Cauchy condition (lambda: {}, mu: {}) to entity {:?}",
+                    lambda, mu, entity
+                ));
             }
             BoundaryCondition::FarField(value) => {
                 let far_field_bc = FarFieldBC::new();
                 far_field_bc.apply_far_field(matrix, rhs, index, *value);
+                log_boundary_info(&format!(
+                    "Applied FarField condition ({}) to entity {:?}",
+                    value, entity
+                ));
             }
             BoundaryCondition::Injection(value) => {
                 let injection_bc = InjectionBC::new();
                 injection_bc.apply_injection(matrix, rhs, index, *value);
+                log_boundary_info(&format!(
+                    "Applied Injection condition ({}) to entity {:?}",
+                    value, entity
+                ));
             }
             BoundaryCondition::InletOutlet => {
                 let inlet_outlet_bc = InletOutletBC::new();
                 inlet_outlet_bc.apply_bc(matrix, rhs, entity_to_index);
+                log_boundary_info(&format!(
+                    "Applied InletOutlet condition to entity {:?}",
+                    entity
+                ));
             }
             BoundaryCondition::Symmetry => {
                 let symmetry_bc = SymmetryBC::new();
                 symmetry_bc.apply_symmetry_plane(matrix, rhs, index);
+                log_boundary_info(&format!(
+                    "Applied Symmetry condition to entity {:?}",
+                    entity
+                ));
             }
             BoundaryCondition::Periodic { pairs } => {
                 let periodic_bc = PeriodicBC::new();
@@ -305,10 +429,24 @@ impl BoundaryConditionApply for BoundaryCondition {
                     periodic_bc.set_pair(entity1.clone(), entity2.clone());
                 }
                 periodic_bc.apply_bc(matrix, rhs, entity_to_index);
+                log_boundary_info(&format!(
+                    "Applied Periodic condition to entity {:?} with pairs {:?}",
+                    entity, pairs
+                ));
+            }
+            _ => {
+                let err = BoundaryError::InvalidBoundaryType(format!(
+                    "Unsupported boundary condition {:?} for entity {:?}",
+                    self, entity
+                ));
+                log_boundary_error(&err);
+                return Err(err);
             }
         }
+        Ok(())
     }
 }
+
 
 
 #[cfg(test)]
