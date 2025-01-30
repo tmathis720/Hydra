@@ -264,7 +264,8 @@ mod tests {
         boundary_handler.set_bc(
             MeshEntity::Face(1), // Assuming face IDs are properly set in DomainBuilder
             BoundaryCondition::Dirichlet(2.0),
-        );
+        )
+        .expect("Failed to set Dirichlet boundary condition");
     
         // Initialize scalar field
         let field = Section::<Scalar>::new();
@@ -313,7 +314,8 @@ mod tests {
         boundary_handler.set_bc(
             MeshEntity::Face(1),
             BoundaryCondition::Neumann(3.0),
-        );
+        )
+        .expect("Failed to set Neumann boundary condition");
 
         // Initialize scalar field
         let field = Section::<Scalar>::new();

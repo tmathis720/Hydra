@@ -56,9 +56,5 @@ pub fn create_reconstruction(
             info!("Using PPM Reconstruction method.");
             Ok(Box::new(PPMReconstruction))
         }
-        _ => {
-            error!("Invalid reconstruction method: {:?}", method);
-            Err(ReconstructionError::InvalidMethod(format!("{:?}", method)))
-        }
     }
 }

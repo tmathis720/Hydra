@@ -301,13 +301,12 @@ impl EnergyEquation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::boundary::bc_handler::{BoundaryConditionHandler, BoundaryCondition};
+    use crate::boundary::bc_handler::{BoundaryCondition, BoundaryConditionHandler};
     use crate::domain::section::{scalar::Scalar, vector::Vector3};
-    use crate::interface_adapters::domain_adapter::DomainBuilder;
     use crate::equation::fields::{Fields, Fluxes};
-    use crate::MeshEntity;
+    use crate::interface_adapters::domain_adapter::DomainBuilder;
 
-    /// Helper function to set up a basic 3D mesh for testing using a hexahedron cell.
+    /// Helper function to set up a basic 3D mesh for testing using a single hexahedron cell.
     fn setup_simple_mesh() -> Mesh {
         let mut builder = DomainBuilder::new();
     
@@ -339,13 +338,13 @@ mod tests {
     fn setup_fields(mesh: &Mesh) -> Fields {
         let mut fields = Fields::new();
 
-        // Set temperature field for cells
+        // Set temperature field for each cell
         for cell in mesh.get_cells() {
             fields.set_scalar_field_value("temperature", cell, Scalar(300.0));
             fields.set_vector_field_value("temperature_gradient", cell, Vector3([10.0, 5.0, -2.0]));
         }
 
-        // Set velocity field for faces
+        // Set velocity field for each face
         for face in mesh.get_faces() {
             fields.set_vector_field_value("velocity", face, Vector3([1.0, 0.0, 0.0]));
         }
@@ -360,22 +359,32 @@ mod tests {
         let mut fluxes = Fluxes::new();
         let boundary_handler = BoundaryConditionHandler::new();
 
-        // We know the hexahedron has 6 faces. Let's set a Dirichlet BC on Face(1).
-        let boundary_face = MeshEntity::Face(1);
-        boundary_handler.set_bc(boundary_face, BoundaryCondition::Dirichlet(400.0));
+        // The single hexahedron should have 6 faces. Let's confirm and pick the first face for Dirichlet BC.
+        let all_faces: Vec<_> = mesh.get_faces().into_iter().collect();
+        assert_eq!(
+            all_faces.len(),
+            6,
+            "Expected 6 faces for a single-hex mesh, found {}",
+            all_faces.len()
+        );
 
+        let dirichlet_face = all_faces[0];
+        boundary_handler.set_bc(dirichlet_face, BoundaryCondition::Dirichlet(400.0))
+            .expect("Failed to set Dirichlet BC.");
+
+        // Assemble energy equation
         let energy_eq = EnergyEquation::new(0.5);
-
         energy_eq.assemble(&mesh, &fields, &mut fluxes, &boundary_handler, 0.0);
 
-        // Check that fluxes were computed for the boundary face
-        let computed_flux = fluxes.energy_fluxes.restrict(&boundary_face);
+        // Check that fluxes were computed for the face with the Dirichlet BC
+        let computed_flux = fluxes.energy_fluxes.restrict(&dirichlet_face);
         assert!(
             computed_flux.is_ok(),
-            "Energy flux for boundary face was not computed."
+            "Energy flux for Dirichlet boundary face was not computed."
         );
         println!(
-            "Computed energy flux for boundary face: {:?}",
+            "Computed energy flux for Dirichlet face {:?}: {:?}",
+            dirichlet_face,
             computed_flux.unwrap().0
         );
     }
@@ -387,21 +396,25 @@ mod tests {
         let mut fluxes = Fluxes::new();
         let boundary_handler = BoundaryConditionHandler::new();
 
-        // Set Neumann boundary condition on another face, for example Face(2).
-        let boundary_face = MeshEntity::Face(2);
-        boundary_handler.set_bc(boundary_face, BoundaryCondition::Neumann(5.0));
+        // Pick the second face for the Neumann BC
+        let all_faces: Vec<_> = mesh.get_faces().into_iter().collect();
+        assert!(all_faces.len() >= 2, "Not enough faces to set a Neumann BC.");
+        let neumann_face = all_faces[1];
+
+        boundary_handler.set_bc(neumann_face, BoundaryCondition::Neumann(5.0))
+            .expect("Failed to set Neumann BC.");
 
         let energy_eq = EnergyEquation::new(0.5);
         energy_eq.assemble(&mesh, &fields, &mut fluxes, &boundary_handler, 0.0);
 
-        // Check that fluxes were computed for the boundary face
-        let computed_flux = fluxes.energy_fluxes.restrict(&boundary_face);
+        // Check that fluxes were computed for the face with the Neumann BC
+        let computed_flux = fluxes.energy_fluxes.restrict(&neumann_face);
         assert!(
             computed_flux.is_ok(),
-            "Energy flux for boundary face was not computed."
+            "Energy flux for Neumann boundary face was not computed."
         );
 
-        // With Neumann(5.0), the flux should be flux * area. For a unit cube face area = 1.0.
+        // For a unit cube, face area = 1.0. With Neumann(5.0), flux = 5.0 * area = 5.0
         let flux_val = computed_flux.unwrap().0;
         assert!(
             (flux_val - 5.0).abs() < 1e-6,
@@ -417,20 +430,20 @@ mod tests {
         let mut fluxes = Fluxes::new();
         let boundary_handler = BoundaryConditionHandler::new(); // No BCs
 
+        // Assemble energy equation
         let energy_eq = EnergyEquation::new(0.5);
         energy_eq.assemble(&mesh, &fields, &mut fluxes, &boundary_handler, 0.0);
 
-        // Check that fluxes were computed for internal faces
-        // In a single hexahedron, strictly speaking, there are no internal faces shared by two cells.
-        // This test might be more meaningful if we had more than one cell, but we'll assume that the
-        // code checks "internal" as those without BCs. Here, all faces belong to the single cell and are boundary faces.
-        // For demonstration, let's just ensure that all faces have computed fluxes unless a BC is missing.
-        for face in mesh.get_faces() {
-            if boundary_handler.get_bc(&face).is_none() {
-                let computed_flux = fluxes.energy_fluxes.restrict(&face);
+        // Check that fluxes were computed on faces without boundary conditions.
+        // In a single-hexahedron domain, all faces are physically boundary faces,
+        // but we only treat them as boundary if we assigned a BC. Otherwise, we treat them as "internal" for testing.
+        let all_faces: Vec<_> = mesh.get_faces().into_iter().collect();
+        for face in &all_faces {
+            if boundary_handler.get_bc(face).is_none() {
+                let computed_flux = fluxes.energy_fluxes.restrict(face);
                 assert!(
                     computed_flux.is_ok(),
-                    "Energy flux for internal (non-BC) face {:?} was not computed.",
+                    "Energy flux for internal-like (non-BC) face {:?} was not computed.",
                     face
                 );
             }
@@ -442,44 +455,43 @@ mod tests {
         let mesh = setup_simple_mesh();
         let mut fields = setup_fields(&mesh);
 
-        // Make sure we have a non-zero normal component to generate a non-zero flux.
-        // For instance, adjust the velocity so it has a component normal to one of the faces:
+        // Add a small normal component to velocity so conduction/convection flux is non-zero
         for face in mesh.get_faces() {
-            // Add a small normal component (e.g., in the y-direction) to ensure non-zero dot product
             fields.set_vector_field_value("velocity", face, Vector3([1.0, 1.0, 0.0]));
         }
 
         let mut fluxes = Fluxes::new();
-        let boundary_handler = BoundaryConditionHandler::new(); // No boundary conditions
-        
+        let boundary_handler = BoundaryConditionHandler::new(); // No BCs
+
+        // Compute fluxes once with high thermal conductivity and once with low
         let energy_eq_high_conductivity = EnergyEquation::new(1.0);
         let energy_eq_low_conductivity = EnergyEquation::new(0.1);
-        
-        // Compute fluxes with high thermal conductivity
+
+        // High conductivity
         energy_eq_high_conductivity.assemble(&mesh, &fields, &mut fluxes, &boundary_handler, 0.0);
-        let flux_high: Vec<Scalar> = fluxes.energy_fluxes.all_data();
-        
-        // Clear and compute fluxes with low thermal conductivity
+        let flux_high = fluxes.energy_fluxes.all_data();
+
+        // Clear and do low conductivity
         fluxes.energy_fluxes.clear();
         energy_eq_low_conductivity.assemble(&mesh, &fields, &mut fluxes, &boundary_handler, 0.0);
-        let flux_low: Vec<Scalar> = fluxes.energy_fluxes.all_data();
-        
+        let flux_low = fluxes.energy_fluxes.all_data();
+
+        // Compare ratio of fluxes
         for (high, low) in flux_high.iter().zip(flux_low.iter()) {
-            // Ensure both fluxes are non-zero to avoid division by zero
+            // If the low flux is effectively zero, skip ratio check
             if low.0.abs() < 1e-14 {
-                // If low flux is effectively zero, print a warning and continue.
-                // In a real scenario, you might want to adjust your setup to ensure non-zero flux.
-                eprintln!("Warning: low conductivity flux is near zero, cannot test scaling ratio.");
+                eprintln!("Warning: low conductivity flux is near zero. Cannot check ratio.");
                 continue;
             }
-            
+
             let ratio = high.0 / low.0;
             assert!(
                 (ratio - 10.0).abs() < 1e-6,
                 "Scaling mismatch: expected ratio ~10, got {} (high={}, low={})",
-                ratio, high.0, low.0
+                ratio,
+                high.0,
+                low.0
             );
         }
     }
-
 }

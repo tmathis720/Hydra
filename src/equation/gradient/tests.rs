@@ -88,7 +88,8 @@ mod tests {
         boundary_handler.set_bc(
             MeshEntity::Face(1),
             BoundaryCondition::Dirichlet(2.0),
-        );
+        )
+        .expect("Failed to set Dirichlet BC");
 
         // Initialize scalar field
         let field = Section::<Scalar>::new();
@@ -137,7 +138,8 @@ mod tests {
         boundary_handler.set_bc(
             MeshEntity::Face(1),
             BoundaryCondition::Neumann(3.0),
-        );
+        )
+        .expect("Failed to set Neumann BC");
 
         // Initialize scalar field
         let field = Section::<Scalar>::new();

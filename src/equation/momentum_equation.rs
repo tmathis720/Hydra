@@ -513,7 +513,8 @@ mod tests {
             .cloned()
             .expect("No face found in mesh");
 
-        bc_handler.set_bc(face, BoundaryCondition::Dirichlet(10.0));
+        bc_handler.set_bc(face, BoundaryCondition::Dirichlet(10.0))
+            .expect("Failed to set Dirichlet BC");
         bc_handler
     }
 

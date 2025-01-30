@@ -126,7 +126,8 @@ mod correct_velocity_tests {
 
         // Assign Dirichlet boundary conditions to all faces
         for face in mesh.get_faces() {
-            boundary_handler.set_bc(face.clone(), BoundaryCondition::Dirichlet(0.0));
+            boundary_handler.set_bc(face.clone(), BoundaryCondition::Dirichlet(0.0))
+                .expect("Failed to set Dirichlet BC for face");
         }
 
         boundary_handler

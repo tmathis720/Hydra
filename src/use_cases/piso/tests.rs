@@ -88,7 +88,8 @@ mod piso_tests {
     fn setup_boundary_conditions(mesh: &Mesh) -> BoundaryConditionHandler {
         let bc_handler = BoundaryConditionHandler::new();
         let face = mesh.get_faces().iter().next().cloned().expect("No face found in mesh");
-        bc_handler.set_bc(face, BoundaryCondition::Dirichlet(10.0));
+        bc_handler.set_bc(face, BoundaryCondition::Dirichlet(10.0))
+            .expect("Failed to set Dirichlet BC for face");
         bc_handler
     }
 

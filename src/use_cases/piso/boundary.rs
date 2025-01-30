@@ -75,7 +75,12 @@ pub fn apply_pressure_poisson_bc(
                 matrix,
                 &mesh.entity_to_index_map(),
                 0.0,
-            );
+            )
+            .map_err(|err| {
+                let msg = format!("Error applying boundary condition to face {:?}: {:?}", face, err);
+                println!("{}", msg);
+                msg
+            })?;
             println!("Boundary condition applied successfully to face {:?}.", face);
         } else {
             println!("No boundary condition found for face {:?}.", face);

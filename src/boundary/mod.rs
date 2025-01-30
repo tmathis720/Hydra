@@ -47,6 +47,9 @@ pub enum BoundaryError {
 
     #[error("Invalid index: {0}")]
     InvalidIndex(String),
+
+    #[error("Invalid boundary condition: {0}")]
+    InvalidCondition(String),
 }
 
 /// Logs an error message.

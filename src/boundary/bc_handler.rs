@@ -108,7 +108,7 @@ lazy_static! {
 
 impl BoundaryConditionHandler {
     /// Retrieves the coordinates of a mesh entity.
-    fn get_coordinates(&self, entity: &MeshEntity) -> Result<Vec<f64>, BoundaryError> {
+    fn get_coordinates(&self, _entity: &MeshEntity) -> Result<Vec<f64>, BoundaryError> {
         // Placeholder implementation, replace with actual logic to get coordinates
         Ok(vec![0.0, 0.0, 0.0])
     }
@@ -193,11 +193,19 @@ impl BoundaryConditionHandler {
 
             match bc {
                 BoundaryCondition::Dirichlet(value) => {
-                    DirichletBC::new().apply_constant_dirichlet(matrix, rhs, index, value);
+                    DirichletBC::new().apply_constant_dirichlet(matrix, rhs, index, value)
+                        .map_err(|err| {
+                            error!("{}", err);
+                            err
+                        })?;
                     info!("Applied Dirichlet condition ({}) to entity {:?}", value, entity);
                 }
                 BoundaryCondition::Neumann(flux) => {
-                    NeumannBC::new().apply_constant_neumann(rhs, index, flux);
+                    NeumannBC::new().apply_constant_neumann(rhs, index, flux)
+                        .map_err(|err| {
+                            error!("{}", err);
+                            err
+                        })?;
                     info!("Applied Neumann condition ({}) to entity {:?}", flux, entity);
                 }
                 BoundaryCondition::Robin { alpha, beta } => {
@@ -214,7 +222,11 @@ impl BoundaryConditionHandler {
                 BoundaryCondition::DirichletFn(wrapper) => {
                     let coords = self.get_coordinates(entity)?;
                     let value = (wrapper.function)(time, &coords);
-                    DirichletBC::new().apply_constant_dirichlet(matrix, rhs, index, value);
+                    DirichletBC::new().apply_constant_dirichlet(matrix, rhs, index, value)
+                        .map_err(|err| {
+                            error!("{}", err);
+                            err
+                        })?;
                     info!(
                         "Applied functional Dirichlet condition (computed value: {}) to entity {:?}",
                         value, entity
@@ -223,14 +235,22 @@ impl BoundaryConditionHandler {
                 BoundaryCondition::NeumannFn(wrapper) => {
                     let coords = self.get_coordinates(entity)?;
                     let value = (wrapper.function)(time, &coords);
-                    NeumannBC::new().apply_constant_neumann(rhs, index, value);
+                    NeumannBC::new().apply_constant_neumann(rhs, index, value)
+                        .map_err(|err| {
+                            error!("{}", err);
+                            err
+                        })?;
                     info!(
                         "Applied functional Neumann condition (computed value: {}) to entity {:?}",
                         value, entity
                     );
                 }
                 BoundaryCondition::Mixed { gamma, delta } => {
-                    MixedBC::new().apply_mixed(matrix, rhs, index, gamma, delta);
+                    MixedBC::new().apply_mixed(matrix, rhs, index, gamma, delta)
+                        .map_err(|err| {
+                            error!("{}", err);
+                            err
+                        })?;
                     info!(
                         "Applied Mixed condition (gamma: {}, delta: {}) to entity {:?}",
                         gamma, delta, entity
@@ -244,11 +264,19 @@ impl BoundaryConditionHandler {
                     );
                 }
                 BoundaryCondition::FarField(value) => {
-                    FarFieldBC::new().apply_far_field(matrix, rhs, index, value);
+                    FarFieldBC::new().apply_far_field(matrix, rhs, index, value)
+                        .map_err(|err| {
+                            error!("{}", err);
+                            err
+                        })?;
                     info!("Applied FarField condition ({}) to entity {:?}", value, entity);
                 }
                 BoundaryCondition::Injection(value) => {
-                    InjectionBC::new().apply_injection(matrix, rhs, index, value);
+                    InjectionBC::new().apply_injection(matrix, rhs, index, value)
+                        .map_err(|err| {
+                            error!("{}", err);
+                            err
+                        })?;
                     info!("Applied Injection condition ({}) to entity {:?}", value, entity);
                 }
                 BoundaryCondition::InletOutlet => {
@@ -269,14 +297,6 @@ impl BoundaryConditionHandler {
                         "Applied Periodic condition to entity {:?} with pairs {:?}",
                         entity, pairs
                     );
-                }
-                _ => {
-                    let err = BoundaryError::InvalidBoundaryType(format!(
-                        "Unsupported boundary condition {:?} for entity {:?}",
-                        bc, entity
-                    ));
-                    error!("{}", err);
-                    return Err(err);
                 }
             }
         }
@@ -325,7 +345,11 @@ impl BoundaryConditionApply for BoundaryCondition {
         match self {
             BoundaryCondition::Dirichlet(value) => {
                 let dirichlet_bc = DirichletBC::new();
-                dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, *value);
+                dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, *value)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied Dirichlet condition ({}) to entity {:?}",
                     value, entity
@@ -333,7 +357,11 @@ impl BoundaryConditionApply for BoundaryCondition {
             }
             BoundaryCondition::Neumann(flux) => {
                 let neumann_bc = NeumannBC::new();
-                neumann_bc.apply_constant_neumann(rhs, index, *flux);
+                neumann_bc.apply_constant_neumann(rhs, index, *flux)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied Neumann condition ({}) to entity {:?}",
                     flux, entity
@@ -349,7 +377,11 @@ impl BoundaryConditionApply for BoundaryCondition {
             }
             BoundaryCondition::SolidWallInviscid | BoundaryCondition::SolidWallViscous { .. } => {
                 let solid_wall_bc = SolidWallBC::new();
-                solid_wall_bc.apply_bc(matrix, rhs, entity_to_index);
+                solid_wall_bc.apply_bc(matrix, rhs, entity_to_index)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied SolidWall condition to entity {:?}",
                     entity
@@ -359,7 +391,11 @@ impl BoundaryConditionApply for BoundaryCondition {
                 let coords = [0.0, 0.0, 0.0]; // Replace with actual entity coordinates if available
                 let value = (wrapper.function)(time, &coords);
                 let dirichlet_bc = DirichletBC::new();
-                dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value);
+                dirichlet_bc.apply_constant_dirichlet(matrix, rhs, index, value)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied functional Dirichlet condition (computed value: {}) to entity {:?}",
                     value, entity
@@ -369,7 +405,11 @@ impl BoundaryConditionApply for BoundaryCondition {
                 let coords = [0.0, 0.0, 0.0];
                 let value = (wrapper.function)(time, &coords);
                 let neumann_bc = NeumannBC::new();
-                neumann_bc.apply_constant_neumann(rhs, index, value);
+                neumann_bc.apply_constant_neumann(rhs, index, value)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied functional Neumann condition (computed value: {}) to entity {:?}",
                     value, entity
@@ -377,7 +417,11 @@ impl BoundaryConditionApply for BoundaryCondition {
             }
             BoundaryCondition::Mixed { gamma, delta } => {
                 let mixed_bc = MixedBC::new();
-                mixed_bc.apply_mixed(matrix, rhs, index, *gamma, *delta);
+                mixed_bc.apply_mixed(matrix, rhs, index, *gamma, *delta)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied Mixed condition (gamma: {}, delta: {}) to entity {:?}",
                     gamma, delta, entity
@@ -393,7 +437,11 @@ impl BoundaryConditionApply for BoundaryCondition {
             }
             BoundaryCondition::FarField(value) => {
                 let far_field_bc = FarFieldBC::new();
-                far_field_bc.apply_far_field(matrix, rhs, index, *value);
+                far_field_bc.apply_far_field(matrix, rhs, index, *value)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied FarField condition ({}) to entity {:?}",
                     value, entity
@@ -401,7 +449,11 @@ impl BoundaryConditionApply for BoundaryCondition {
             }
             BoundaryCondition::Injection(value) => {
                 let injection_bc = InjectionBC::new();
-                injection_bc.apply_injection(matrix, rhs, index, *value);
+                injection_bc.apply_injection(matrix, rhs, index, *value)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied Injection condition ({}) to entity {:?}",
                     value, entity
@@ -409,7 +461,11 @@ impl BoundaryConditionApply for BoundaryCondition {
             }
             BoundaryCondition::InletOutlet => {
                 let inlet_outlet_bc = InletOutletBC::new();
-                inlet_outlet_bc.apply_bc(matrix, rhs, entity_to_index);
+                inlet_outlet_bc.apply_bc(matrix, rhs, entity_to_index)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied InletOutlet condition to entity {:?}",
                     entity
@@ -428,19 +484,15 @@ impl BoundaryConditionApply for BoundaryCondition {
                 for (entity1, entity2) in pairs {
                     periodic_bc.set_pair(entity1.clone(), entity2.clone());
                 }
-                periodic_bc.apply_bc(matrix, rhs, entity_to_index);
+                periodic_bc.apply_bc(matrix, rhs, entity_to_index)
+                    .map_err(|err| {
+                        log_boundary_error(&err);
+                        err
+                    })?;
                 log_boundary_info(&format!(
                     "Applied Periodic condition to entity {:?} with pairs {:?}",
                     entity, pairs
                 ));
-            }
-            _ => {
-                let err = BoundaryError::InvalidBoundaryType(format!(
-                    "Unsupported boundary condition {:?} for entity {:?}",
-                    self, entity
-                ));
-                log_boundary_error(&err);
-                return Err(err);
             }
         }
         Ok(())
@@ -461,7 +513,8 @@ mod tests {
         let entity = MeshEntity::Face(1);
         let condition = BoundaryCondition::Dirichlet(10.0);
 
-        handler.set_bc(entity.clone(), condition.clone());
+        handler.set_bc(entity.clone(), condition.clone())
+            .expect("Failed to set boundary condition");
 
         assert_eq!(handler.get_bc(&entity), Some(condition));
     }
@@ -483,7 +536,8 @@ mod tests {
         let dirichlet_bc = BoundaryCondition::Dirichlet(5.0);
 
         // Apply the Dirichlet boundary condition
-        dirichlet_bc.apply(&entity, &mut rhs_mut, &mut matrix_mut, &index_map, 0.0);
+        dirichlet_bc.apply(&entity, &mut rhs_mut, &mut matrix_mut, &index_map, 0.0)
+            .expect("Failed to apply Dirichlet condition");
 
         // Verify matrix and RHS updates
         for col in 0..matrix_mut.ncols() {

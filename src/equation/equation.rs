@@ -151,7 +151,8 @@ impl Equation {
             &boundary_entities,
             &entity_to_index,
             current_time,
-        );
+        )
+        .expect("Failed to apply boundary conditions");
     }    
 }
 
@@ -253,7 +254,8 @@ mod tests {
         let faces = mesh.get_faces();
         assert!(!faces.is_empty(), "No faces in mesh");
         // Apply Dirichlet BC to the first face
-        boundary_handler.set_bc(faces[0].clone(), BoundaryCondition::Dirichlet(5.0));
+        boundary_handler.set_bc(faces[0].clone(), BoundaryCondition::Dirichlet(5.0))
+            .expect("Failed to set Dirichlet BC");
 
         let equation = Equation {};
         equation.calculate_fluxes(&mesh, &velocity_field, &pressure_field, &mut fluxes, &boundary_handler, 0.0);
@@ -276,7 +278,8 @@ mod tests {
         assert!(!faces.is_empty(), "No faces in mesh");
     
         let bc_face = faces.iter().find(|f| mesh.get_face_normal(f, None).is_ok()).unwrap();
-        boundary_handler.set_bc(bc_face.clone(), BoundaryCondition::Neumann(2.0));
+        boundary_handler.set_bc(bc_face.clone(), BoundaryCondition::Neumann(2.0))
+            .expect(&format!("Failed to set Neumann BC for face {:?}", bc_face));
     
         let equation = Equation {};
         equation.calculate_fluxes(&mesh, &velocity_field, &pressure_field, &mut fluxes, &boundary_handler, 0.0);
@@ -302,7 +305,8 @@ mod tests {
         assert!(!faces.is_empty(), "No faces in mesh");
     
         let bc_face = faces.iter().find(|f| mesh.get_face_normal(f, None).is_ok()).unwrap();
-        boundary_handler.set_bc(bc_face.clone(), BoundaryCondition::Robin { alpha: 0.8, beta: 2.0 });
+        boundary_handler.set_bc(bc_face.clone(), BoundaryCondition::Robin { alpha: 0.8, beta: 2.0 })
+            .expect(&format!("Failed to set Robin BC for face {:?}", bc_face));
     
         let equation = Equation {};
         equation.calculate_fluxes(&mesh, &velocity_field, &pressure_field, &mut fluxes, &boundary_handler, 0.0);

@@ -420,7 +420,8 @@ mod pressure_correction_tests {
     fn setup_boundary_conditions(mesh: &Mesh) -> BoundaryConditionHandler {
         let boundary_handler = BoundaryConditionHandler::new();
         for face in mesh.get_faces() {
-            boundary_handler.set_bc(face.clone(), BoundaryCondition::Dirichlet(0.0));
+            boundary_handler.set_bc(face.clone(), BoundaryCondition::Dirichlet(0.0))
+                .expect("Failed to set boundary condition.");
         }
         boundary_handler
     }
@@ -565,7 +566,8 @@ mod pressure_correction_tests {
         // Apply Neumann BC instead of Dirichlet
         let boundary_handler = BoundaryConditionHandler::new();
         for face in mesh.get_faces() {
-            boundary_handler.set_bc(face.clone(), BoundaryCondition::Neumann(0.0));
+            boundary_handler.set_bc(face.clone(), BoundaryCondition::Neumann(0.0))
+                .expect("Failed to set boundary condition.");
         }
 
         let mut cg_solver = ConjugateGradient::new(1000, 1e-6);
@@ -654,7 +656,8 @@ mod correct_velocity_tests {
     fn setup_boundary_conditions(mesh: &Mesh) -> BoundaryConditionHandler {
         let boundary_handler = BoundaryConditionHandler::new();
         for face in mesh.get_faces() {
-            boundary_handler.set_bc(face.clone(), BoundaryCondition::Neumann(0.0));
+            boundary_handler.set_bc(face.clone(), BoundaryCondition::Neumann(0.0))
+                .expect("Failed to set boundary condition.");
         }
         boundary_handler
     }
