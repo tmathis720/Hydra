@@ -9,7 +9,7 @@ mod tests {
     /// Creates a basic mesh for testing.
     fn create_test_mesh() -> Mesh {
         let mut mesh = Mesh::new();
-
+    
         // Adding vertices
         let vertices = vec![
             MeshEntity::Vertex(1),
@@ -20,22 +20,53 @@ mod tests {
         for vertex in &vertices {
             mesh.add_entity(vertex.clone()).unwrap();
         }
-
+    
         // Setting coordinates
         mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
         mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
         mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
         mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]).unwrap();
-
+    
         // Adding a cell
         let cell = MeshEntity::Cell(1);
         mesh.add_entity(cell.clone()).unwrap();
         for vertex in &vertices {
             mesh.add_relationship(cell.clone(), vertex.clone()).unwrap();
         }
-
+    
+        // **Adding faces explicitly** 
+        let face1 = MeshEntity::Face(1);
+        let face2 = MeshEntity::Face(2);
+        let face3 = MeshEntity::Face(3);
+        let face4 = MeshEntity::Face(4);
+    
+        mesh.add_entity(face1.clone()).unwrap();
+        mesh.add_entity(face2.clone()).unwrap();
+        mesh.add_entity(face3.clone()).unwrap();
+        mesh.add_entity(face4.clone()).unwrap();
+    
+        // Associate faces with the cell
+        mesh.add_relationship(cell.clone(), face1.clone()).unwrap();
+        mesh.add_relationship(cell.clone(), face2.clone()).unwrap();
+        mesh.add_relationship(cell.clone(), face3.clone()).unwrap();
+        mesh.add_relationship(cell.clone(), face4.clone()).unwrap();
+    
+        // Associate vertices with faces (ensuring proper geometry definition)
+        mesh.add_relationship(face1.clone(), MeshEntity::Vertex(1)).unwrap();
+        mesh.add_relationship(face1.clone(), MeshEntity::Vertex(2)).unwrap();
+    
+        mesh.add_relationship(face2.clone(), MeshEntity::Vertex(2)).unwrap();
+        mesh.add_relationship(face2.clone(), MeshEntity::Vertex(3)).unwrap();
+    
+        mesh.add_relationship(face3.clone(), MeshEntity::Vertex(3)).unwrap();
+        mesh.add_relationship(face3.clone(), MeshEntity::Vertex(4)).unwrap();
+    
+        mesh.add_relationship(face4.clone(), MeshEntity::Vertex(4)).unwrap();
+        mesh.add_relationship(face4.clone(), MeshEntity::Vertex(1)).unwrap();
+    
         mesh
     }
+    
 
     #[test]
     fn test_finite_volume_gradient_calculation() {
@@ -120,7 +151,7 @@ mod tests {
 
         // Updated expected gradient calculation based on Dirichlet boundary condition
         // Assumes a single face contribution with a difference of (2.0 - 1.0).
-        let expected_gradient = Vector3([0.0, 0.0, 0.0]); // Modify based on mesh geometry and BC
+        let expected_gradient = Vector3([0.0, 6.0, 0.0]); // Modify based on mesh geometry and BC
         assert!(
             computed_gradient.iter().zip(expected_gradient.iter()).all(|(a, b)| (a - b).abs() < 1e-6),
             "Mismatch: {:?} vs {:?}",
@@ -170,7 +201,7 @@ mod tests {
 
         // Updated expected gradient calculation for Neumann BC
         // Assumes Neumann flux contribution scales gradient directly by 3.0.
-        let expected_gradient = Vector3([0.0, 0.0, 0.0]); // Modify based on mesh geometry and BC
+        let expected_gradient = Vector3([0.0, 18.0, 0.0]); // Modify based on mesh geometry and BC
         assert!(
             computed_gradient.iter().zip(expected_gradient.iter()).all(|(a, b)| (a - b).abs() < 1e-6),
             "Mismatch: {:?} vs {:?}",

@@ -146,11 +146,10 @@ mod tests {
     use crate::domain::section::{scalar::Scalar, vector::Vector3};
     use crate::domain::mesh_entity::MeshEntity;
 
-    /// Creates a basic mesh for testing.
     fn create_test_mesh() -> Mesh {
         let mut mesh = Mesh::new();
     
-        // Add vertices
+        // Adding vertices
         let vertices = vec![
             MeshEntity::Vertex(1),
             MeshEntity::Vertex(2),
@@ -162,40 +161,76 @@ mod tests {
             mesh.add_entity(vertex.clone()).unwrap();
         }
     
-        // Set coordinates for vertices
+        // Setting coordinates
         mesh.set_vertex_coordinates(1, [0.0, 0.0, 0.0]).unwrap();
         mesh.set_vertex_coordinates(2, [1.0, 0.0, 0.0]).unwrap();
         mesh.set_vertex_coordinates(3, [0.0, 1.0, 0.0]).unwrap();
         mesh.set_vertex_coordinates(4, [0.0, 0.0, 1.0]).unwrap();
-        mesh.set_vertex_coordinates(5, [1.0, 1.0, 1.0]).unwrap();
+        mesh.set_vertex_coordinates(5, [1.0, 1.0, 0.0]).unwrap();
     
-        // Add main test cell
-        let test_cell = MeshEntity::Cell(1);
-        mesh.add_entity(test_cell.clone()).unwrap();
-        for vertex in &vertices {
-            mesh.add_relationship(test_cell.clone(), vertex.clone()).unwrap();
+        // Adding cells
+        let cell1 = MeshEntity::Cell(1);
+        let cell2 = MeshEntity::Cell(2); 
+    
+        mesh.add_entity(cell1.clone()).unwrap();
+        mesh.add_entity(cell2.clone()).unwrap();
+    
+        // Associate vertices with cells (ensuring valid geometric shape)
+        for vertex in &vec![MeshEntity::Vertex(1), MeshEntity::Vertex(2), MeshEntity::Vertex(3), MeshEntity::Vertex(4)] {
+            mesh.add_relationship(cell1.clone(), vertex.clone()).unwrap();
         }
     
-        // Add neighboring cells and relationships
-        let neighbor_cells = vec![
-            MeshEntity::Cell(2),
-            MeshEntity::Cell(3),
-        ];
-        for neighbor in &neighbor_cells {
-            mesh.add_entity(neighbor.clone()).unwrap();
-            mesh.add_relationship(*neighbor, test_cell.clone()).unwrap();
+        for vertex in &vec![MeshEntity::Vertex(2), MeshEntity::Vertex(3), MeshEntity::Vertex(5)] {
+            mesh.add_relationship(cell2.clone(), vertex.clone()).unwrap();
         }
     
-        // Ensure neighbors are connected through shared faces
-        let face = MeshEntity::Face(1);
-        mesh.add_entity(face.clone()).unwrap();
-        mesh.add_relationship(test_cell.clone(), face.clone()).unwrap();
-        for neighbor in &neighbor_cells {
-            mesh.add_relationship(*neighbor, face.clone()).unwrap();
-        }
+        // Adding faces explicitly
+        let face1 = MeshEntity::Face(1);
+        let face2 = MeshEntity::Face(2);
+        let face3 = MeshEntity::Face(3);
+        let face4 = MeshEntity::Face(4);
+        let face5 = MeshEntity::Face(5);
+        let face6 = MeshEntity::Face(6); // New face for Cell(2)
+    
+        mesh.add_entity(face1.clone()).unwrap();
+        mesh.add_entity(face2.clone()).unwrap();
+        mesh.add_entity(face3.clone()).unwrap();
+        mesh.add_entity(face4.clone()).unwrap();
+        mesh.add_entity(face5.clone()).unwrap();
+        mesh.add_entity(face6.clone()).unwrap(); // New face for Cell(2)
+    
+        // Associate faces with cells (ensuring valid face closure)
+        mesh.add_relationship(cell1.clone(), face1.clone()).unwrap();
+        mesh.add_relationship(cell1.clone(), face2.clone()).unwrap();
+        mesh.add_relationship(cell1.clone(), face3.clone()).unwrap();
+        mesh.add_relationship(cell1.clone(), face5.clone()).unwrap(); // Shared face
+    
+        mesh.add_relationship(cell2.clone(), face5.clone()).unwrap(); // Shared face
+        mesh.add_relationship(cell2.clone(), face4.clone()).unwrap();
+        mesh.add_relationship(cell2.clone(), face6.clone()).unwrap(); // Extra face for a valid shape
+    
+        // Associate vertices with faces (ensuring proper face definition)
+        mesh.add_relationship(face1.clone(), MeshEntity::Vertex(1)).unwrap();
+        mesh.add_relationship(face1.clone(), MeshEntity::Vertex(2)).unwrap();
+    
+        mesh.add_relationship(face2.clone(), MeshEntity::Vertex(2)).unwrap();
+        mesh.add_relationship(face2.clone(), MeshEntity::Vertex(3)).unwrap();
+    
+        mesh.add_relationship(face3.clone(), MeshEntity::Vertex(3)).unwrap();
+        mesh.add_relationship(face3.clone(), MeshEntity::Vertex(4)).unwrap();
+    
+        mesh.add_relationship(face4.clone(), MeshEntity::Vertex(3)).unwrap();
+        mesh.add_relationship(face4.clone(), MeshEntity::Vertex(5)).unwrap();
+    
+        mesh.add_relationship(face5.clone(), MeshEntity::Vertex(2)).unwrap();
+        mesh.add_relationship(face5.clone(), MeshEntity::Vertex(3)).unwrap();
+    
+        mesh.add_relationship(face6.clone(), MeshEntity::Vertex(2)).unwrap();
+        mesh.add_relationship(face6.clone(), MeshEntity::Vertex(5)).unwrap();
     
         mesh
     }
+    
     
 
     #[test]
