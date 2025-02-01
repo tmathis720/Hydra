@@ -22,6 +22,7 @@ pub struct Geometry {
     pub vertices: Vec<[f64; 3]>,        // 3D coordinates for each vertex
     pub cell_centroids: Vec<[f64; 3]>,  // Centroid positions for each cell
     pub cell_volumes: Vec<f64>,         // Volumes of each cell
+    pub cell_shapes: Vec<Option<CellShape>>, // Shape of each cell
     pub cache: Mutex<FxHashMap<usize, GeometryCache>>, // Cache for computed properties, with thread safety
 }
 
@@ -33,6 +34,7 @@ pub struct GeometryCache {
     pub centroid: Option<[f64; 3]>,
     pub area: Option<f64>,
     pub normal: Option<[f64; 3]>,  // Stores a precomputed normal vector for a face
+    pub cell_shape: Option<CellShape>, // Stores the shape of a cell
 }
 
 /// `CellShape` enumerates the different cell shapes in a mesh, including:
@@ -118,8 +120,91 @@ impl Geometry {
             vertices: Vec::new(),
             cell_centroids: Vec::new(),
             cell_volumes: Vec::new(),
+            cell_shapes: Vec::new(),
             cache: Mutex::new(FxHashMap::default()),
         }
+    }
+
+    /// Populates the geometry cache with centroids, volumes, normals, and cell shapes.
+    pub fn populate_geometry_cache(&mut self, mesh: &Mesh) -> Result<(), GeometryError> {
+        // **Step 1: Define and Cache Cell Shapes**
+        for (index, cell) in mesh.get_cells().iter().enumerate() {
+            let cell_id = cell.get_id();
+
+            // Retrieve the cell shape
+            let cell_shape = mesh
+                .get_cell_shape(cell)
+                .map_err(|_| GeometryError::InvalidShape(format!("Unsupported or missing shape for cell {:?}", cell)))?;
+
+            // Compute centroid and volume before acquiring cache
+            let centroid = self.compute_cell_centroid(mesh, cell)?;
+            let volume = self.compute_cell_volume(mesh, cell)?;
+
+            {
+                // Scoped block to limit borrow duration of `cache`
+                let mut cache = self.cache.lock().unwrap();
+                let entry = cache.entry(cell_id).or_default();
+                entry.cell_shape = Some(cell_shape);
+                entry.centroid = Some(centroid);
+                entry.volume = Some(volume);
+            } // `cache` is dropped here, allowing mutable access to `self`
+
+            // Now we can mutate `self` safely
+            if self.cell_shapes.len() <= index {
+                self.cell_shapes.resize(index + 1, None);
+            }
+            self.cell_shapes[index] = Some(cell_shape);
+
+            log::info!(
+                "Cached cell {:?}: shape={:?}, centroid={:?}, volume={}",
+                cell_id, cell_shape, centroid, volume
+            );
+        }
+
+        // **Step 2: Define Face Shapes and Compute Face Normals**
+        for face in mesh.get_faces() {
+            let face_id = face.get_id();
+
+            // Retrieve face vertices
+            let face_vertices = match mesh.get_face_vertices(&face) {
+                Ok(vertices) => vertices,
+                Err(err) => {
+                    log::error!("Failed to retrieve vertices for face {:?}: {}", face, err);
+                    continue; // Skip problematic faces
+                }
+            };
+
+            // Determine the face shape based on vertex count
+            let face_shape = match face_vertices.len() {
+                2 => FaceShape::Edge,
+                3 => FaceShape::Triangle,
+                4 => FaceShape::Quadrilateral,
+                _ => {
+                    log::warn!("Unsupported face shape with {} vertices", face_vertices.len());
+                    continue; // Skip unsupported faces
+                }
+            };
+
+            // Compute face centroid and normal before acquiring cache
+            let face_centroid = self.compute_face_centroid(face_shape, &face_vertices)?;
+            let normal = self.compute_face_normal(mesh, &face, &MeshEntity::Cell(0))?;
+
+            {
+                // Scoped block for the cache
+                let mut cache = self.cache.lock().unwrap();
+                let entry = cache.entry(face_id).or_default();
+                entry.centroid = Some(face_centroid);
+                entry.normal = Some(normal.0);
+            } // `cache` is dropped here, allowing other mutable accesses
+
+            log::info!(
+                "Cached face {:?}: shape={:?}, centroid={:?}, normal={:?}",
+                face_id, face_shape, face_centroid, normal
+            );
+        }
+
+        log::info!("Geometry cache fully populated.");
+        Ok(())
     }
 
     /// Adds or updates a vertex in the geometry. If the vertex already exists,
